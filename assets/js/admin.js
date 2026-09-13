@@ -2,7 +2,7 @@
    Auteur : Mamadou Barry */
 
 const Admin = {
-  demarrer() {
+  async demarrer() {
     const session = Auth.exiger('admin', '../');
     if (!session) return;
     monterBarreUtilisateur(session, '../');
@@ -10,12 +10,17 @@ const Admin = {
     const methode = 'page' + page.charAt(0).toUpperCase() + page.slice(1).replace(/-(.)/g, function (m, c) {
       return c.toUpperCase();
     });
-    if (typeof this[methode] === 'function') this[methode](session);
+    if (typeof this[methode] === 'function') await this[methode](session);
   },
 
   /* Tableau de bord */
-  pageTableauDeBord(session) {
-    const k = Store.indicateurs();
+  async pageTableauDeBord(session) {
+    const [k, trajetsEnCours, incidentsOuverts, chauffeurs] = await Promise.all([
+      Store.indicateurs(),
+      Store.trajets({ statut: 'en-cours' }),
+      Store.incidents({ statut: 'ouvert' }),
+      Store.chauffeurs()
+    ]);
     const prenom = session.nom.split(' ')[0];
     document.querySelector('[data-salutation]').textContent = 'Bonjour ' + prenom;
     document.querySelector('[data-sous-titre]').textContent =
@@ -34,8 +39,8 @@ const Admin = {
     document.querySelector('[data-kpi-note="trajets"]').textContent = 'sur ' + k.trajetsDuJour + ' aujourd hui';
 
     const corps = document.querySelector('[data-trajets-en-cours]');
-    corps.innerHTML = Store.trajets({ statut: 'en-cours' }).map(function (t) {
-      const c = Store.chauffeur(t.chauffeurId);
+    const lignesTrajets = await Promise.all(trajetsEnCours.map(async function (t) {
+      const c = await Store.chauffeur(t.chauffeurId);
       const p = Format.progression(t);
       return '<tr>' +
         '<td><span class="d-inline-flex align-items-center gap-2">' +
@@ -50,19 +55,19 @@ const Admin = {
         '<td class="text-end"><a class="tf-mono" style="font-size:12.5px" href="trajet.html?id=' +
           encodeURIComponent(t.id) + '">Detail</a></td>' +
         '</tr>';
-    }).join('');
+    }));
+    corps.innerHTML = lignesTrajets.join('');
 
     const alertes = document.querySelector('[data-alertes]');
-    const morceaux = [];
-    Store.incidents({ statut: 'ouvert' }).forEach(function (i) {
-      const c = Store.chauffeur(i.chauffeurId);
-      morceaux.push('<div class="tf-alert high"><div class="tf-alert-bar"></div><div>' +
+    const morceaux = await Promise.all(incidentsOuverts.map(async function (i) {
+      const c = await Store.chauffeur(i.chauffeurId);
+      return '<div class="tf-alert high"><div class="tf-alert-bar"></div><div>' +
         '<div style="font-size:13.5px;font-weight:500">Incident ' +
         Format.echapper(Format.typeIncident(i.type).texte.toLowerCase()) + ' non traite</div>' +
         '<div class="tf-meta mt-1">' + Format.echapper(Format.nomCourt(c) + ' — ' + i.lieu) +
-        ' · ' + Format.echapper(i.heure) + '</div></div></div>');
-    });
-    Store.chauffeurs().filter(function (c) {
+        ' · ' + Format.echapper(i.heure) + '</div></div></div>';
+    }));
+    chauffeurs.filter(function (c) {
       return new Date(c.permisExpiration) < new Date('2026-11-11');
     }).forEach(function (c) {
       morceaux.push('<div class="tf-alert"><div class="tf-alert-bar"></div><div>' +
@@ -80,10 +85,10 @@ const Admin = {
     const corps = document.querySelector('[data-liste-chauffeurs]');
     const compteur = document.querySelector('[data-compteur]');
 
-    function dessiner() {
-      const liste = Store.chauffeurs(etat);
+    async function dessiner() {
+      const [liste, tous] = await Promise.all([Store.chauffeurs(etat), Store.chauffeurs()]);
       compteur.textContent = liste.length + ' resultat' + (liste.length > 1 ? 's' : '') +
-        ' sur ' + Store.chauffeurs().length;
+        ' sur ' + tous.length;
       corps.innerHTML = liste.map(function (c) {
         const s = Format.statutChauffeur(c.statut);
         const bientot = new Date(c.permisExpiration) < new Date('2026-11-11');
@@ -118,19 +123,22 @@ const Admin = {
         dessiner();
       });
     });
-    dessiner();
+    return dessiner();
   },
 
   /* Fiche chauffeur */
-  pageChauffeur() {
+  async pageChauffeur() {
     const id = new URLSearchParams(location.search).get('id') || 'c1';
-    const c = Store.chauffeur(id);
+    const c = await Store.chauffeur(id);
     if (!c) { document.querySelector('[data-fiche]').innerHTML =
       '<p class="tf-muted">Chauffeur introuvable.</p>'; return; }
 
     const s = Format.statutChauffeur(c.statut);
-    const trajets = Store.trajets({ chauffeurId: c.id });
-    const incidents = Store.incidents({ chauffeurId: c.id });
+    const [trajets, incidents, vehicules] = await Promise.all([
+      Store.trajets({ chauffeurId: c.id }),
+      Store.incidents({ chauffeurId: c.id }),
+      Store.vehicules()
+    ]);
 
     document.querySelector('[data-fil]').textContent = Format.nomComplet(c);
     document.querySelector('[data-avatar]').className = 'tf-avatar lg ' + Format.tonAvatar(c.id);
@@ -148,7 +156,7 @@ const Admin = {
       'Valide jusqu au ' + Format.dateLongue(c.permisExpiration);
     document.querySelector('[data-cree-le]').textContent = Format.dateLongue(c.creeLe);
     document.querySelector('[data-plaque]').textContent = c.plaqueHabituelle;
-    const vehicule = Store.vehicules().find(function (v) { return v.plaque === c.plaqueHabituelle; });
+    const vehicule = vehicules.find(function (v) { return v.plaque === c.plaqueHabituelle; });
     document.querySelector('[data-vehicule]').textContent = vehicule ? vehicule.modele : '—';
     document.querySelector('[data-nb-incidents]').textContent = '(' + incidents.length + ')';
 
@@ -196,10 +204,10 @@ const Admin = {
 
   /* Creation de compte chauffeur */
   pageChauffeurNouveau() {
-    document.querySelector('[data-formulaire]').addEventListener('submit', function (e) {
+    document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
       e.preventDefault();
       const d = new FormData(e.target);
-      const chauffeur = Store.ajouterChauffeur({
+      const chauffeur = await Store.ajouterChauffeur({
         prenom: d.get('prenom').trim(),
         nom: d.get('nom').trim(),
         age: Number(d.get('age')),
@@ -220,9 +228,10 @@ const Admin = {
     const etat = { statut: 'tous' };
     const corps = document.querySelector('[data-liste-trajets]');
 
-    function dessiner() {
-      corps.innerHTML = Store.trajets(etat).map(function (t) {
-        const c = Store.chauffeur(t.chauffeurId);
+    async function dessiner() {
+      const trajets = await Store.trajets(etat);
+      const lignes = await Promise.all(trajets.map(async function (t) {
+        const c = await Store.chauffeur(t.chauffeurId);
         const st = Format.statutTrajet(t.statut);
         return '<tr>' +
           '<td class="tf-mono">' + Format.echapper(t.id) + '</td>' +
@@ -237,7 +246,8 @@ const Admin = {
           '<td class="text-end"><a href="trajet.html?id=' + encodeURIComponent(t.id) +
             '" style="font-size:13px">Detail</a></td>' +
           '</tr>';
-      }).join('');
+      }));
+      corps.innerHTML = lignes.join('');
     }
 
     document.querySelectorAll('[data-filtre-trajet]').forEach(function (b) {
@@ -250,19 +260,19 @@ const Admin = {
         dessiner();
       });
     });
-    dessiner();
+    return dessiner();
   },
 
   /* Detail d un trajet */
-  pageTrajet() {
+  async pageTrajet() {
     const id = new URLSearchParams(location.search).get('id') || 'T-2093';
-    const t = Store.trajet(id);
+    const t = await Store.trajet(id);
     if (!t) { document.querySelector('[data-contenu]').innerHTML =
       '<p class="tf-muted">Trajet introuvable.</p>'; return; }
 
-    const c = Store.chauffeur(t.chauffeurId);
+    const [c, tousIncidents] = await Promise.all([Store.chauffeur(t.chauffeurId), Store.incidents()]);
     const st = Format.statutTrajet(t.statut);
-    const incidents = Store.incidents().filter(function (i) { return i.trajetId === t.id; });
+    const incidents = tousIncidents.filter(function (i) { return i.trajetId === t.id; });
     const p = Format.progression(t);
 
     document.querySelector('[data-fil]').textContent = t.id;
@@ -326,10 +336,13 @@ const Admin = {
     const corps = document.querySelector('[data-liste-incidents]');
     let selection = null;
 
-    function dessinerDetail(i) {
+    async function dessinerDetail(i) {
       const panneau = document.querySelector('[data-detail]');
       if (!i) { panneau.innerHTML = '<p class="tf-muted">Choisir un incident dans la liste.</p>'; return; }
-      const c = Store.chauffeur(i.chauffeurId);
+      const [c, trajet] = await Promise.all([
+        Store.chauffeur(i.chauffeurId),
+        i.trajetId ? Store.trajet(i.trajetId) : Promise.resolve(null)
+      ]);
       const st = Format.statutIncident(i.statut);
       const ty = Format.typeIncident(i.type);
       panneau.innerHTML =
@@ -343,7 +356,7 @@ const Admin = {
           '<span class="tf-avatar ' + Format.tonAvatar(c.id) + '">' + Format.initiales(c) + '</span>' +
           '<span><span class="d-block" style="font-weight:500">' + Format.echapper(Format.nomComplet(c)) +
           '</span><span class="tf-meta">Trajet ' + Format.echapper(i.trajetId) + ' · ' +
-          Format.echapper(Store.trajet(i.trajetId) ? Store.trajet(i.trajetId).plaque : '—') +
+          Format.echapper(trajet ? trajet.plaque : '—') +
           '</span></span></div>' +
         '<div><div class="tf-meta mb-1">Description</div>' +
           '<p class="mb-0" style="font-size:14.5px;line-height:1.6">' +
@@ -360,23 +373,26 @@ const Admin = {
             : '<span class="tf-btn tf-btn-ghost flex-fill" style="cursor:default">Deja traite</span>') +
         '</div>';
       const bouton = panneau.querySelector('[data-traiter]');
-      if (bouton) bouton.addEventListener('click', function () {
-        Store.traiterIncident(i.id);
-        selection = Store.incident(i.id);
+      if (bouton) bouton.addEventListener('click', async function () {
+        await Store.traiterIncident(i.id);
+        selection = await Store.incident(i.id);
         dessiner();
       });
     }
 
-    function dessiner() {
-      const liste = Store.incidents(etat);
+    async function dessiner() {
+      const [liste, ouverts, traites] = await Promise.all([
+        Store.incidents(etat),
+        Store.incidents({ statut: 'ouvert' }),
+        Store.incidents({ statut: 'traite' })
+      ]);
       if (!selection || !liste.some(function (i) { return i.id === selection.id; })) {
         selection = liste[0] || null;
       }
       document.querySelector('[data-resume]').textContent =
-        Store.incidents({ statut: 'ouvert' }).length + ' ouverts · ' +
-        Store.incidents({ statut: 'traite' }).length + ' traites';
-      corps.innerHTML = liste.map(function (i) {
-        const c = Store.chauffeur(i.chauffeurId);
+        ouverts.length + ' ouverts · ' + traites.length + ' traites';
+      const lignes = await Promise.all(liste.map(async function (i) {
+        const c = await Store.chauffeur(i.chauffeurId);
         const st = Format.statutIncident(i.statut);
         const ty = Format.typeIncident(i.type);
         const actif = selection && selection.id === i.id;
@@ -388,15 +404,16 @@ const Admin = {
           '<td>' + Format.echapper(i.lieu) + '</td>' +
           '<td><span class="tf-pill ' + st.classe + '">' + st.texte + '</span></td>' +
           '</tr>';
-      }).join('') || '<tr><td colspan="5" class="tf-muted">Aucun incident.</td></tr>';
+      }));
+      corps.innerHTML = lignes.join('') || '<tr><td colspan="5" class="tf-muted">Aucun incident.</td></tr>';
 
       corps.querySelectorAll('[data-ligne]').forEach(function (ligne) {
-        ligne.addEventListener('click', function () {
-          selection = Store.incident(ligne.dataset.ligne);
+        ligne.addEventListener('click', async function () {
+          selection = await Store.incident(ligne.dataset.ligne);
           dessiner();
         });
       });
-      dessinerDetail(selection);
+      await dessinerDetail(selection);
     }
 
     document.querySelectorAll('[data-filtre-incident]').forEach(function (b) {
@@ -411,8 +428,10 @@ const Admin = {
         dessiner();
       });
     });
-    dessiner();
+    return dessiner();
   }
 };
 
-document.addEventListener('DOMContentLoaded', function () { Admin.demarrer(); });
+document.addEventListener('DOMContentLoaded', function () {
+  Admin.demarrer().catch(function (e) { console.error('TransitFlow admin :', e); });
+});

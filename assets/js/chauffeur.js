@@ -2,26 +2,26 @@
    Auteur : Mamadou Barry */
 
 const Chauffeur = {
-  demarrer() {
+  async demarrer() {
     const session = Auth.exiger('chauffeur', '../');
     if (!session) return;
     monterBarreUtilisateur(session, '../');
     this.session = session;
-    this.moi = Store.chauffeur(session.chauffeurId);
+    this.moi = await Store.chauffeur(session.chauffeurId);
     const page = document.body.dataset.page;
     const methode = 'page' + page.charAt(0).toUpperCase() + page.slice(1).replace(/-(.)/g, function (m, c) {
       return c.toUpperCase();
     });
-    if (typeof this[methode] === 'function') this[methode]();
+    if (typeof this[methode] === 'function') await this[methode]();
   },
 
   /* Mes trajets */
-  pageMesTrajets() {
+  async pageMesTrajets() {
     const moi = this.moi;
     document.querySelector('[data-salutation]').textContent = 'Bonjour ' + moi.prenom;
     document.querySelector('[data-date]').textContent = Format.dateLongue('2026-09-12');
 
-    const enCours = Store.trajetEnCours(moi.id);
+    const enCours = await Store.trajetEnCours(moi.id);
     const bloc = document.querySelector('[data-trajet-en-cours]');
     const vide = document.querySelector('[data-aucun-trajet]');
 
@@ -41,8 +41,8 @@ const Chauffeur = {
         'trajet-en-cours.html?id=' + encodeURIComponent(enCours.id);
       bloc.querySelector('[data-lien-incident]').href =
         'incident-nouveau.html?trajet=' + encodeURIComponent(enCours.id);
-      bloc.querySelector('[data-terminer]').addEventListener('click', function () {
-        Store.terminerTrajet(enCours.id);
+      bloc.querySelector('[data-terminer]').addEventListener('click', async function () {
+        await Store.terminerTrajet(enCours.id);
         window.location.reload();
       });
     } else {
@@ -50,11 +50,11 @@ const Chauffeur = {
       vide.classList.remove('tf-hidden');
     }
 
-    const passes = Store.trajets({ chauffeurId: moi.id }).filter(function (t) {
-      return t.statut === 'termine';
-    });
+    const tousTrajets = await Store.trajets({ chauffeurId: moi.id });
+    const passes = tousTrajets.filter(function (t) { return t.statut === 'termine'; });
+    const tousIncidents = await Store.incidents();
     document.querySelector('[data-passes]').innerHTML = passes.map(function (t) {
-      const incidents = Store.incidents().filter(function (i) { return i.trajetId === t.id; });
+      const incidents = tousIncidents.filter(function (i) { return i.trajetId === t.id; });
       return '<div class="col-12 col-md-4"><div class="tf-card tf-card-pad h-100 d-flex flex-column gap-2">' +
         '<div class="d-flex align-items-center justify-content-between">' +
         '<span class="tf-pill ok">Termine</span>' +
@@ -71,12 +71,13 @@ const Chauffeur = {
   },
 
   /* Creer un trajet */
-  pageTrajetNouveau() {
+  async pageTrajetNouveau() {
     const moi = this.moi;
     const tuiles = document.querySelector('[data-vehicules]');
     let plaque = moi.plaqueHabituelle;
 
-    tuiles.innerHTML = Store.vehicules().map(function (v) {
+    const vehicules = await Store.vehicules();
+    tuiles.innerHTML = vehicules.map(function (v) {
       return '<div class="col-6 col-md-4"><button type="button" class="tf-tile' +
         (v.plaque === plaque ? ' active' : '') + '" data-plaque="' + Format.echapper(v.plaque) + '">' +
         '<span class="tf-tile-mark"></span>' +
@@ -92,14 +93,14 @@ const Chauffeur = {
       });
     });
 
-    if (Store.trajetEnCours(moi.id)) {
+    if (await Store.trajetEnCours(moi.id)) {
       document.querySelector('[data-avertissement]').classList.remove('tf-hidden');
     }
 
-    document.querySelector('[data-formulaire]').addEventListener('submit', function (e) {
+    document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
       e.preventDefault();
       const d = new FormData(e.target);
-      const trajet = Store.ajouterTrajet({
+      const trajet = await Store.ajouterTrajet({
         chauffeurId: moi.id,
         plaque: plaque,
         depart: d.get('depart').trim(),
@@ -108,25 +109,25 @@ const Chauffeur = {
         debut: '2026-09-12T' + d.get('heure'),
         finPrevue: '2026-09-12T' + d.get('heurePrevue')
       });
-      Store.majChauffeur(moi.id, { statut: 'en-trajet' });
+      await Store.majChauffeur(moi.id, { statut: 'en-trajet' });
       window.location.href = 'trajet-en-cours.html?id=' + encodeURIComponent(trajet.id);
     });
   },
 
   /* Trajet en cours : ajouter un arret, terminer */
-  pageTrajetEnCours() {
+  async pageTrajetEnCours() {
     const moi = this.moi;
     const id = new URLSearchParams(location.search).get('id');
-    const t = id ? Store.trajet(id) : Store.trajetEnCours(moi.id);
+    const t = id ? await Store.trajet(id) : await Store.trajetEnCours(moi.id);
     if (!t) {
       document.querySelector('[data-contenu]').innerHTML =
         '<p class="tf-muted">Aucun trajet en cours.</p>';
       return;
     }
 
-    function dessiner() {
-      const courant = Store.trajet(t.id);
-      const incidents = Store.incidents().filter(function (i) { return i.trajetId === courant.id; });
+    async function dessiner() {
+      const [courant, tousIncidents] = await Promise.all([Store.trajet(t.id), Store.incidents()]);
+      const incidents = tousIncidents.filter(function (i) { return i.trajetId === courant.id; });
       document.querySelector('[data-titre]').textContent = courant.depart + ' → ' + courant.arrivee;
       document.querySelector('[data-meta]').textContent =
         courant.plaque + ' · ' + Format.dureeDepuis(courant.debut);
@@ -156,32 +157,32 @@ const Chauffeur = {
         'incident-nouveau.html?trajet=' + encodeURIComponent(courant.id);
     }
 
-    document.querySelector('[data-arret]').addEventListener('submit', function (e) {
+    document.querySelector('[data-arret]').addEventListener('submit', async function (e) {
       e.preventDefault();
       const d = new FormData(e.target);
-      Store.ajouterArret(t.id, {
+      await Store.ajouterArret(t.id, {
         lieu: d.get('lieu').trim(),
         heure: d.get('heure'),
         note: d.get('note').trim()
       });
       e.target.reset();
-      dessiner();
+      await dessiner();
     });
 
-    document.querySelector('[data-terminer]').addEventListener('click', function () {
-      Store.terminerTrajet(t.id);
+    document.querySelector('[data-terminer]').addEventListener('click', async function () {
+      await Store.terminerTrajet(t.id);
       window.location.href = 'mes-trajets.html';
     });
 
-    dessiner();
+    await dessiner();
   },
 
   /* Signaler un incident */
-  pageIncidentNouveau() {
+  async pageIncidentNouveau() {
     const moi = this.moi;
     const params = new URLSearchParams(location.search);
     const trajetId = params.get('trajet');
-    const trajet = trajetId ? Store.trajet(trajetId) : Store.trajetEnCours(moi.id);
+    const trajet = trajetId ? await Store.trajet(trajetId) : await Store.trajetEnCours(moi.id);
     let type = 'technique';
 
     document.querySelector('[data-rattachement]').textContent = trajet
@@ -196,10 +197,10 @@ const Chauffeur = {
       });
     });
 
-    document.querySelector('[data-formulaire]').addEventListener('submit', function (e) {
+    document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
       e.preventDefault();
       const d = new FormData(e.target);
-      Store.ajouterIncident({
+      await Store.ajouterIncident({
         trajetId: trajet ? trajet.id : null,
         chauffeurId: moi.id,
         type: type,
@@ -216,4 +217,6 @@ const Chauffeur = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', function () { Chauffeur.demarrer(); });
+document.addEventListener('DOMContentLoaded', function () {
+  Chauffeur.demarrer().catch(function (e) { console.error('TransitFlow chauffeur :', e); });
+});
