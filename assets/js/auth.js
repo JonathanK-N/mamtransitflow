@@ -1,14 +1,30 @@
 /* TransitFlow — session et garde de page
-   Auteur : Mamadou Barry */
+   Auteur original : Mamadou Barry
+   Modifie par : Jonathan K-N — Auth.connecter() et Auth.deconnecter()
+   appellent maintenant l API backend (/api/auth/connexion et
+   /api/auth/deconnexion) au lieu de valider les comptes directement
+   dans le navigateur. La session gardee en sessionStorage contient en
+   plus un "jeton" recu du serveur, que store.js renvoie a chaque
+   requete pour prouver qui est connecte. */
 
+// Cle utilisee dans sessionStorage pour garder la session courante.
+// Doit rester identique a TF_SESSION_KEY dans store.js.
 const SESSION_KEY = 'transitflow.session';
 
 const Auth = {
+  /* Relit la session deja enregistree localement (ne contacte pas le serveur). */
   session() {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); }
     catch (e) { return null; }
   },
 
+  /*
+   * Envoie courriel/mot de passe/role au serveur (POST /api/auth/connexion).
+   * Le serveur repond soit par une erreur ({ok:false, message}), soit
+   * par une session valide + un jeton ({ok:true, session, jeton}).
+   * Si la connexion reussit, on garde session + jeton en sessionStorage
+   * pour que les autres pages (et store.js) puissent les reutiliser.
+   */
   async connecter(courriel, motDePasse, role) {
     let reponse;
     try {
@@ -18,6 +34,7 @@ const Auth = {
         body: JSON.stringify({ courriel: courriel, motDePasse: motDePasse, role: role })
       });
     } catch (e) {
+      // Le serveur Flask n est pas demarre, ou le reseau a coupe.
       return { ok: false, message: 'Impossible de joindre le serveur.' };
     }
     const donnees = await reponse.json().catch(function () { return {}; });
@@ -29,6 +46,7 @@ const Auth = {
     return { ok: true, session: session };
   },
 
+  /* Previent le serveur (pour invalider le jeton), puis nettoie la session locale et redirige. */
   async deconnecter(racine) {
     const session = this.session();
     if (session && session.jeton) {

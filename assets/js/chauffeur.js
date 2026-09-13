@@ -1,7 +1,16 @@
 /* TransitFlow — ecrans chauffeur
-   Auteur : Mamadou Barry */
+   Auteur original : Mamadou Barry
+   Modifie par : Jonathan K-N — meme principe que admin.js : chaque
+   methode "pageXxx" est passee en async/await parce que les donnees
+   viennent maintenant de l API (voir store.js) au lieu du localStorage. */
 
 const Chauffeur = {
+  /*
+   * Point d entree, appele au chargement de chaque page chauffeur/*.html :
+   * verifie la session, charge la fiche du chauffeur connecte (this.moi),
+   * puis appelle la methode "pageXxx" correspondant a la page (via
+   * l attribut data-page du <body>, comme dans admin.js).
+   */
   async demarrer() {
     const session = Auth.exiger('chauffeur', '../');
     if (!session) return;
@@ -50,6 +59,10 @@ const Chauffeur = {
       vide.classList.remove('tf-hidden');
     }
 
+    // L API n a pas de route "mes trajets termines" toute faite : on
+    // demande tous les trajets de ce chauffeur puis on filtre nous-memes
+    // ceux qui sont 'termine'. Meme logique pour associer les incidents
+    // a chaque trajet termine (on recupere tous les incidents une fois).
     const tousTrajets = await Store.trajets({ chauffeurId: moi.id });
     const passes = tousTrajets.filter(function (t) { return t.statut === 'termine'; });
     const tousIncidents = await Store.incidents();
@@ -100,6 +113,9 @@ const Chauffeur = {
     document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
       e.preventDefault();
       const d = new FormData(e.target);
+      // Le serveur ignore le chauffeurId envoye ici et prend toujours
+      // celui de la session connectee (voir backend/routes/trajets_routes.py) ;
+      // on le laisse quand meme dans l objet pour rester lisible.
       const trajet = await Store.ajouterTrajet({
         chauffeurId: moi.id,
         plaque: plaque,
@@ -125,6 +141,9 @@ const Chauffeur = {
       return;
     }
 
+    // Redessine le fil du trajet (appelee au chargement et apres l ajout
+    // d un arret). On relit le trajet depuis l API a chaque fois plutot
+    // que de reutiliser "t" tel quel, pour avoir les arrets a jour.
     async function dessiner() {
       const [courant, tousIncidents] = await Promise.all([Store.trajet(t.id), Store.incidents()]);
       const incidents = tousIncidents.filter(function (i) { return i.trajetId === courant.id; });
@@ -217,6 +236,9 @@ const Chauffeur = {
   }
 };
 
+// Chauffeur.demarrer() est asynchrone : on capture une eventuelle
+// erreur (ex. serveur injoignable) pour la voir dans la console plutot
+// que de la laisser disparaitre silencieusement.
 document.addEventListener('DOMContentLoaded', function () {
   Chauffeur.demarrer().catch(function (e) { console.error('TransitFlow chauffeur :', e); });
 });

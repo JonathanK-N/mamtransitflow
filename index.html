@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="author" content="Mamadou Barry">
+<!-- Page de connexion — Auteur original : Mamadou Barry
+     Modifie par : Jonathan K-N — le formulaire attend maintenant la
+     reponse du serveur (Auth.connecter est asynchrone, voir plus bas
+     et assets/js/auth.js) avant de rediriger. Photo d accueil remplacee
+     par assets/img/accueil-navette.jpg. -->
 <title>Connexion · TransitFlow</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,6 +92,9 @@
     });
   });
 
+  // "async" + "await" : on met le clic sur "Se connecter" en pause le
+  // temps que Auth.connecter() ait fini de parler au serveur (backend/routes/auth_routes.py),
+  // pour savoir si la connexion a reussi avant de faire quoi que ce soit d autre.
   formulaire.addEventListener('submit', async function (e) {
     e.preventDefault();
     var donnees = new FormData(formulaire);

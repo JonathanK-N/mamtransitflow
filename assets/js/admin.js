@@ -1,7 +1,18 @@
 /* TransitFlow — ecrans administrateur
-   Auteur : Mamadou Barry */
+   Auteur original : Mamadou Barry
+   Modifie par : Jonathan K-N — chaque methode "pageXxx" est passee en
+   async/await parce que les donnees viennent maintenant de l API
+   (voir store.js) au lieu d etre lues instantanement dans le
+   localStorage. Le reste (construction du HTML, ecouteurs de clic)
+   n a pas change : on attend juste les reponses avant de les afficher. */
 
 const Admin = {
+  /*
+   * Point d entree, appele au chargement de chaque page admin/*.html :
+   * verifie la session, affiche le nom dans la barre du haut, puis
+   * devine quelle methode "pageXxx" appeler a partir de l attribut
+   * data-page du <body> (ex. data-page="tableau-de-bord" -> pageTableauDeBord).
+   */
   async demarrer() {
     const session = Auth.exiger('admin', '../');
     if (!session) return;
@@ -15,6 +26,9 @@ const Admin = {
 
   /* Tableau de bord */
   async pageTableauDeBord(session) {
+    // Les 4 appels ne dependent pas les uns des autres : Promise.all()
+    // les lance tous en meme temps plutot que d attendre chaque reponse
+    // l une apres l autre, ce qui rend la page plus rapide a afficher.
     const [k, trajetsEnCours, incidentsOuverts, chauffeurs] = await Promise.all([
       Store.indicateurs(),
       Store.trajets({ statut: 'en-cours' }),
@@ -39,6 +53,11 @@ const Admin = {
     document.querySelector('[data-kpi-note="trajets"]').textContent = 'sur ' + k.trajetsDuJour + ' aujourd hui';
 
     const corps = document.querySelector('[data-trajets-en-cours]');
+    // Pour chaque trajet il faut aller chercher son chauffeur : on
+    // construit un tableau de promesses (une par trajet) avec .map(),
+    // puis Promise.all() attend qu elles soient toutes terminees avant
+    // de continuer. C est l equivalent asynchrone d un simple .map()
+    // synchrone qu on utilisait avant avec le localStorage.
     const lignesTrajets = await Promise.all(trajetsEnCours.map(async function (t) {
       const c = await Store.chauffeur(t.chauffeurId);
       const p = Format.progression(t);
@@ -81,6 +100,9 @@ const Admin = {
 
   /* Liste des chauffeurs */
   pageChauffeurs() {
+    // "etat" garde en memoire les filtres actifs (recherche + statut).
+    // A chaque changement (saisie dans le champ, clic sur un filtre),
+    // on relance dessiner() qui redemande la liste filtree a l API.
     const etat = { recherche: '', statut: 'tous' };
     const corps = document.querySelector('[data-liste-chauffeurs]');
     const compteur = document.querySelector('[data-compteur]');
@@ -134,6 +156,8 @@ const Admin = {
       '<p class="tf-muted">Chauffeur introuvable.</p>'; return; }
 
     const s = Format.statutChauffeur(c.statut);
+    // 3 appels independants (l historique des trajets, les incidents, la
+    // liste des vehicules) lances en parallele plutot qu en sequence.
     const [trajets, incidents, vehicules] = await Promise.all([
       Store.trajets({ chauffeurId: c.id }),
       Store.incidents({ chauffeurId: c.id }),
@@ -204,6 +228,9 @@ const Admin = {
 
   /* Creation de compte chauffeur */
   pageChauffeurNouveau() {
+    // On attend la reponse du serveur (await Store.ajouterChauffeur)
+    // avant de rediriger, pour connaitre l id definitif du chauffeur
+    // (genere par le backend, voir Store.ajouter_chauffeur cote serveur).
     document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
       e.preventDefault();
       const d = new FormData(e.target);
@@ -270,6 +297,8 @@ const Admin = {
     if (!t) { document.querySelector('[data-contenu]').innerHTML =
       '<p class="tf-muted">Trajet introuvable.</p>'; return; }
 
+    // On recupere tous les incidents puis on filtre nous-memes ceux du
+    // trajet (l API n a pas de filtre "par trajet", seulement "par chauffeur").
     const [c, tousIncidents] = await Promise.all([Store.chauffeur(t.chauffeurId), Store.incidents()]);
     const st = Format.statutTrajet(t.statut);
     const incidents = tousIncidents.filter(function (i) { return i.trajetId === t.id; });
@@ -334,8 +363,11 @@ const Admin = {
   pageIncidents() {
     const etat = { type: 'tous', statut: 'tous' };
     const corps = document.querySelector('[data-liste-incidents]');
-    let selection = null;
+    let selection = null; // incident actuellement affiche dans le panneau de droite
 
+    // Affiche le detail d un incident dans le panneau de droite. Va
+    // chercher le chauffeur et (s il existe) le trajet associe en
+    // parallele avant de construire le HTML.
     async function dessinerDetail(i) {
       const panneau = document.querySelector('[data-detail]');
       if (!i) { panneau.innerHTML = '<p class="tf-muted">Choisir un incident dans la liste.</p>'; return; }
@@ -380,6 +412,8 @@ const Admin = {
       });
     }
 
+    // Redessine la liste complete (appelee au chargement, apres un
+    // filtre, un clic sur une ligne, ou apres avoir marque un incident traite).
     async function dessiner() {
       const [liste, ouverts, traites] = await Promise.all([
         Store.incidents(etat),
@@ -432,6 +466,10 @@ const Admin = {
   }
 };
 
+// Admin.demarrer() est asynchrone : si elle echoue (ex. serveur injoignable),
+// on capture l erreur avec .catch() pour eviter un message d erreur
+// silencieux dans la console (ce qui n existait pas avec le localStorage,
+// qui ne pouvait pas "echouer").
 document.addEventListener('DOMContentLoaded', function () {
   Admin.demarrer().catch(function (e) { console.error('TransitFlow admin :', e); });
 });

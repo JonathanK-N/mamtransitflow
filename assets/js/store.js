@@ -1,10 +1,35 @@
 /* TransitFlow — client de l API backend
-   Auteur : Mamadou Barry */
+   Auteur original : Mamadou Barry (version localStorage)
+   Modifie par : Jonathan K-N — remplace le localStorage par des appels
+   fetch() vers l API Flask (dossier backend/). Les noms de methode de
+   Store restent les memes qu avant (Store.chauffeurs(), Store.trajet(id),
+   etc.), mais chacune renvoie maintenant une promesse : il faut donc
+   utiliser "await Store.xxx(...)" partout ou Store est appele
+   (voir admin.js et chauffeur.js). */
 
+// Cle utilisee pour garder la session (avec son jeton de connexion)
+// dans sessionStorage. Doit rester identique a SESSION_KEY dans auth.js
+// puisque les deux fichiers lisent/ecrivent la meme entree.
 const TF_SESSION_KEY = 'transitflow.session';
+
+// Prefixe de toutes les routes de l API (voir backend/app.py et
+// backend/routes/). Comme le front-end est servi par le meme serveur
+// Flask que l API, un chemin relatif comme '/api' suffit : il n y a pas
+// besoin de preciser un nom de domaine ou un port.
 const API_BASE = '/api';
 
-/* Construit une requete authentifiee vers l API et normalise la reponse. */
+/*
+ * Fonction centrale utilisee par toutes les methodes de Store pour
+ * parler a l API :
+ * 1. elle recupere le jeton de connexion dans sessionStorage et l ajoute
+ *    a l entete "Authorization" (le serveur en a besoin pour savoir
+ *    qui fait la demande, voir backend/routes/__init__.py) ;
+ * 2. si le serveur repond 401 (jeton invalide/expire), on efface la
+ *    session locale et on renvoie l utilisateur a la page de connexion ;
+ * 3. sinon, si la reponse n est pas un succes, on transforme le message
+ *    d erreur du serveur en exception JavaScript ;
+ * 4. si tout va bien, on renvoie les donnees JSON de la reponse.
+ */
 async function tfRequete(chemin, options) {
   options = options || {};
   const entetes = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -18,6 +43,8 @@ async function tfRequete(chemin, options) {
   const reponse = await fetch(API_BASE + chemin, Object.assign({}, options, { headers: entetes }));
 
   if (reponse.status === 401) {
+    // Session expiree ou jeton invalide : on nettoie et on renvoie vers la connexion,
+    // sauf si on est deja sur la page de connexion (pour eviter une boucle de redirections).
     sessionStorage.removeItem(TF_SESSION_KEY);
     if (!window.location.pathname.replace(/\/+/g, '/').endsWith('/index.html') && window.location.pathname !== '/') {
       window.location.href = '/index.html';
@@ -32,6 +59,8 @@ async function tfRequete(chemin, options) {
   return donnees;
 }
 
+/* Transforme un objet de filtres ({statut: 'ouvert', ...}) en chaine de
+   requete ("?statut=ouvert"), en ignorant les valeurs vides/absentes. */
 function tfParametres(filtre) {
   const params = new URLSearchParams();
   Object.keys(filtre || {}).forEach(function (cle) {
@@ -41,6 +70,16 @@ function tfParametres(filtre) {
   return chaine ? '?' + chaine : '';
 }
 
+/*
+ * Store expose les memes methodes qu avant (une par action possible :
+ * lister, obtenir, ajouter, modifier...), mais chacune est maintenant
+ * "async" et va chercher les donnees sur le serveur au lieu de les lire
+ * dans le localStorage du navigateur. Quand une fiche n existe pas
+ * (ex. Store.chauffeur('inconnu')), on attrape l erreur et on renvoie
+ * null, exactement comme le faisait l ancienne version avec le
+ * localStorage - le reste du code (admin.js, chauffeur.js) n a donc
+ * pas besoin de changer sa facon de vérifier "si ca n existe pas".
+ */
 const Store = {
   /* Chauffeurs */
   async chauffeurs(filtre) {
@@ -87,6 +126,8 @@ const Store = {
   },
 
   async ajouterTrajet(trajet) {
+    // Le serveur ignore un chauffeurId envoye ici : il utilise toujours
+    // celui de la session connectee (voir backend/routes/trajets_routes.py).
     const donnees = await tfRequete('/trajets', { method: 'POST', body: JSON.stringify(trajet) });
     return donnees.trajet;
   },
