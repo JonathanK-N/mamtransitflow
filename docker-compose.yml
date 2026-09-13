@@ -20,7 +20,9 @@ services:
       POSTGRES_PASSWORD: transitflow
       POSTGRES_DB: transitflow
     ports:
-      - "5432:5432"
+      # Port hote 5433 (et non 5432) pour ne pas entrer en conflit avec un
+      # PostgreSQL deja installe nativement sur la machine de developpement.
+      - "5433:5432"
     volumes:
       - transitflow-db-data:/var/lib/postgresql/data
     healthcheck:
