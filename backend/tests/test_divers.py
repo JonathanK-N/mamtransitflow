@@ -1,3 +1,12 @@
+"""
+TransitFlow — Tests des vehicules, indicateurs et route de sante
+Auteur : Jonathan K-N
+
+Verifie backend/routes/divers_routes.py (indicateurs reserves a
+l administrateur, calcul des chiffres du tableau de bord) et la petite
+route /api/sante utilisee pour confirmer que le serveur repond.
+"""
+
 from conftest import creer_chauffeur, entete_auth, jeton_admin, jeton_pour
 
 TRAJET_VALIDE = {'plaque': 'QC-4821', 'depart': 'Sherbrooke', 'arrivee': 'Magog',
@@ -21,6 +30,8 @@ def test_indicateurs_reserve_admin(client):
 
 def test_indicateurs_valeurs(client):
     admin = jeton_admin(client)
+    # permisExpiration du 1er chauffeur (2026-10-05) est avant config.LIMITE_PERMIS (2026-11-11)
+    # -> il doit compter dans permisAExpirer ; celui du second (2028-01-01) ne doit pas y compter.
     chauffeur = creer_chauffeur(client, admin, permisExpiration='2026-10-05')
     creer_chauffeur(client, admin, prenom='Moussa', nom='Traore', courriel='m.traore@transitflow.ca',
                      permisExpiration='2028-01-01', statut='hors-service')

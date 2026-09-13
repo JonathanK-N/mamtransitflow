@@ -1,3 +1,12 @@
+"""
+TransitFlow — Tests des routes incidents
+Auteur : Jonathan K-N
+
+Verifie backend/routes/incidents_routes.py : signalement d un incident
+par un chauffeur (avec ou sans trajet associe, validation du type),
+et le fait de le marquer "traite" est reserve a l administrateur.
+"""
+
 from conftest import creer_chauffeur, entete_auth, jeton_admin, jeton_pour
 
 TRAJET_VALIDE = {'plaque': 'QC-4821', 'depart': 'Sherbrooke', 'arrivee': 'Magog',
@@ -5,6 +14,7 @@ TRAJET_VALIDE = {'plaque': 'QC-4821', 'depart': 'Sherbrooke', 'arrivee': 'Magog'
 
 
 def _chauffeur_et_jeton(client, **champs):
+    """Cree un chauffeur (admin requis) puis se connecte avec son compte : renvoie (chauffeur, jeton)."""
     admin = jeton_admin(client)
     chauffeur = creer_chauffeur(client, admin, **champs)
     jeton = jeton_pour(client, chauffeur['courriel'], role='chauffeur')

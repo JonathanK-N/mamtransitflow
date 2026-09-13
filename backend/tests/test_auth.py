@@ -1,3 +1,13 @@
+"""
+TransitFlow — Tests de connexion / session
+Auteur : Jonathan K-N
+
+Verifie backend/auth.py et backend/routes/auth_routes.py : connexion
+reussie (admin et chauffeur), refus (mauvais mot de passe, mauvais
+role, courriel inconnu), et validite du jeton renvoye (une route
+protegee doit l accepter tant qu on ne s est pas deconnecte).
+"""
+
 from conftest import connecter, creer_chauffeur, entete_auth, jeton_admin, jeton_pour
 
 
@@ -11,6 +21,8 @@ def test_connexion_admin_ok(client):
 
 
 def test_connexion_chauffeur_sans_fiche_associee(client):
+    # Le compte existe (voir COMPTES dans backend/auth.py) mais aucune fiche
+    # chauffeur d id 'c1' n a encore ete creee : le nom retombe sur "Inconnu".
     r = connecter(client, 'a.diallo@transitflow.ca', role='chauffeur')
     data = r.get_json()
     assert data['ok'] is True
@@ -19,6 +31,8 @@ def test_connexion_chauffeur_sans_fiche_associee(client):
 
 
 def test_connexion_chauffeur_recupere_nom_depuis_la_fiche(client):
+    # Le premier chauffeur cree recoit toujours l id 'c1' (voir Store.ajouter_chauffeur),
+    # qui correspond justement au chauffeurId du compte 'a.diallo@transitflow.ca'.
     creer_chauffeur(client, jeton_admin(client))
     r = connecter(client, 'a.diallo@transitflow.ca', role='chauffeur')
     data = r.get_json()

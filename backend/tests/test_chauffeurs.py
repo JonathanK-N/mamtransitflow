@@ -1,3 +1,12 @@
+"""
+TransitFlow — Tests des routes chauffeurs
+Auteur : Jonathan K-N
+
+Verifie backend/routes/chauffeurs_routes.py : liste (avec filtres),
+detail, creation (reservee a l administrateur, avec validation des
+champs obligatoires) et mise a jour partielle.
+"""
+
 from conftest import CHAUFFEUR_VALIDE, creer_chauffeur, entete_auth, jeton_admin, jeton_pour
 
 
@@ -24,7 +33,7 @@ def test_creation_chauffeur(client):
     r = client.post('/api/chauffeurs', json=CHAUFFEUR_VALIDE, headers=entete_auth(jeton))
     assert r.status_code == 201
     chauffeur = r.get_json()['chauffeur']
-    assert chauffeur['id'] == 'c1'
+    assert chauffeur['id'] == 'c1'  # premier chauffeur cree -> id 'c1' (voir Store.ajouter_chauffeur)
     assert chauffeur['statut'] == 'disponible'
     assert 'creeLe' in chauffeur
 

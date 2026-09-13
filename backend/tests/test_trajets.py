@@ -1,3 +1,13 @@
+"""
+TransitFlow — Tests des routes trajets
+Auteur : Jonathan K-N
+
+Verifie backend/routes/trajets_routes.py : creation d un trajet (id
+genere, chauffeur passe 'en-trajet'), ajout d arret et fin de trajet
+(chauffeur remis 'disponible'), et surtout que ces actions sont
+reservees au chauffeur proprietaire du trajet (pas a un collegue).
+"""
+
 from conftest import creer_chauffeur, entete_auth, jeton_admin, jeton_pour
 
 TRAJET_VALIDE = {'plaque': 'QC-4821', 'depart': 'Sherbrooke', 'arrivee': 'Magog',
@@ -5,6 +15,7 @@ TRAJET_VALIDE = {'plaque': 'QC-4821', 'depart': 'Sherbrooke', 'arrivee': 'Magog'
 
 
 def _chauffeur_et_jeton(client, **champs):
+    """Cree un chauffeur (admin requis) puis se connecte avec son compte : renvoie (chauffeur, jeton)."""
     admin = jeton_admin(client)
     chauffeur = creer_chauffeur(client, admin, **champs)
     jeton = jeton_pour(client, chauffeur['courriel'], role='chauffeur')
