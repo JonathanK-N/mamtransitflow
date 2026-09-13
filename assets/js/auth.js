@@ -2,16 +2,6 @@
    Auteur : Mamadou Barry */
 
 const SESSION_KEY = 'transitflow.session';
-const MOT_DE_PASSE_DEMO = 'demo';
-
-const COMPTES = [
-  { courriel: 'a.tremblay@transitflow.ca', role: 'admin', nom: 'Alex Tremblay', initiales: 'AT' },
-  { courriel: 'a.diallo@transitflow.ca', role: 'chauffeur', chauffeurId: 'c1' },
-  { courriel: 'm.traore@transitflow.ca', role: 'chauffeur', chauffeurId: 'c2' },
-  { courriel: 's.fortin@transitflow.ca', role: 'chauffeur', chauffeurId: 'c3' },
-  { courriel: 'm.barry@transitflow.ca', role: 'chauffeur', chauffeurId: 'c4' },
-  { courriel: 'Mamadou.Barry@USherbrooke.ca', role: 'admin', chauffeurId: 'c5', nom: 'Mamadou Barry', initiales: 'MB' }
-];
 
 const Auth = {
   session() {
@@ -19,26 +9,36 @@ const Auth = {
     catch (e) { return null; }
   },
 
-  connecter(courriel, motDePasse, role) {
-    const compte = COMPTES.find(function (c) {
-      return c.courriel.toLowerCase() === String(courriel).trim().toLowerCase();
-    });
-    if (!compte) return { ok: false, message: 'Aucun compte ne correspond a ce courriel.' };
-    if (motDePasse !== MOT_DE_PASSE_DEMO) return { ok: false, message: 'Mot de passe incorrect.' };
-    if (role && compte.role !== role) {
-      return { ok: false, message: 'Ce compte n est pas un compte ' + role + '.' };
+  async connecter(courriel, motDePasse, role) {
+    let reponse;
+    try {
+      reponse = await fetch('/api/auth/connexion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courriel: courriel, motDePasse: motDePasse, role: role })
+      });
+    } catch (e) {
+      return { ok: false, message: 'Impossible de joindre le serveur.' };
     }
-    const session = Object.assign({}, compte);
-    if (compte.role === 'chauffeur') {
-      const c = Store.chauffeur(compte.chauffeurId);
-      session.nom = Format.nomComplet(c);
-      session.initiales = Format.initiales(c);
+    const donnees = await reponse.json().catch(function () { return {}; });
+    if (!reponse.ok || !donnees.ok) {
+      return { ok: false, message: donnees.message || 'Connexion refusee.' };
     }
+    const session = Object.assign({}, donnees.session, { jeton: donnees.jeton });
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     return { ok: true, session: session };
   },
 
-  deconnecter(racine) {
+  async deconnecter(racine) {
+    const session = this.session();
+    if (session && session.jeton) {
+      try {
+        await fetch('/api/auth/deconnexion', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + session.jeton }
+        });
+      } catch (e) { /* le serveur est peut-etre injoignable, on deconnecte quand meme */ }
+    }
     sessionStorage.removeItem(SESSION_KEY);
     window.location.href = (racine || '../') + 'index.html';
   },
