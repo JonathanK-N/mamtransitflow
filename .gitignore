@@ -4,3 +4,7 @@ node_modules/
 *.log
 .vscode/
 .idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data/db.json
