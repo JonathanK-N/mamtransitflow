@@ -32,3 +32,23 @@ def jeton_pour(client, courriel, role=None):
 
 def entete_auth(jeton):
     return {'Authorization': 'Bearer ' + jeton}
+
+
+def jeton_admin(client):
+    return jeton_pour(client, 'a.tremblay@transitflow.ca')
+
+
+CHAUFFEUR_VALIDE = {
+    'prenom': 'Aminata', 'nom': 'Diallo', 'age': 34, 'telephone': '819-555-0142',
+    'courriel': 'a.diallo@transitflow.ca', 'adresse': '12 rue King Ouest, Sherbrooke, QC',
+    'permisNumero': 'D1234-560912-01', 'permisExpiration': '2027-03-15',
+    'plaqueHabituelle': 'QC-4821'
+}
+
+
+def creer_chauffeur(client, jeton_admin_, **champs):
+    payload = dict(CHAUFFEUR_VALIDE)
+    payload.update(champs)
+    r = client.post('/api/chauffeurs', json=payload, headers=entete_auth(jeton_admin_))
+    assert r.status_code == 201, r.get_json()
+    return r.get_json()['chauffeur']

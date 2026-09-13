@@ -1,4 +1,4 @@
-from conftest import connecter, entete_auth, jeton_pour
+from conftest import connecter, creer_chauffeur, entete_auth, jeton_admin, jeton_pour
 
 
 def test_connexion_admin_ok(client):
@@ -10,10 +10,18 @@ def test_connexion_admin_ok(client):
     assert 'jeton' in data
 
 
-def test_connexion_chauffeur_recupere_nom_depuis_store(client):
+def test_connexion_chauffeur_sans_fiche_associee(client):
     r = connecter(client, 'a.diallo@transitflow.ca', role='chauffeur')
     data = r.get_json()
     assert data['ok'] is True
+    assert data['session']['nom'] == 'Inconnu'
+    assert data['session']['initiales'] == '??'
+
+
+def test_connexion_chauffeur_recupere_nom_depuis_la_fiche(client):
+    creer_chauffeur(client, jeton_admin(client))
+    r = connecter(client, 'a.diallo@transitflow.ca', role='chauffeur')
+    data = r.get_json()
     assert data['session']['nom'] == 'Aminata Diallo'
     assert data['session']['initiales'] == 'AD'
 

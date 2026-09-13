@@ -1,89 +1,108 @@
-from conftest import entete_auth, jeton_pour
+from conftest import creer_chauffeur, entete_auth, jeton_admin, jeton_pour
+
+TRAJET_VALIDE = {'plaque': 'QC-4821', 'depart': 'Sherbrooke', 'arrivee': 'Magog',
+                  'debut': '2026-09-12T07:30', 'finPrevue': '2026-09-12T08:45'}
 
 
-def test_liste_trajets_tri_desc(client):
-    jeton = jeton_pour(client, 'a.tremblay@transitflow.ca')
+def _chauffeur_et_jeton(client, **champs):
+    admin = jeton_admin(client)
+    chauffeur = creer_chauffeur(client, admin, **champs)
+    jeton = jeton_pour(client, chauffeur['courriel'], role='chauffeur')
+    return chauffeur, jeton
+
+
+def test_liste_vide_au_depart(client):
+    jeton = jeton_admin(client)
     r = client.get('/api/trajets', headers=entete_auth(jeton))
-    debuts = [t['debut'] for t in r.get_json()['trajets']]
-    assert debuts == sorted(debuts, reverse=True)
-
-
-def test_trajet_en_cours(client):
-    jeton = jeton_pour(client, 'a.tremblay@transitflow.ca')
-    r = client.get('/api/trajets/en-cours/c2', headers=entete_auth(jeton))
-    assert r.get_json()['trajet']['id'] == 'T-2091'
+    assert r.get_json()['trajets'] == []
 
 
 def test_trajet_en_cours_absent(client):
-    jeton = jeton_pour(client, 'a.tremblay@transitflow.ca')
-    r = client.get('/api/trajets/en-cours/c3', headers=entete_auth(jeton))
+    jeton = jeton_admin(client)
+    r = client.get('/api/trajets/en-cours/c1', headers=entete_auth(jeton))
     assert r.get_json()['trajet'] is None
 
 
 def test_obtenir_trajet_inexistant(client):
-    jeton = jeton_pour(client, 'a.tremblay@transitflow.ca')
+    jeton = jeton_admin(client)
     r = client.get('/api/trajets/T-9999', headers=entete_auth(jeton))
     assert r.status_code == 404
 
 
 def test_creation_reservee_chauffeur(client):
-    jeton = jeton_pour(client, 'a.tremblay@transitflow.ca')
-    r = client.post('/api/trajets', json={}, headers=entete_auth(jeton))
+    jeton = jeton_admin(client)
+    r = client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton))
     assert r.status_code == 403
 
 
-def test_creation_trajet_incremente_id_et_met_a_jour_chauffeur(client):
-    jeton = jeton_pour(client, 's.fortin@transitflow.ca', role='chauffeur')
-    payload = {'plaque': 'L9M 356', 'depart': 'Sherbrooke', 'arrivee': 'Lennoxville',
-               'debut': '2026-09-12T10:00', 'finPrevue': '2026-09-12T10:30'}
-    r = client.post('/api/trajets', json=payload, headers=entete_auth(jeton))
+def test_creation_trajet_premier_id_et_maj_chauffeur(client):
+    chauffeur, jeton = _chauffeur_et_jeton(client)
+    r = client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton))
     assert r.status_code == 201
     trajet = r.get_json()['trajet']
-    assert trajet['id'] == 'T-2094'
+    assert trajet['id'] == 'T-1'
     assert trajet['statut'] == 'en-cours'
+    assert trajet['chauffeurId'] == chauffeur['id']
     assert trajet['arrets'] == []
     assert trajet['fin'] is None
 
-    jeton_admin = jeton_pour(client, 'a.tremblay@transitflow.ca')
-    chauffeur = client.get('/api/chauffeurs/c3', headers=entete_auth(jeton_admin)).get_json()['chauffeur']
-    assert chauffeur['statut'] == 'en-trajet'
+    admin = jeton_admin(client)
+    fiche = client.get('/api/chauffeurs/' + chauffeur['id'], headers=entete_auth(admin)).get_json()['chauffeur']
+    assert fiche['statut'] == 'en-trajet'
+
+
+def test_creation_trajet_incremente_id(client):
+    _, jeton = _chauffeur_et_jeton(client)
+    client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton))
+    r = client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton))
+    assert r.get_json()['trajet']['id'] == 'T-2'
 
 
 def test_creation_trajet_champ_manquant(client):
-    jeton = jeton_pour(client, 's.fortin@transitflow.ca', role='chauffeur')
-    r = client.post('/api/trajets', json={'plaque': 'L9M 356'}, headers=entete_auth(jeton))
+    _, jeton = _chauffeur_et_jeton(client)
+    r = client.post('/api/trajets', json={'plaque': 'QC-4821'}, headers=entete_auth(jeton))
     assert r.status_code == 400
 
 
+def test_liste_trajets_tri_desc(client):
+    _, jeton = _chauffeur_et_jeton(client)
+    client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton))
+    client.post('/api/trajets', json=dict(TRAJET_VALIDE, debut='2026-09-13T07:30', finPrevue='2026-09-13T08:45'),
+                 headers=entete_auth(jeton))
+    admin = jeton_admin(client)
+    debuts = [t['debut'] for t in client.get('/api/trajets', headers=entete_auth(admin)).get_json()['trajets']]
+    assert debuts == sorted(debuts, reverse=True)
+
+
 def test_ajouter_arret(client):
-    jeton = jeton_pour(client, 'm.traore@transitflow.ca', role='chauffeur')
-    r = client.post('/api/trajets/T-2091/arrets', json={'lieu': 'Ascot', 'heure': '08:05', 'note': ''},
-                     headers=entete_auth(jeton))
+    chauffeur, jeton = _chauffeur_et_jeton(client)
+    trajet = client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton)).get_json()['trajet']
+    r = client.post('/api/trajets/' + trajet['id'] + '/arrets',
+                     json={'lieu': 'Ascot', 'heure': '08:05', 'note': ''}, headers=entete_auth(jeton))
     assert r.status_code == 200
-    assert len(r.get_json()['trajet']['arrets']) == 2
+    assert len(r.get_json()['trajet']['arrets']) == 1
 
 
 def test_ajouter_arret_refuse_pour_autre_chauffeur(client):
-    jeton = jeton_pour(client, 'a.diallo@transitflow.ca', role='chauffeur')
-    r = client.post('/api/trajets/T-2091/arrets', json={'lieu': 'Ascot', 'heure': '08:05'},
-                     headers=entete_auth(jeton))
+    admin = jeton_admin(client)
+    _, jeton1 = _chauffeur_et_jeton(client)
+    trajet = client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton1)).get_json()['trajet']
+    autre = creer_chauffeur(client, admin, prenom='Moussa', nom='Traore', courriel='m.traore@transitflow.ca')
+    jeton2 = jeton_pour(client, autre['courriel'], role='chauffeur')
+    r = client.post('/api/trajets/' + trajet['id'] + '/arrets', json={'lieu': 'Ascot', 'heure': '08:05'},
+                     headers=entete_auth(jeton2))
     assert r.status_code == 403
 
 
 def test_terminer_trajet_libere_le_chauffeur(client):
-    jeton = jeton_pour(client, 'm.traore@transitflow.ca', role='chauffeur')
-    r = client.post('/api/trajets/T-2091/terminer', headers=entete_auth(jeton))
+    chauffeur, jeton = _chauffeur_et_jeton(client)
+    trajet = client.post('/api/trajets', json=TRAJET_VALIDE, headers=entete_auth(jeton)).get_json()['trajet']
+    r = client.post('/api/trajets/' + trajet['id'] + '/terminer', headers=entete_auth(jeton))
     assert r.status_code == 200
-    trajet = r.get_json()['trajet']
-    assert trajet['statut'] == 'termine'
-    assert trajet['fin'] is not None
+    termine = r.get_json()['trajet']
+    assert termine['statut'] == 'termine'
+    assert termine['fin'] is not None
 
-    jeton_admin = jeton_pour(client, 'a.tremblay@transitflow.ca')
-    chauffeur = client.get('/api/chauffeurs/c2', headers=entete_auth(jeton_admin)).get_json()['chauffeur']
-    assert chauffeur['statut'] == 'disponible'
-
-
-def test_terminer_trajet_refuse_pour_autre_chauffeur(client):
-    jeton = jeton_pour(client, 'a.diallo@transitflow.ca', role='chauffeur')
-    r = client.post('/api/trajets/T-2091/terminer', headers=entete_auth(jeton))
-    assert r.status_code == 403
+    admin = jeton_admin(client)
+    fiche = client.get('/api/chauffeurs/' + chauffeur['id'], headers=entete_auth(admin)).get_json()['chauffeur']
+    assert fiche['statut'] == 'disponible'

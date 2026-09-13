@@ -6,25 +6,24 @@ import threading
 from datetime import datetime
 
 from . import config
-from .seed import SEED
 
 _verrou = threading.Lock()
 
 
-def _copie_seed():
-    return json.loads(json.dumps(SEED))
+def _structure_vide():
+    return {'chauffeurs': [], 'trajets': [], 'incidents': [], 'vehicules': []}
 
 
 def _lire():
     if not os.path.exists(config.DATA_FILE):
-        donnees = _copie_seed()
+        donnees = _structure_vide()
         _ecrire(donnees)
         return donnees
     try:
         with open(config.DATA_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
-        donnees = _copie_seed()
+        donnees = _structure_vide()
         _ecrire(donnees)
         return donnees
 
