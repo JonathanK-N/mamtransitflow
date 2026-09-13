@@ -30,8 +30,15 @@ from .database import Base, engine
 RACINE_FRONTEND = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
-def create_app() -> FastAPI:
-    """Construit et configure l application FastAPI (routes API + pages statiques)."""
+def create_app(creer_tables: bool = True) -> FastAPI:
+    """
+    Construit et configure l application FastAPI (routes API + pages statiques).
+
+    `creer_tables=False` sert uniquement aux tests (voir backend/tests/conftest.py) :
+    ils branchent leur propre base SQLite en memoire via `app.dependency_overrides[get_db]`
+    et n ont pas besoin -- ni envie -- que cette fonction cree aussi les tables
+    sur la base par defaut (settings.database_url).
+    """
     app = FastAPI(title='TransitFlow API', version='2.0.0')
 
     app.add_middleware(
@@ -41,10 +48,11 @@ def create_app() -> FastAPI:
         allow_headers=['*']
     )
 
-    # En developpement, cree les tables si elles n existent pas encore.
-    # En production, on utilise plutot les migrations Alembic (voir backend/alembic/)
-    # pour faire evoluer un schema qui contient deja des donnees reelles.
-    Base.metadata.create_all(bind=engine)
+    if creer_tables:
+        # En developpement, cree les tables si elles n existent pas encore.
+        # En production, on utilise plutot les migrations Alembic (voir backend/alembic/)
+        # pour faire evoluer un schema qui contient deja des donnees reelles.
+        Base.metadata.create_all(bind=engine)
 
     for routeur in (auth_router, drivers_router, fleet_router, dispatch_router,
                      maintenance_router, reporting_router):

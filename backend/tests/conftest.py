@@ -42,7 +42,7 @@ def db_session():
 @pytest.fixture
 def client(db_session):
     """Client de test FastAPI branche sur db_session au lieu de la vraie base."""
-    app = create_app()
+    app = create_app(creer_tables=False)
 
     def _get_db_test():
         yield db_session
