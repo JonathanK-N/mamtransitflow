@@ -1,0 +1,45 @@
+# TransitFlow — services de developpement
+# Auteur : Jonathan K-N
+#
+# Demarre uniquement l infrastructure (base de donnees + son interface
+# d administration). L API elle-meme (backend/) et plus tard le front-end
+# Vue tournent en dehors de Docker pendant le developpement, pour un cycle
+# de rechargement plus rapide ; ils seront conteneurises a la Phase 4
+# (mise en production) du plan.
+#
+# Demarrage : docker compose up -d
+# Arret     : docker compose down          (ajouter -v pour effacer les donnees)
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: transitflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: transitflow
+      POSTGRES_PASSWORD: transitflow
+      POSTGRES_DB: transitflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - transitflow-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transitflow -d transitflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Interface web simple pour explorer la base de donnees pendant le
+  # developpement (http://localhost:8081, se connecter avec les
+  # identifiants ci-dessus, serveur "db").
+  adminer:
+    image: adminer:4
+    container_name: transitflow-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      - db
+
+volumes:
+  transitflow-db-data:
