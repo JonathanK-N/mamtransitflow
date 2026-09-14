@@ -1,13 +1,7 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-sqlalchemy==2.0.31
-alembic==1.13.2
-pydantic==2.13.5
-pydantic-settings==2.15.0
-python-jose[cryptography]==3.3.0
-passlib[argon2]==1.7.4
+Django==5.2.17
+djangorestframework==3.18.1
+djangorestframework-simplejwt==5.5.1
 argon2-cffi==25.1.0
 psycopg[binary]==3.3.5
-python-multipart==0.0.9
-httpx==0.25.2
 pytest==9.0.2
+pytest-django==4.14.0
