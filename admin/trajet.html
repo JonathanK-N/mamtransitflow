@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Mamadou Barry">
+<title>Detail du trajet · TransitFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="../assets/css/transitflow.css" rel="stylesheet">
+</head>
+<body data-page="trajet">
+<nav class="tf-navbar">
+  <a class="tf-brand" href="tableau-de-bord.html">Transit<span>Flow</span></a>
+  <a class="tf-nav-link" href="tableau-de-bord.html">Tableau de bord</a>
+  <a class="tf-nav-link" href="chauffeurs.html">Chauffeurs</a>
+  <a class="tf-nav-link active" href="trajets.html">Trajets</a>
+  <a class="tf-nav-link" href="incidents.html">Incidents</a>
+  <div class="tf-navbar-user" data-navbar-user></div>
+</nav>
+<main class="tf-page" data-contenu>
+  <div class="d-flex align-items-end justify-content-between flex-wrap gap-3">
+    <div>
+      <p class="tf-meta mb-2"><a href="trajets.html">Trajets</a>
+        <span class="tf-muted">/</span> <span class="tf-mono" data-fil></span></p>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <h1 class="tf-h1" data-titre></h1>
+        <span class="tf-pill" data-statut></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 align-items-start">
+    <div class="col-12 col-lg-8">
+      <section class="tf-card tf-card-pad">
+        <h2 class="tf-h3 mb-4">Deroulement du trajet</h2>
+        <div class="tf-timeline" data-deroulement></div>
+      </section>
+    </div>
+
+    <div class="col-12 col-lg-4 d-flex flex-column gap-3">
+      <section class="tf-card tf-card-pad d-flex flex-column gap-4">
+        <div class="d-flex align-items-center gap-3">
+          <span class="tf-avatar" data-avatar></span>
+          <span>
+            <span class="d-block" style="font-size:15.5px;font-weight:500" data-chauffeur></span>
+            <span class="tf-meta tf-mono" data-telephone></span>
+          </span>
+        </div>
+        <dl class="d-flex flex-column gap-3 m-0 pt-3" style="border-top:1px solid var(--tf-line)">
+          <div class="d-flex justify-content-between align-items-baseline">
+            <dt class="tf-meta fw-normal">Vehicule</dt>
+            <dd class="tf-mono m-0" style="font-size:14px" data-plaque></dd></div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <dt class="tf-meta fw-normal">Duree</dt>
+            <dd class="tf-mono m-0" style="font-size:14px" data-duree></dd></div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <dt class="tf-meta fw-normal">Arrets</dt>
+            <dd class="tf-mono m-0" style="font-size:14px" data-nb-arrets></dd></div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <dt class="tf-meta fw-normal">Incidents</dt>
+            <dd class="tf-mono m-0" style="font-size:14px" data-nb-incidents></dd></div>
+        </dl>
+        <div>
+          <div class="tf-meta mb-2">Progression</div>
+          <div class="tf-progress"><span data-progression style="width:0"></span></div>
+          <div class="tf-mono mt-2" style="font-size:11.5px;color:var(--tf-muted)" data-progression-note></div>
+        </div>
+      </section>
+
+      <section class="tf-card tf-card-pad d-flex flex-column gap-3">
+        <h2 class="tf-h3" style="font-size:15.5px">Itineraire</h2>
+        <div class="tf-placeholder" style="height:170px">carte — phase 2<br>(hors perimetre front)</div>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/format.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/admin.js"></script>
+</body>
+</html>

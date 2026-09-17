@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Mamadou Barry">
+<title>Fiche chauffeur · TransitFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="../assets/css/transitflow.css" rel="stylesheet">
+</head>
+<body data-page="chauffeur">
+<nav class="tf-navbar">
+  <a class="tf-brand" href="tableau-de-bord.html">Transit<span>Flow</span></a>
+  <a class="tf-nav-link" href="tableau-de-bord.html">Tableau de bord</a>
+  <a class="tf-nav-link active" href="chauffeurs.html">Chauffeurs</a>
+  <a class="tf-nav-link" href="trajets.html">Trajets</a>
+  <a class="tf-nav-link" href="incidents.html">Incidents</a>
+  <div class="tf-navbar-user" data-navbar-user></div>
+</nav>
+<main class="tf-page" data-fiche>
+  <p class="tf-meta mb-0"><a href="chauffeurs.html">Chauffeurs</a>
+    <span class="tf-muted">/</span> <span data-fil></span></p>
+
+  <section class="tf-card tf-card-pad d-flex flex-wrap align-items-center gap-4">
+    <span class="tf-avatar lg" data-avatar></span>
+    <div class="d-flex flex-column gap-2">
+      <h1 class="tf-h1" style="font-size:25px" data-nom></h1>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span class="tf-pill" data-statut></span>
+        <span class="tf-meta" data-contact></span>
+      </div>
+    </div>
+    <div class="ms-auto d-flex align-items-center gap-4">
+      <div class="text-end">
+        <div class="tf-mono" style="font-size:24px;font-weight:500" data-total-trajets>0</div>
+        <div class="tf-meta">trajets</div>
+      </div>
+      <div class="text-end">
+        <div class="tf-mono" style="font-size:24px;font-weight:500" data-total-incidents>0</div>
+        <div class="tf-meta">incidents</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-3 align-items-start">
+    <div class="col-12 col-lg-4">
+      <section class="tf-card tf-card-pad d-flex flex-column gap-4">
+        <h2 class="tf-h3">Informations</h2>
+        <div><div class="tf-meta mb-1">Adresse du domicile</div>
+          <div style="font-size:14px;line-height:1.5" data-adresse></div></div>
+        <div><div class="tf-meta mb-1">Permis de conduire</div>
+          <div class="tf-mono" style="font-size:14px" data-permis></div>
+          <div class="tf-ok" style="font-size:13px" data-permis-expiration></div></div>
+        <div><div class="tf-meta mb-1">Compte cree le</div>
+          <div style="font-size:14px" data-cree-le></div></div>
+        <div class="pt-3" style="border-top:1px solid var(--tf-line)">
+          <div class="tf-meta mb-2">Vehicule habituel</div>
+          <div class="d-flex align-items-center gap-3">
+            <span class="tf-mono" style="font-size:14px" data-plaque></span>
+            <span class="tf-meta" data-vehicule></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-lg-8">
+      <section class="tf-card">
+        <nav class="d-flex gap-4 px-4" style="border-bottom:1px solid var(--tf-line)">
+          <button type="button" class="btn p-0 active" data-onglet="trajets"
+                  style="padding:16px 0 13px!important;font-size:14.5px;font-weight:500;border-bottom:2.5px solid var(--tf-accent);border-radius:0">
+            Historique des trajets</button>
+          <button type="button" class="btn p-0" data-onglet="incidents"
+                  style="padding:16px 0 13px!important;font-size:14.5px;color:var(--tf-muted);border-bottom:2.5px solid transparent;border-radius:0">
+            Incidents <span class="tf-mono" data-nb-incidents></span></button>
+        </nav>
+
+        <div class="tf-table-wrap" data-volet="trajets">
+          <table class="tf-table">
+            <thead><tr><th>DATE</th><th>TRAJET</th><th>DUREE</th><th>STATUT</th><th></th></tr></thead>
+            <tbody data-historique></tbody>
+          </table>
+        </div>
+
+        <div class="tf-table-wrap tf-hidden" data-volet="incidents">
+          <table class="tf-table">
+            <thead><tr><th>DATE · HEURE</th><th>TYPE</th><th>OBJET</th><th>LIEU</th><th>STATUT</th></tr></thead>
+            <tbody data-incidents-chauffeur></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/format.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/admin.js"></script>
+</body>
+</html>
