@@ -40,13 +40,13 @@
       <label class="tf-field">
         <span class="tf-label">Courriel</span>
         <input class="tf-input" type="email" name="courriel" autocomplete="username"
-               value="a.tremblay@transitflow.ca" required>
+               value="" required>
       </label>
 
       <label class="tf-field">
         <span class="tf-label">Mot de passe</span>
         <input class="tf-input" type="password" name="motDePasse" autocomplete="current-password"
-               value="demo" required>
+               value="" required>
       </label>
 
       <div class="d-flex align-items-center justify-content-between" style="font-size:13.5px">
@@ -60,10 +60,6 @@
 
       <button class="tf-btn tf-btn-primary tf-btn-block" type="submit" style="height:50px">Se connecter</button>
 
-      <p class="tf-meta text-center mb-0">
-        Comptes de demonstration : <span class="tf-mono">a.tremblay@transitflow.ca</span> ou
-        <span class="tf-mono">a.diallo@transitflow.ca</span> · mot de passe <span class="tf-mono">demo</span>
-      </p>
     </form>
   </section>
 </main>
@@ -84,7 +80,6 @@
       document.querySelectorAll('[data-role]').forEach(function (b) { b.classList.remove('active'); });
       bouton.classList.add('active');
       role = bouton.dataset.role;
-      champCourriel.value = role === 'admin' ? 'a.tremblay@transitflow.ca' : 'a.diallo@transitflow.ca';
     });
   });
 
