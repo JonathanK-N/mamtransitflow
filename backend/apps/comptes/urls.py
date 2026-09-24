@@ -8,10 +8,12 @@
 
 from django.urls import path
 
-from .views import ConnexionView, CreerCompteView, SessionView
+from .views import ConnexionView, CreerCompteView, DeconnexionView, RafraichirView, SessionView
 
 urlpatterns = [
     path('api/auth/connexion', ConnexionView.as_view()),
+    path('api/auth/rafraichir', RafraichirView.as_view()),
+    path('api/auth/deconnexion', DeconnexionView.as_view()),
     path('api/auth/session', SessionView.as_view()),
     path('api/auth/comptes', CreerCompteView.as_view())
 ]

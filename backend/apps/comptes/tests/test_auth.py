@@ -70,3 +70,36 @@ def test_creation_compte_courriel_deja_utilise(client, jeton_admin):
     r = client.post('/api/auth/comptes', {'courriel': 'a.diallo@transitflow.ca', 'motDePasse': 'x',
                                             'groupes': ['fleet.driver']}, format='json', **entete_auth(jeton_admin))
     assert r.status_code == 400
+
+
+def test_connexion_insensible_a_la_casse(client, compte_admin):
+    r = client.post('/api/auth/connexion', {'courriel': 'Admin@TransitFlow.ca', 'motDePasse': 'motdepasse123'},
+                     format='json')
+    assert r.status_code == 200
+
+
+def test_rafraichir_puis_deconnexion(client, compte_admin):
+    r = client.post('/api/auth/connexion', {'courriel': 'admin@transitflow.ca', 'motDePasse': 'motdepasse123'},
+                     format='json')
+    rafraichissement = r.json()['rafraichissement']
+
+    r = client.post('/api/auth/rafraichir', {'rafraichissement': rafraichissement}, format='json')
+    assert r.status_code == 200
+    nouveau = r.json()
+    assert client.get('/api/auth/session', **entete_auth(nouveau['jeton'])).status_code == 200
+
+    # Rotation : l ancien jeton de rafraichissement ne sert plus.
+    r = client.post('/api/auth/rafraichir', {'rafraichissement': rafraichissement}, format='json')
+    assert r.status_code == 401
+
+    # Apres deconnexion, le nouveau jeton de rafraichissement est refuse lui aussi.
+    assert client.post('/api/auth/deconnexion', {'rafraichissement': nouveau['rafraichissement']},
+                       format='json').status_code == 200
+    r = client.post('/api/auth/rafraichir', {'rafraichissement': nouveau['rafraichissement']}, format='json')
+    assert r.status_code == 401
+
+
+def test_rafraichir_jeton_invalide(client):
+    assert client.post('/api/auth/rafraichir', {'rafraichissement': 'n-importe-quoi'},
+                       format='json').status_code == 401
+    assert client.post('/api/auth/rafraichir', {}, format='json').status_code == 401

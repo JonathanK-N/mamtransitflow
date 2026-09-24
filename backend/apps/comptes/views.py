@@ -2,14 +2,18 @@
 TransitFlow — Routes de connexion
 Auteur : Jonathan K-N
 
-  POST /api/auth/connexion -> verifie courriel/motDePasse/role, renvoie {ok, session, jeton, accueil}
-  GET  /api/auth/session   -> renvoie la session du jeton envoye (verifie qu il est toujours valide)
-  POST /api/auth/comptes   -> cree un compte de connexion (reserve a 'fleet.admin')
+  POST /api/auth/connexion   -> verifie courriel/motDePasse/role, renvoie
+                                {ok, session, jeton, rafraichissement, accueil}
+  POST /api/auth/rafraichir  -> echange un jeton de rafraichissement contre un nouveau jeton d acces
+  POST /api/auth/deconnexion -> met le jeton de rafraichissement sur liste noire
+  GET  /api/auth/session     -> renvoie la session du jeton envoye (verifie qu il est toujours valide)
+  POST /api/auth/comptes     -> cree un compte de connexion (reserve a 'fleet.admin')
 
-Le jeton est un JWT (djangorestframework-simplejwt) : il n y a pas de
-table de sessions a gerer, il suffit qu il soit signe et non expire.
-Comme dans la version precedente, il n y a pas de route /deconnexion :
-le front-end oublie simplement le jeton localement (voir assets/js/auth.js).
+Les jetons sont des JWT (djangorestframework-simplejwt) : un jeton d acces
+court (envoye a chaque requete) et un jeton de rafraichissement de 7 jours,
+que assets/js/store.js utilise pour renouveler le jeton d acces sans
+redemander le mot de passe. A la deconnexion, le jeton de rafraichissement
+est mis sur liste noire et ne peut plus servir.
 """
 
 from django.contrib.auth import authenticate
@@ -18,7 +22,10 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Utilisateur
 from .permissions import DansGroupe, EstConnecte
@@ -33,7 +40,9 @@ class ConnexionView(APIView):
         entree.is_valid(raise_exception=True)
         donnees = entree.validated_data
 
-        utilisateur = authenticate(courriel=donnees['courriel'], password=donnees['motDePasse'])
+        # Le courriel est stocke en minuscules : la casse saisie n a pas d importance.
+        utilisateur = authenticate(request, courriel=donnees['courriel'].strip().lower(),
+                                   password=donnees['motDePasse'])
         if not utilisateur:
             return Response({'ok': False, 'message': 'Courriel ou mot de passe incorrect.'},
                              status=status.HTTP_401_UNAUTHORIZED)
@@ -44,9 +53,38 @@ class ConnexionView(APIView):
             return Response({'ok': False, 'message': f'Ce compte n est pas un compte {role_demande}.'},
                              status=status.HTTP_401_UNAUTHORIZED)
 
-        jeton = str(AccessToken.for_user(utilisateur))
+        rafraichissement = RefreshToken.for_user(utilisateur)
         accueil = 'admin/tableau-de-bord.html' if session['role'] == 'admin' else 'chauffeur/mes-trajets.html'
-        return Response({'ok': True, 'session': session, 'jeton': jeton, 'accueil': accueil})
+        return Response({'ok': True, 'session': session, 'jeton': str(rafraichissement.access_token),
+                         'rafraichissement': str(rafraichissement), 'accueil': accueil})
+
+
+class RafraichirView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        entree = TokenRefreshSerializer(data={'refresh': request.data.get('rafraichissement', '')})
+        try:
+            entree.is_valid(raise_exception=True)
+        except (TokenError, InvalidToken, ValidationError):
+            return Response({'ok': False, 'message': 'Session expiree, veuillez vous reconnecter.'},
+                             status=status.HTTP_401_UNAUTHORIZED)
+        donnees = entree.validated_data
+        # Avec ROTATE_REFRESH_TOKENS, un nouveau jeton de rafraichissement est
+        # emis a chaque fois et l ancien part sur liste noire.
+        return Response({'ok': True, 'jeton': donnees['access'],
+                         'rafraichissement': donnees.get('refresh', request.data.get('rafraichissement'))})
+
+
+class DeconnexionView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            RefreshToken(request.data.get('rafraichissement', '')).blacklist()
+        except TokenError:
+            pass  # jeton deja expire ou invalide : la session est terminee de toute facon
+        return Response({'ok': True})
 
 
 class SessionView(APIView):
