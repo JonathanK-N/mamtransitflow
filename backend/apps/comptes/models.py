@@ -23,7 +23,9 @@ class UtilisateurManager(BaseUserManager):
     def create_user(self, courriel, mot_de_passe=None, **champs_supplementaires):
         if not courriel:
             raise ValueError('Un courriel est requis.')
-        utilisateur = self.model(courriel=self.normalize_email(courriel), **champs_supplementaires)
+        # Courriel entierement en minuscules : la connexion ne depend pas de
+        # la casse saisie (voir apps/comptes/views.py).
+        utilisateur = self.model(courriel=courriel.strip().lower(), **champs_supplementaires)
         utilisateur.set_password(mot_de_passe)
         utilisateur.save(using=self._db)
         return utilisateur
