@@ -3,6 +3,7 @@
 
 from rest_framework import serializers
 
+from apps.dispatch.serializers import valider_heure
 from .models import Incident
 
 TYPES_VALIDES = {'technique', 'route'}
@@ -32,4 +33,4 @@ class IncidentEntreeSerializer(serializers.Serializer):
     description = serializers.CharField()
     lieu = serializers.CharField()
     date = serializers.DateField(required=False)
-    heure = serializers.CharField()
+    heure = serializers.CharField(validators=[valider_heure])

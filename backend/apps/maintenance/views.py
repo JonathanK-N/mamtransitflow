@@ -6,6 +6,9 @@ Auteur : Jonathan K-N
   GET  /api/incidents/<code>        -> detail
   POST /api/incidents               -> signaler (reserve a 'fleet.driver')
   POST /api/incidents/<code>/traiter -> marquer traite (reserve a 'fleet.admin')
+
+Cloisonnement : un chauffeur ne voit que ses propres incidents et ne peut
+rattacher un incident qu a l un de ses propres trajets.
 """
 
 from django.utils import timezone
@@ -13,7 +16,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.comptes.permissions import DansGroupe, EstConnecte
+from apps.comptes.permissions import DansGroupe, EstConnecte, est_admin, voit_tout
 from apps.dispatch.models import Trajet
 from apps.drivers.models import Chauffeur
 from .models import Incident
@@ -27,6 +30,8 @@ class IncidentsView(APIView):
 
     def get(self, request):
         incidents = Incident.objects.select_related('trajet', 'chauffeur')
+        if not est_admin(request.user):
+            incidents = incidents.filter(chauffeur_id=request.user.chauffeur_id)
         type_ = request.query_params.get('type')
         if type_ and type_ != 'tous':
             incidents = incidents.filter(type=type_)
@@ -51,7 +56,7 @@ class IncidentsView(APIView):
         trajet = None
         if donnees.get('trajetId'):
             trajet = Trajet.depuis_code(donnees['trajetId'])
-            if not trajet:
+            if not trajet or trajet.chauffeur_id != request.user.chauffeur_id:
                 return Response({'ok': False, 'message': 'Trajet introuvable.'}, status=status.HTTP_404_NOT_FOUND)
 
         incident = Incident.objects.create(
@@ -67,7 +72,7 @@ class IncidentDetailView(APIView):
 
     def get(self, request, code):
         incident = Incident.depuis_code(code)
-        if not incident:
+        if not incident or not voit_tout(request.user, incident.chauffeur):
             return Response({'ok': False, 'message': 'Incident introuvable.'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'ok': True, 'incident': IncidentSerializer(incident).data})
 

@@ -7,27 +7,37 @@ Auteur : Jonathan K-N
   GET  /api/trajets/<code>          -> detail
   POST /api/trajets                 -> demarrer un trajet (reserve a 'fleet.driver')
   POST /api/trajets/<code>/arrets   -> ajouter un arret (chauffeur proprietaire seulement)
-  POST /api/trajets/<code>/terminer -> terminer (chauffeur proprietaire seulement)
+  POST /api/trajets/<code>/terminer -> terminer (chauffeur proprietaire, ou administrateur)
 
 Le chauffeur d un trajet vient toujours du compte connecte
 (request.user.chauffeur), jamais d une valeur envoyee par le client.
+Cloisonnement : un chauffeur ne voit que ses propres trajets ; ceux des
+autres repondent 404 comme s ils n existaient pas.
 """
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.comptes.permissions import DansGroupe, EstConnecte
+from apps.comptes.permissions import DansGroupe, EstConnecte, est_admin, voit_tout
 from apps.drivers.models import Chauffeur
+from apps.fleet.models import Vehicule
 from .models import Arret, Trajet
 from .serializers import ArretSerializer, TrajetSerializer
 
 
-def _chauffeur_ou_403(request):
-    if not request.user.chauffeur:
+def _erreur(message, code):
+    return Response({'ok': False, 'message': message}, status=code)
+
+
+def _trajet_visible(request, code):
+    """Le trajet demande s il existe ET que le compte connecte a le droit de le voir, sinon None."""
+    trajet = Trajet.depuis_code(code)
+    if not trajet or not voit_tout(request.user, trajet.chauffeur):
         return None
-    return request.user.chauffeur
+    return trajet
 
 
 class TrajetsView(APIView):
@@ -37,6 +47,8 @@ class TrajetsView(APIView):
 
     def get(self, request):
         trajets = Trajet.objects.select_related('chauffeur').prefetch_related('arrets')
+        if not est_admin(request.user):
+            trajets = trajets.filter(chauffeur_id=request.user.chauffeur_id)
         statut = request.query_params.get('statut')
         if statut and statut != 'tous':
             trajets = trajets.filter(statut=statut)
@@ -47,22 +59,31 @@ class TrajetsView(APIView):
         return Response({'ok': True, 'trajets': TrajetSerializer(trajets, many=True).data})
 
     def post(self, request):
-        chauffeur = _chauffeur_ou_403(request)
-        if not chauffeur:
-            return Response({'ok': False, 'message': 'Ce compte n est associe a aucune fiche chauffeur.'},
-                             status=status.HTTP_403_FORBIDDEN)
+        if not request.user.chauffeur_id:
+            return _erreur('Ce compte n est associe a aucune fiche chauffeur.', status.HTTP_403_FORBIDDEN)
         serializer = TrajetSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        trajet = Trajet.objects.create(chauffeur=chauffeur, statut='en-cours', **{
-            'plaque': serializer.validated_data['plaque'],
-            'depart': serializer.validated_data['depart'],
-            'depart_adresse': serializer.validated_data.get('depart_adresse'),
-            'arrivee': serializer.validated_data['arrivee'],
-            'debut': serializer.validated_data['debut'],
-            'fin_prevue': serializer.validated_data['fin_prevue']
-        })
-        chauffeur.statut = 'en-trajet'
-        chauffeur.save(update_fields=['statut'])
+        donnees = serializer.validated_data
+
+        if not Vehicule.objects.filter(plaque=donnees['plaque']).exists():
+            return _erreur('Vehicule introuvable pour cette plaque.', status.HTTP_400_BAD_REQUEST)
+        if donnees['fin_prevue'] <= donnees['debut']:
+            return _erreur('L arrivee prevue doit etre posterieure au depart.', status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            # Verrou sur la fiche : deux demarrages simultanes ne peuvent pas
+            # creer deux trajets en cours pour le meme chauffeur.
+            chauffeur = Chauffeur.objects.select_for_update().get(pk=request.user.chauffeur_id)
+            if Trajet.objects.filter(chauffeur=chauffeur, statut='en-cours').exists():
+                return _erreur('Un trajet est deja en cours : terminez-le avant d en demarrer un autre.',
+                               status.HTTP_409_CONFLICT)
+            trajet = Trajet.objects.create(
+                chauffeur=chauffeur, statut='en-cours', plaque=donnees['plaque'], depart=donnees['depart'],
+                depart_adresse=donnees.get('depart_adresse'), arrivee=donnees['arrivee'],
+                debut=donnees['debut'], fin_prevue=donnees['fin_prevue']
+            )
+            chauffeur.statut = 'en-trajet'
+            chauffeur.save(update_fields=['statut'])
         return Response({'ok': True, 'trajet': TrajetSerializer(trajet).data}, status=status.HTTP_201_CREATED)
 
 
@@ -71,7 +92,7 @@ class TrajetEnCoursView(APIView):
 
     def get(self, request, code):
         chauffeur = Chauffeur.depuis_code(code)
-        if not chauffeur:
+        if not chauffeur or not voit_tout(request.user, chauffeur):
             return Response({'ok': True, 'trajet': None})
         trajet = Trajet.objects.filter(chauffeur=chauffeur, statut='en-cours').first()
         return Response({'ok': True, 'trajet': TrajetSerializer(trajet).data if trajet else None})
@@ -81,9 +102,9 @@ class TrajetDetailView(APIView):
     permission_classes = [EstConnecte]
 
     def get(self, request, code):
-        trajet = Trajet.depuis_code(code)
+        trajet = _trajet_visible(request, code)
         if not trajet:
-            return Response({'ok': False, 'message': 'Trajet introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+            return _erreur('Trajet introuvable.', status.HTTP_404_NOT_FOUND)
         return Response({'ok': True, 'trajet': TrajetSerializer(trajet).data})
 
 
@@ -93,9 +114,11 @@ class AjouterArretView(APIView):
     def post(self, request, code):
         trajet = Trajet.depuis_code(code)
         if not trajet:
-            return Response({'ok': False, 'message': 'Trajet introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+            return _erreur('Trajet introuvable.', status.HTTP_404_NOT_FOUND)
         if trajet.chauffeur_id != request.user.chauffeur_id:
-            return Response({'ok': False, 'message': 'Acces refuse.'}, status=status.HTTP_403_FORBIDDEN)
+            return _erreur('Acces refuse.', status.HTTP_403_FORBIDDEN)
+        if trajet.statut != 'en-cours':
+            return _erreur('Ce trajet est termine : impossible d y ajouter un arret.', status.HTTP_400_BAD_REQUEST)
 
         serializer = ArretSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -104,18 +127,22 @@ class AjouterArretView(APIView):
 
 
 class TerminerTrajetView(APIView):
-    permission_classes = [DansGroupe('fleet.driver')]
+    """Le chauffeur termine son trajet ; l administrateur peut aussi en cloturer un (oubli, panne...)."""
+    permission_classes = [EstConnecte]
 
     def post(self, request, code):
         trajet = Trajet.depuis_code(code)
         if not trajet:
-            return Response({'ok': False, 'message': 'Trajet introuvable.'}, status=status.HTTP_404_NOT_FOUND)
-        if trajet.chauffeur_id != request.user.chauffeur_id:
-            return Response({'ok': False, 'message': 'Acces refuse.'}, status=status.HTTP_403_FORBIDDEN)
+            return _erreur('Trajet introuvable.', status.HTTP_404_NOT_FOUND)
+        if not (est_admin(request.user) or trajet.chauffeur_id == request.user.chauffeur_id):
+            return _erreur('Acces refuse.', status.HTTP_403_FORBIDDEN)
+        if trajet.statut == 'termine':
+            return _erreur('Ce trajet est deja termine.', status.HTTP_400_BAD_REQUEST)
 
-        trajet.statut = 'termine'
-        trajet.fin = timezone.now()
-        trajet.save(update_fields=['statut', 'fin'])
-        trajet.chauffeur.statut = 'disponible'
-        trajet.chauffeur.save(update_fields=['statut'])
+        with transaction.atomic():
+            trajet.statut = 'termine'
+            trajet.fin = timezone.now()
+            trajet.save(update_fields=['statut', 'fin'])
+            trajet.chauffeur.statut = 'disponible'
+            trajet.chauffeur.save(update_fields=['statut'])
         return Response({'ok': True, 'trajet': TrajetSerializer(trajet).data})

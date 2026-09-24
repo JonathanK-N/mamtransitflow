@@ -58,3 +58,32 @@ def test_filtre_par_statut(client, jeton_admin):
 
     assert client.get('/api/incidents?statut=ouvert', **entete_auth(jeton_admin)).json()['incidents'] == []
     assert len(client.get('/api/incidents?statut=traite', **entete_auth(jeton_admin)).json()['incidents']) == 1
+
+
+def test_creation_heure_invalide(client, jeton_admin):
+    _, jeton = creer_chauffeur_avec_compte(client, jeton_admin)
+    r = client.post('/api/incidents', dict(INCIDENT_VALIDE, heure='25:00'), format='json', **entete_auth(jeton))
+    assert r.status_code == 400
+
+
+def test_cloisonnement_entre_chauffeurs(client, jeton_admin):
+    from apps.fleet.models import Vehicule
+
+    Vehicule.objects.create(plaque='QC-4821', modele='Ford Transit 2023')
+    _, jeton1 = creer_chauffeur_avec_compte(client, jeton_admin)
+    _, jeton2 = creer_chauffeur_avec_compte(client, jeton_admin, courriel='m.traore@transitflow.ca',
+                                              prenom='Moussa', nom='Traore')
+    trajet = client.post('/api/trajets', {'plaque': 'QC-4821', 'depart': 'A', 'arrivee': 'B',
+                                          'debut': '2026-09-12T07:30:00Z', 'finPrevue': '2026-09-12T08:45:00Z'},
+                         format='json', **entete_auth(jeton1)).json()['trajet']
+    incident = client.post('/api/incidents', INCIDENT_VALIDE, format='json', **entete_auth(jeton1)).json()['incident']
+
+    # Le chauffeur 2 ne voit pas l incident du chauffeur 1...
+    assert client.get('/api/incidents', **entete_auth(jeton2)).json()['incidents'] == []
+    assert client.get(f"/api/incidents/{incident['id']}", **entete_auth(jeton2)).status_code == 404
+    # ... et ne peut pas rattacher un incident au trajet d un autre.
+    r = client.post('/api/incidents', dict(INCIDENT_VALIDE, trajetId=trajet['id']), format='json',
+                     **entete_auth(jeton2))
+    assert r.status_code == 404
+    # L administrateur voit tout.
+    assert len(client.get('/api/incidents', **entete_auth(jeton_admin)).json()['incidents']) == 1

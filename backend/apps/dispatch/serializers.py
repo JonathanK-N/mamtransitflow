@@ -1,12 +1,23 @@
 """TransitFlow — Schemas de l app dispatch (trajets, arrets)
    Auteur : Jonathan K-N"""
 
+import re
+
 from rest_framework import serializers
 
 from .models import Arret, Trajet
 
 
+def valider_heure(valeur: str) -> str:
+    """Heure "HH:MM" sur 24 h : la frise du front-end trie ces heures comme du texte."""
+    if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', valeur or ''):
+        raise serializers.ValidationError('Heure invalide (format attendu HH:MM).')
+    return valeur
+
+
 class ArretSerializer(serializers.ModelSerializer):
+    heure = serializers.CharField(validators=[valider_heure])
+
     class Meta:
         model = Arret
         fields = ['lieu', 'heure', 'note']
