@@ -3,10 +3,12 @@ TransitFlow — Configuration du projet Django
 Auteur : Jonathan K-N
 
 Genere par `django-admin startproject`, puis adapte pour TransitFlow :
-- lecture de la base de donnees et du secret depuis l environnement
-  (voir .env.example a la racine du projet) plutot que des valeurs codees
-  en dur, pour pouvoir deployer chez n importe quel client sans toucher
-  au code ;
+- lecture de la configuration depuis l environnement (et depuis un fichier
+  .env a la racine du projet en developpement, voir .env.example) plutot
+  que des valeurs codees en dur, pour pouvoir deployer chez n importe quel
+  client (ou sur Railway) sans toucher au code ;
+- base de donnees donnee par une URL (TF_DATABASE_URL, ou DATABASE_URL
+  fournie automatiquement par Railway) ; SQLite local sinon ;
 - ajout des apps metier (backend/apps/*) et de Django REST Framework +
   djangorestframework-simplejwt pour l API JSON consommee par le
   front-end (assets/js/*.js) ;
@@ -14,19 +16,50 @@ Genere par `django-admin startproject`, puis adapte pour TransitFlow :
   de Django (PBKDF2), plus robuste ;
 - le site d administration integre de Django est deplace sur
   /django-admin/ (voir transitflow/urls.py) car /admin/ est deja pris
-  par les pages de l espace administrateur du front-end (admin/*.html).
+  par les pages de l espace administrateur du front-end (admin/*.html) ;
+- reglages de securite HTTPS actives automatiquement quand DEBUG est
+  desactive (production).
 """
 
 import os
 from datetime import timedelta
 from pathlib import Path
 
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 RACINE_PROJET = BASE_DIR.parent  # dossier contenant index.html, admin/, chauffeur/, assets/
 
-SECRET_KEY = os.environ.get('TF_SECRET_KEY', 'django-insecure-cle-de-developpement-a-changer')
+# En developpement, les variables sont lues depuis le fichier .env a la
+# racine du projet (jamais commite). En production (Railway), elles sont
+# definies dans le tableau de bord du service : load_dotenv ne remplace
+# jamais une variable deja presente dans l environnement.
+load_dotenv(RACINE_PROJET / '.env')
+
+
+def _liste(valeur: str) -> list:
+    return [morceau.strip() for morceau in valeur.split(',') if morceau.strip()]
+
+
 DEBUG = os.environ.get('TF_DEBUG', '1') == '1'
-ALLOWED_HOSTS = os.environ.get('TF_ALLOWED_HOSTS', '*').split(',')
+
+SECRET_KEY = os.environ.get('TF_SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured('TF_SECRET_KEY doit etre defini en production (TF_DEBUG=0).')
+    SECRET_KEY = 'django-insecure-cle-de-developpement-a-changer'
+
+ALLOWED_HOSTS = _liste(os.environ.get('TF_ALLOWED_HOSTS', 'localhost,127.0.0.1'))
+CSRF_TRUSTED_ORIGINS = _liste(os.environ.get('TF_CSRF_TRUSTED_ORIGINS', ''))
+
+# Railway fournit le domaine public du service : on l autorise
+# automatiquement pour ne pas avoir a le recopier a la main.
+_domaine_railway = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+if _domaine_railway:
+    ALLOWED_HOSTS.append(_domaine_railway)
+    CSRF_TRUSTED_ORIGINS.append(f'https://{_domaine_railway}')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -37,6 +70,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
 
     'apps.comptes',
     'apps.drivers',
@@ -48,6 +82,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Sert les fichiers statiques de l admin Django (collectstatic) en production.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -75,31 +111,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'transitflow.wsgi.application'
 
-# Base de donnees. Par defaut, un fichier SQLite local (pratique pour
-# developper/tester sans Docker) ; en developpement/production, TF_DATABASE_URL
-# pointe vers Postgres (voir docker-compose.yml et .env.example a la racine).
-_url_bd = os.environ.get('TF_DATABASE_URL', '')
-if _url_bd.startswith('postgresql'):
-    import re as _re
-    _correspondance = _re.match(
-        r'postgresql(?:\+\w+)?://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:/]+):(?P<port>\d+)/(?P<name>.+)',
-        _url_bd
-    )
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': _correspondance['name'],
-            'USER': _correspondance['user'],
-            'PASSWORD': _correspondance['password'],
-            'HOST': _correspondance['host'],
-            'PORT': _correspondance['port'],
-        }
-    }
+# Base de donnees. TF_DATABASE_URL (ou DATABASE_URL, fournie par Railway
+# quand un service Postgres est relie) ; sinon un fichier SQLite local,
+# pratique pour developper/tester sans Docker.
+_url_bd = os.environ.get('TF_DATABASE_URL') or os.environ.get('DATABASE_URL') or ''
+if _url_bd:
+    # Accepte aussi la forme SQLAlchemy 'postgresql+psycopg://' des anciennes
+    # versions du fichier .env.example.
+    _url_bd = _url_bd.replace('postgresql+psycopg://', 'postgresql://', 1)
+    DATABASES = {'default': dj_database_url.parse(_url_bd, conn_max_age=600, conn_health_checks=True)}
 else:
+    _dossier_sqlite = BASE_DIR / 'data'
+    _dossier_sqlite.mkdir(exist_ok=True)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'data' / 'transitflow.db',
+            'NAME': _dossier_sqlite / 'transitflow.db',
         }
     }
 
@@ -126,9 +153,14 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    # Jeton unique (pas d access/refresh comme le ferait un vrai flux OAuth) pour
-    # rester compatible avec assets/js/auth.js, qui ne garde qu un seul jeton.
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
+    # Jeton d acces court + jeton de rafraichissement plus long : le
+    # front-end (assets/js/store.js) redemande un jeton d acces de facon
+    # transparente quand il expire. A la deconnexion, le jeton de
+    # rafraichissement est mis sur liste noire (token_blacklist).
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.environ.get('TF_JETON_MINUTES', '60'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 LANGUAGE_CODE = 'fr-ca'
@@ -137,4 +169,34 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {
+        'BACKEND': ('django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+                    else 'whitenoise.storage.CompressedManifestStaticFilesStorage'),
+    },
+}
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ---- Production (TF_DEBUG=0) ---------------------------------------------
+if not DEBUG:
+    # Railway termine le HTTPS devant l application et transmet l information
+    # dans l entete X-Forwarded-Proto.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = os.environ.get('TF_SSL_REDIRECT', '1') == '1'
+    # La route de sante doit rester joignable en HTTP par la sonde de Railway.
+    SECURE_REDIRECT_EXEMPT = [r'^api/sante$']
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get('TF_HSTS_SECONDS', '3600'))
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'same-origin'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': os.environ.get('TF_LOG_LEVEL', 'INFO')},
+}
