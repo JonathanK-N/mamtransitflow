@@ -26,8 +26,23 @@ def sante(request):
     return JsonResponse({'ok': True, 'service': 'transitflow-api'})
 
 
+def servir_front(request, path, document_root):
+    """
+    Sert une page ou un fichier du front-end avec Cache-Control: no-cache.
+
+    Sans cet entete, le navigateur garde les fichiers JS/CSS en cache selon
+    une duree "heuristique" : apres un deploiement, il peut executer l ancien
+    JavaScript face a la nouvelle API (vu en production le 25 septembre 2026).
+    no-cache impose une revalidation a chaque chargement ; grace a
+    Last-Modified, un fichier inchange coute une simple reponse 304.
+    """
+    reponse = serve(request, path=path, document_root=document_root)
+    reponse['Cache-Control'] = 'no-cache'
+    return reponse
+
+
 def page_accueil(request):
-    return serve(request, path='index.html', document_root=RACINE_PROJET)
+    return servir_front(request, path='index.html', document_root=RACINE_PROJET)
 
 
 urlpatterns = [
@@ -51,7 +66,7 @@ urlpatterns = [
     # backend) : seulement les dossiers/fichiers dont le front-end a besoin.
     path('', page_accueil),
     path('index.html', page_accueil),
-    re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': RACINE_PROJET / 'assets'}),
-    re_path(r'^admin/(?P<path>.*)$', serve, {'document_root': RACINE_PROJET / 'admin'}),
-    re_path(r'^chauffeur/(?P<path>.*)$', serve, {'document_root': RACINE_PROJET / 'chauffeur'}),
+    re_path(r'^assets/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'assets'}),
+    re_path(r'^admin/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'admin'}),
+    re_path(r'^chauffeur/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'chauffeur'}),
 ]
