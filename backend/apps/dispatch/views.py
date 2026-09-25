@@ -7,12 +7,16 @@ Auteur : Jonathan K-N
   GET  /api/trajets/<code>          -> detail
   POST /api/trajets                 -> demarrer un trajet (reserve a 'fleet.driver')
   POST /api/trajets/<code>/arrets   -> ajouter un arret (chauffeur proprietaire seulement)
-  POST /api/trajets/<code>/terminer -> terminer (chauffeur proprietaire, ou administrateur)
+  POST /api/trajets/<code>/terminer -> terminer (chauffeur proprietaire, ou administrateur) ;
+                                       {kilometrage} facultatif = compteur du vehicule a l arrivee
 
 Le chauffeur d un trajet vient toujours du compte connecte
 (request.user.chauffeur), jamais d une valeur envoyee par le client.
 Cloisonnement : un chauffeur ne voit que ses propres trajets ; ceux des
 autres repondent 404 comme s ils n existaient pas.
+
+Un trajet ne demarre qu avec un vehicule 'actif' : un vehicule en
+maintenance (bon de travail en cours) ou hors service est refuse (409).
 """
 
 from django.db import transaction
@@ -24,8 +28,9 @@ from rest_framework.views import APIView
 from apps.comptes.permissions import DansGroupe, EstConnecte, est_admin, voit_tout
 from apps.drivers.models import Chauffeur
 from apps.fleet.models import Vehicule
+from apps.fleet.services import enregistrer_kilometrage
 from .models import Arret, Trajet
-from .serializers import ArretSerializer, TrajetSerializer
+from .serializers import ArretSerializer, TerminerTrajetSerializer, TrajetSerializer
 
 
 def _erreur(message, code):
@@ -65,8 +70,12 @@ class TrajetsView(APIView):
         serializer.is_valid(raise_exception=True)
         donnees = serializer.validated_data
 
-        if not Vehicule.objects.filter(plaque=donnees['plaque']).exists():
+        vehicule = Vehicule.objects.filter(plaque=donnees['plaque']).first()
+        if not vehicule:
             return _erreur('Vehicule introuvable pour cette plaque.', status.HTTP_400_BAD_REQUEST)
+        if not vehicule.disponible:
+            return _erreur(f'Le vehicule {vehicule.plaque} est {vehicule.get_statut_display().lower()} : '
+                           'choisissez un autre vehicule.', status.HTTP_409_CONFLICT)
         if donnees['fin_prevue'] <= donnees['debut']:
             return _erreur('L arrivee prevue doit etre posterieure au depart.', status.HTTP_400_BAD_REQUEST)
 
@@ -77,6 +86,12 @@ class TrajetsView(APIView):
             if Trajet.objects.filter(chauffeur=chauffeur, statut='en-cours').exists():
                 return _erreur('Un trajet est deja en cours : terminez-le avant d en demarrer un autre.',
                                status.HTTP_409_CONFLICT)
+            # Verrou sur le vehicule : un bon de travail ne peut pas le passer
+            # en maintenance pendant ce demarrage (voir apps/entretien/services.py).
+            vehicule = Vehicule.objects.select_for_update().get(pk=vehicule.pk)
+            if not vehicule.disponible:
+                return _erreur(f'Le vehicule {vehicule.plaque} vient de passer '
+                               f'{vehicule.get_statut_display().lower()}.', status.HTTP_409_CONFLICT)
             trajet = Trajet.objects.create(
                 chauffeur=chauffeur, statut='en-cours', plaque=donnees['plaque'], depart=donnees['depart'],
                 depart_adresse=donnees.get('depart_adresse'), arrivee=donnees['arrivee'],
@@ -138,8 +153,19 @@ class TerminerTrajetView(APIView):
             return _erreur('Acces refuse.', status.HTTP_403_FORBIDDEN)
         if trajet.statut == 'termine':
             return _erreur('Ce trajet est deja termine.', status.HTTP_400_BAD_REQUEST)
+        entree = TerminerTrajetSerializer(data=request.data)
+        entree.is_valid(raise_exception=True)
+        kilometrage = entree.validated_data.get('kilometrage')
 
         with transaction.atomic():
+            # Compteur saisi a l arrivee (facultatif) : alimente le suivi
+            # kilometrique et les echeances d entretien du vehicule. Une
+            # valeur incoherente annule toute la cloture (reponse 400).
+            if kilometrage is not None:
+                vehicule = Vehicule.objects.filter(plaque=trajet.plaque).first()
+                if vehicule:
+                    enregistrer_kilometrage(vehicule, kilometrage, source='trajet', auteur=request.user,
+                                            note=f'{trajet.code} — {trajet.depart} -> {trajet.arrivee}')
             trajet.statut = 'termine'
             trajet.fin = timezone.now()
             trajet.save(update_fields=['statut', 'fin'])

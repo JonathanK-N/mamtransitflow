@@ -47,3 +47,27 @@ def test_sante(client):
     r = client.get('/api/sante')
     assert r.status_code == 200
     assert r.json()['ok'] is True
+
+
+def test_indicateurs_entretien(client, jeton_admin):
+    from apps.entretien.models import BonTravail, PlanEntretien
+
+    aujourdhui = timezone.localdate()
+    actif = Vehicule.objects.create(plaque='QC-1', modele='X', kilometrage=10000)
+    atelier = Vehicule.objects.create(plaque='QC-2', modele='X', statut='maintenance')
+    retire = Vehicule.objects.create(plaque='QC-3', modele='X', statut='hors-service')
+    PlanEntretien.objects.create(vehicule=actif, type='vidange', libelle='V', intervalle_km=5000,
+                                 dernier_km=4000, derniere_date=aujourdhui)                       # en retard
+    PlanEntretien.objects.create(vehicule=atelier, type='inspection', libelle='I', intervalle_jours=365,
+                                 derniere_date=aujourdhui - timedelta(days=350))                  # bientot
+    PlanEntretien.objects.create(vehicule=retire, type='vidange', libelle='V', intervalle_jours=10,
+                                 derniere_date=aujourdhui - timedelta(days=100))                  # ignore
+    BonTravail.objects.create(vehicule=atelier, type='freins', titre='F', date_prevue=aujourdhui, statut='en-cours')
+    BonTravail.objects.create(vehicule=actif, type='freins', titre='F', date_prevue=aujourdhui, statut='termine')
+
+    k = client.get('/api/indicateurs', **entete_auth(jeton_admin)).json()['indicateurs']
+    assert k['vehiculesDisponibles'] == 1
+    assert k['vehiculesEnMaintenance'] == 1
+    assert k['entretiensEnRetard'] == 1
+    assert k['entretiensBientot'] == 1
+    assert k['bonsOuverts'] == 1

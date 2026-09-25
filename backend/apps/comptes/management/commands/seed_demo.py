@@ -2,8 +2,9 @@
 TransitFlow — Donnees de demonstration
 Auteur : Jonathan K-N
 
-Recree un jeu de donnees realiste (vehicules, un administrateur, quatre
-chauffeurs avec leur compte, trajets, arrets, incidents) equivalent au
+Recree un jeu de donnees realiste (vehicules et leur compteur, un
+administrateur, quatre chauffeurs avec leur compte, trajets, arrets,
+incidents, plans d entretien preventif et bons de travail) equivalent au
 TF_SEED du prototype front-end, qui n a jamais ete commite. Les dates sont
 calculees a partir d aujourd hui : le tableau de bord reste coherent quel
 que soit le jour de la demonstration.
@@ -17,6 +18,7 @@ Refuse de s executer quand TF_DEBUG=0 (production), sauf avec --force.
 """
 
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth.models import Group
@@ -27,18 +29,30 @@ from django.utils import timezone
 from apps.comptes.models import Utilisateur
 from apps.dispatch.models import Arret, Trajet
 from apps.drivers.models import Chauffeur
+from apps.entretien.models import BonTravail, PlanEntretien
+from apps.entretien import services as entretien
 from apps.fleet.models import Vehicule
+from apps.fleet.services import enregistrer_kilometrage
 from apps.maintenance.models import Incident
 
 MOT_DE_PASSE_PAR_DEFAUT = 'Transit-Demo-2026'
 ADMIN = ('a.tremblay@transitflow.ca', 'Alex Tremblay')
 
+# (plaque, modele, annee, kilometrage actuel, mise en service il y a N jours)
 VEHICULES = [
-    ('QC-4821', 'Ford Transit 2023'),
-    ('QC-1094', 'Mercedes Sprinter 2022'),
-    ('QC-7733', 'Ford Transit 2024'),
-    ('QC-2287', 'Nissan NV200 2021'),
-    ('QC-5512', 'Ford Transit 2022'),
+    ('QC-4821', 'Ford Transit 2023', 2023, 48210, 820),
+    ('QC-1094', 'Mercedes Sprinter 2022', 2022, 91540, 1180),
+    ('QC-7733', 'Ford Transit 2024', 2024, 17350, 310),
+    ('QC-2287', 'Nissan NV200 2021', 2021, 126800, 1560),
+    ('QC-5512', 'Ford Transit 2022', 2022, 73020, 1050),
+]
+
+# Programme preventif type d une navette : (type, libelle, intervalle km, intervalle jours)
+PROGRAMME_PREVENTIF = [
+    ('vidange', 'Vidange moteur et filtre a huile', 8000, 180),
+    ('inspection', 'Inspection mecanique obligatoire', None, 365),
+    ('freins', 'Controle des freins', 30000, None),
+    ('pneus', 'Permutation des pneus', 10000, None),
 ]
 
 # (courriel, prenom, nom, age, telephone, adresse, permis, expiration dans N jours, statut, plaque)
@@ -71,6 +85,8 @@ class Command(BaseCommand):
         mot_de_passe = options['mot_de_passe']
 
         if options['reset']:
+            BonTravail.objects.all().delete()
+            PlanEntretien.objects.all().delete()
             Incident.objects.all().delete()
             Trajet.objects.all().delete()
             Utilisateur.objects.filter(chauffeur__isnull=False).delete()
@@ -80,8 +96,14 @@ class Command(BaseCommand):
         groupe_admin, _ = Group.objects.get_or_create(name='fleet.admin')
         groupe_chauffeur, _ = Group.objects.get_or_create(name='fleet.driver')
 
-        for plaque, modele in VEHICULES:
-            Vehicule.objects.get_or_create(plaque=plaque, defaults={'modele': modele})
+        aujourdhui = timezone.localdate()
+        for plaque, modele, annee, kilometrage, jours_service in VEHICULES:
+            vehicule, cree = Vehicule.objects.get_or_create(plaque=plaque, defaults={
+                'modele': modele, 'annee': annee,
+                'mise_en_service': aujourdhui - timedelta(days=jours_service),
+            })
+            if cree or not vehicule.releves.exists():
+                enregistrer_kilometrage(vehicule, kilometrage, source='initial', note='Donnees de demonstration')
 
         courriel_admin, nom_admin = ADMIN
         if not Utilisateur.objects.filter(courriel=courriel_admin).exists():
@@ -89,7 +111,6 @@ class Command(BaseCommand):
                                                     nom=nom_admin)
             admin.groups.add(groupe_admin)
 
-        aujourdhui = timezone.localdate()
         chauffeurs = {}
         for (courriel, prenom, nom, age, telephone, adresse, permis, jours_permis,
              statut, plaque) in CHAUFFEURS:
@@ -111,6 +132,8 @@ class Command(BaseCommand):
 
         if not Trajet.objects.exists():
             self._creer_trajets(chauffeurs, aujourdhui, a)
+        if not PlanEntretien.objects.exists():
+            self._creer_entretien(aujourdhui)
 
         self.stdout.write(self.style.SUCCESS(
             'Donnees de demonstration pretes.\n'
@@ -161,3 +184,66 @@ class Command(BaseCommand):
             lieu='Autoroute 10, sortie 115', date=aujourdhui,
             heure=(debut + timedelta(minutes=30)).strftime('%H:%M'), statut='ouvert',
         )
+
+    def _creer_entretien(self, aujourdhui: date):
+        """
+        Un programme preventif par vehicule, avec des echeances variees pour
+        que le tableau de bord montre des retards, des alertes proches et
+        des entretiens a jour ; plus quelques bons de travail (termines avec
+        leurs couts, en cours, planifies, et un correctif issu d un incident).
+        """
+        admin = Utilisateur.objects.filter(courriel=ADMIN[0]).first()
+        # Decalage du dernier entretien par vehicule : (km parcourus depuis, jours ecoules depuis).
+        decalages = {
+            'QC-4821': (7400, 150),   # vidange imminente
+            'QC-1094': (8600, 200),   # vidange en retard
+            'QC-7733': (2100, 40),    # tout est a jour
+            'QC-2287': (5200, 350),   # inspection annuelle imminente
+            'QC-5512': (3900, 90),
+        }
+        plans = {}
+        for vehicule in Vehicule.objects.all():
+            km_depuis, jours_depuis = decalages.get(vehicule.plaque, (1000, 30))
+            for type_, libelle, intervalle_km, intervalle_jours in PROGRAMME_PREVENTIF:
+                plans[(vehicule.plaque, type_)] = PlanEntretien.objects.create(
+                    vehicule=vehicule, type=type_, libelle=libelle, intervalle_km=intervalle_km,
+                    intervalle_jours=intervalle_jours,
+                    dernier_km=max(0, vehicule.kilometrage - km_depuis),
+                    derniere_date=aujourdhui - timedelta(days=jours_depuis),
+                )
+
+        def bon(plaque, jours, **champs):
+            vehicule = Vehicule.objects.get(plaque=plaque)
+            return BonTravail.objects.create(vehicule=vehicule, cree_par=admin,
+                                             date_prevue=aujourdhui + timedelta(days=jours), **champs)
+
+        # Historique : interventions terminees avec leurs couts.
+        historique = [
+            ('QC-1094', -60, 'correctif', 'freins', 'Remplacement des plaquettes avant', 'Garage Sherbrooke Auto',
+             '248.60', '180.00'),
+            ('QC-2287', -35, 'correctif', 'electrique', 'Batterie remplacee', 'Canadian Tire Sherbrooke',
+             '219.99', '45.00'),
+            ('QC-5512', -20, 'correctif', 'pneus', 'Reparation crevaison arriere gauche', 'Pneus Estrie',
+             '35.00', '40.00'),
+        ]
+        for plaque, jours, categorie, type_, titre, fournisseur, pieces, main_oeuvre in historique:
+            b = bon(plaque, jours, categorie=categorie, type=type_, titre=titre, fournisseur=fournisseur)
+            entretien.terminer(b, auteur=admin, date_fin=aujourdhui + timedelta(days=jours),
+                               cout_pieces=Decimal(pieces), cout_main_oeuvre=Decimal(main_oeuvre))
+
+        # Vidange en retard du Sprinter : planifiee demain.
+        bon('QC-1094', 1, categorie='preventif', type='vidange', titre=plans[('QC-1094', 'vidange')].libelle,
+            plan=plans[('QC-1094', 'vidange')], priorite='haute', fournisseur='Garage Sherbrooke Auto',
+            cout_pieces=Decimal('89.00'), cout_main_oeuvre=Decimal('60.00'))
+
+        # Le NV200 est au garage (bon en cours -> vehicule en maintenance).
+        en_cours = bon('QC-2287', 0, categorie='correctif', type='climatisation',
+                       titre='Climatisation ne refroidit plus',
+                       description='Recharge de gaz et recherche de fuite.', fournisseur='Clim Auto Estrie')
+        entretien.demarrer(en_cours)
+
+        # Correctif a planifier a partir de l incident "voyant moteur" du trajet en cours.
+        incident = Incident.objects.filter(type='technique', statut='ouvert').first()
+        if incident and incident.trajet_id:
+            bon(incident.trajet.plaque, 2, categorie='correctif', type='reparation', titre=incident.titre,
+                description=incident.description, incident=incident, priorite='urgente')

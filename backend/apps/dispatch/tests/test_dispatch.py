@@ -138,3 +138,50 @@ def test_liste_filtre_par_chauffeur(client, jeton_admin):
     client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton))
     r = client.get(f"/api/trajets?chauffeurId={fiche['id']}", **entete_auth(jeton_admin))
     assert len(r.json()['trajets']) == 1
+
+
+# ---- Lien avec la flotte et l entretien --------------------------------------
+
+@pytest.mark.parametrize('statut', ['maintenance', 'hors-service'])
+def test_demarrage_refuse_si_vehicule_indisponible(client, jeton_admin, statut):
+    Vehicule.objects.filter(plaque='QC-4821').update(statut=statut)
+    fiche, jeton = creer_chauffeur_avec_compte(client, jeton_admin)
+    r = client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton))
+    assert r.status_code == 409
+    assert 'QC-4821' in r.json()['message']
+    from apps.drivers.models import Chauffeur
+    assert Chauffeur.depuis_code(fiche['id']).statut == 'disponible'
+
+
+def test_terminer_avec_kilometrage(client, jeton_admin):
+    Vehicule.objects.filter(plaque='QC-4821').update(kilometrage=48000)
+    _, jeton = creer_chauffeur_avec_compte(client, jeton_admin)
+    trajet = client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton)).json()['trajet']
+    r = client.post(f"/api/trajets/{trajet['id']}/terminer", {'kilometrage': 48065}, format='json',
+                    **entete_auth(jeton))
+    assert r.status_code == 200
+    vehicule = Vehicule.objects.get(plaque='QC-4821')
+    assert vehicule.kilometrage == 48065
+    releve = vehicule.releves.get()
+    assert releve.source == 'trajet' and trajet['id'] in releve.note
+
+
+def test_terminer_kilometrage_incoherent_ne_cloture_pas(client, jeton_admin):
+    Vehicule.objects.filter(plaque='QC-4821').update(kilometrage=48000)
+    fiche, jeton = creer_chauffeur_avec_compte(client, jeton_admin)
+    trajet = client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton)).json()['trajet']
+    r = client.post(f"/api/trajets/{trajet['id']}/terminer", {'kilometrage': 100}, format='json',
+                    **entete_auth(jeton))
+    assert r.status_code == 400
+    assert 'kilometrage' in r.json()
+    assert client.get(f"/api/trajets/{trajet['id']}", **entete_auth(jeton)).json()['trajet']['statut'] == 'en-cours'
+    from apps.drivers.models import Chauffeur
+    assert Chauffeur.depuis_code(fiche['id']).statut == 'en-trajet'
+
+
+def test_terminer_sans_corps_reste_compatible(client, jeton_admin):
+    _, jeton = creer_chauffeur_avec_compte(client, jeton_admin)
+    trajet = client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton)).json()['trajet']
+    r = client.post(f"/api/trajets/{trajet['id']}/terminer", **entete_auth(jeton))
+    assert r.status_code == 200
+    assert Vehicule.objects.get(plaque='QC-4821').releves.count() == 0

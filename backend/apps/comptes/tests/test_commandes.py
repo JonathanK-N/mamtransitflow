@@ -49,6 +49,23 @@ def test_seed_demo_puis_connexion(client, settings):
     assert Chauffeur.objects.count() == 4
 
 
+def test_seed_demo_entretien(settings):
+    from apps.entretien.models import BonTravail, PlanEntretien
+    from apps.fleet.models import Vehicule
+
+    settings.DEBUG = True
+    call_command('seed_demo')
+    call_command('seed_demo')  # idempotent : pas de doublons de plans ni de bons
+    assert PlanEntretien.objects.count() == 5 * 4
+    assert BonTravail.objects.filter(statut='termine').count() == 3
+    assert BonTravail.objects.filter(statut='en-cours').count() == 1
+    assert BonTravail.objects.filter(incident__isnull=False).count() == 1
+    assert Vehicule.objects.get(plaque='QC-2287').statut == 'maintenance'
+    assert all(v.releves.exists() for v in Vehicule.objects.all())
+    call_command('seed_demo', '--reset')  # les bons (PROTECT) ne bloquent pas la remise a zero
+    assert BonTravail.objects.filter(statut='en-cours').count() == 1
+
+
 def test_seed_demo_refuse_en_production(settings):
     settings.DEBUG = False
     with pytest.raises(CommandError):

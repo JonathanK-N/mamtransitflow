@@ -38,3 +38,8 @@ class TrajetSerializer(serializers.ModelSerializer):
 
     def get_chauffeurId(self, obj):
         return obj.chauffeur.code
+
+
+class TerminerTrajetSerializer(serializers.Serializer):
+    """Corps (facultatif) de POST /api/trajets/<code>/terminer."""
+    kilometrage = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=5_000_000)
