@@ -18,6 +18,7 @@
   <a class="tf-nav-link active" href="chauffeurs.html">Chauffeurs</a>
   <a class="tf-nav-link" href="trajets.html">Trajets</a>
   <a class="tf-nav-link" href="incidents.html">Incidents</a>
+  <a class="tf-nav-link" href="vehicules.html">Vehicules</a>
   <div class="tf-navbar-user" data-navbar-user></div>
 </nav>
 <main class="tf-page">
@@ -72,12 +73,21 @@
         <div class="col-12 col-md-3"><label class="tf-field">
           <span class="tf-label">Vehicule habituel</span>
           <select class="tf-input" name="plaque">
-            <option value="QC-4821">QC-4821</option>
-            <option value="QC-1094">QC-1094</option>
-            <option value="QC-7733">QC-7733</option>
-            <option value="QC-2287">QC-2287</option>
-            <option value="QC-5512">QC-5512</option>
+            <option value="">Chargement...</option>
           </select></label></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="border-0 p-0 m-0">
+      <legend class="tf-mono" style="font-size:10.5px;letter-spacing:.04em;color:var(--tf-muted)">COMPTE DE CONNEXION</legend>
+      <div class="row g-3 mt-1">
+        <div class="col-12 col-md-6"><label class="tf-field">
+          <span class="tf-label">Mot de passe initial (facultatif)</span>
+          <input class="tf-input" name="motDePasse" type="password" autocomplete="new-password" minlength="8"
+                 placeholder="Laisser vide pour en generer un"></label></div>
+        <div class="col-12 col-md-6 d-flex align-items-end">
+          <p class="tf-meta mb-0">Le chauffeur se connecte avec son courriel. Si le champ est vide, un mot de
+            passe est genere et affiche une seule fois apres la creation.</p></div>
       </div>
     </fieldset>
 
@@ -86,6 +96,20 @@
       <button class="tf-btn tf-btn-primary" type="submit">Creer le compte</button>
     </div>
   </form>
+
+  <section class="tf-card tf-card-pad d-flex flex-column gap-3 tf-hidden" data-compte-cree>
+    <h2 class="tf-h2" style="font-size:20px">Compte cree</h2>
+    <p class="mb-0">Transmettez ces identifiants au chauffeur. Le mot de passe ne sera plus affiche.</p>
+    <div class="row g-3">
+      <div class="col-12 col-md-6"><div class="tf-meta mb-1">Courriel</div>
+        <div class="tf-mono" data-identifiant></div></div>
+      <div class="col-12 col-md-6"><div class="tf-meta mb-1">Mot de passe</div>
+        <div class="tf-mono" style="font-size:16px" data-mot-de-passe></div></div>
+    </div>
+    <div class="d-flex justify-content-end">
+      <a class="tf-btn tf-btn-primary" data-lien-fiche href="chauffeurs.html">Voir la fiche</a>
+    </div>
+  </section>
 </main>
 <script src="../assets/js/store.js"></script>
 <script src="../assets/js/format.js"></script>

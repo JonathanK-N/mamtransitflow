@@ -45,30 +45,23 @@
       <label class="tf-field">
         <span class="tf-label">Courriel</span>
         <input class="tf-input" type="email" name="courriel" autocomplete="username"
-               value="a.tremblay@transitflow.ca" required>
+               required>
       </label>
 
       <label class="tf-field">
         <span class="tf-label">Mot de passe</span>
         <input class="tf-input" type="password" name="motDePasse" autocomplete="current-password"
-               value="demo" required>
+               required>
       </label>
 
-      <div class="d-flex align-items-center justify-content-between" style="font-size:13.5px">
-        <label class="d-flex align-items-center gap-2 tf-muted mb-0">
-          <input type="checkbox" name="memoriser"> Se souvenir de moi
-        </label>
-        <a href="#">Mot de passe oublie ?</a>
-      </div>
+      <p class="tf-meta mb-0" style="font-size:13.5px">
+        Mot de passe oublie ? Demandez a votre administrateur de le reinitialiser.
+      </p>
 
       <p class="tf-pill danger tf-hidden mb-0" data-erreur style="justify-content:center"></p>
 
       <button class="tf-btn tf-btn-primary tf-btn-block" type="submit" style="height:50px">Se connecter</button>
 
-      <p class="tf-meta text-center mb-0">
-        Comptes de demonstration : <span class="tf-mono">a.tremblay@transitflow.ca</span> ou
-        <span class="tf-mono">a.diallo@transitflow.ca</span> · mot de passe <span class="tf-mono">demo</span>
-      </p>
     </form>
   </section>
 </main>
@@ -81,19 +74,17 @@
   var role = 'admin';
   var formulaire = document.querySelector('[data-connexion]');
   var erreur = document.querySelector('[data-erreur]');
-  var champCourriel = formulaire.querySelector('[name=courriel]');
 
   document.querySelectorAll('[data-role]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {
       document.querySelectorAll('[data-role]').forEach(function (b) { b.classList.remove('active'); });
       bouton.classList.add('active');
       role = bouton.dataset.role;
-      champCourriel.value = role === 'admin' ? 'a.tremblay@transitflow.ca' : 'a.diallo@transitflow.ca';
     });
   });
 
   // "async" + "await" : on met le clic sur "Se connecter" en pause le
-  // temps que Auth.connecter() ait fini de parler au serveur (backend/routes/auth_routes.py),
+  // temps que Auth.connecter() ait fini de parler au serveur (backend/apps/comptes/views.py),
   // pour savoir si la connexion a reussi avant de faire quoi que ce soit d autre.
   formulaire.addEventListener('submit', async function (e) {
     e.preventDefault();

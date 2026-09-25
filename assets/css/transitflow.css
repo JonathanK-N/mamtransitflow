@@ -339,3 +339,19 @@ textarea.tf-input { height: auto; min-height: 84px; padding: 13px 16px; line-hei
   font-size: 15px; cursor: pointer;
 }
 .tf-hidden { display: none !important; }
+
+/* Notifications (erreurs du serveur, confirmations) — voir tfNotifier dans store.js */
+.tf-toasts {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  width: max-content; max-width: calc(100vw - 32px);
+  z-index: 60;
+}
+.tf-toast {
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  box-shadow: 0 12px 30px rgba(42, 37, 33, .25);
+  background: var(--tf-danger); color: #fff;
+}
+.tf-toast.succes { background: var(--tf-ok); }

@@ -1,62 +1,166 @@
 /* TransitFlow — client de l API backend
    Auteur original : Mamadou Barry (version localStorage)
    Modifie par : Jonathan K-N — remplace le localStorage par des appels
-   fetch() vers l API Flask (dossier backend/). Les noms de methode de
+   fetch() vers l API Django (dossier backend/). Les noms de methode de
    Store restent les memes qu avant (Store.chauffeurs(), Store.trajet(id),
-   etc.), mais chacune renvoie maintenant une promesse : il faut donc
-   utiliser "await Store.xxx(...)" partout ou Store est appele
-   (voir admin.js et chauffeur.js). */
+   etc.), mais chacune renvoie une promesse : il faut donc utiliser
+   "await Store.xxx(...)" partout ou Store est appele (voir admin.js et
+   chauffeur.js). */
 
-// Cle utilisee pour garder la session (avec son jeton de connexion)
-// dans sessionStorage. Doit rester identique a SESSION_KEY dans auth.js
-// puisque les deux fichiers lisent/ecrivent la meme entree.
+// Cle utilisee pour garder la session (jeton d acces + jeton de
+// rafraichissement) dans sessionStorage. Doit rester identique a
+// SESSION_KEY dans auth.js puisque les deux fichiers lisent/ecrivent la
+// meme entree.
 const TF_SESSION_KEY = 'transitflow.session';
 
-// Prefixe de toutes les routes de l API (voir backend/app.py et
-// backend/routes/). Comme le front-end est servi par le meme serveur
-// Flask que l API, un chemin relatif comme '/api' suffit : il n y a pas
-// besoin de preciser un nom de domaine ou un port.
+// Prefixe de toutes les routes de l API (voir backend/apps/*/urls.py).
+// Django sert le front-end et l API depuis le meme serveur : un chemin
+// relatif suffit, quel que soit le domaine (local ou Railway).
 const API_BASE = '/api';
+
+function tfLireSession() {
+  try { return JSON.parse(sessionStorage.getItem(TF_SESSION_KEY)); }
+  catch (e) { return null; }
+}
+
+function tfEcrireSession(session) {
+  sessionStorage.setItem(TF_SESSION_KEY, JSON.stringify(session));
+}
+
+/* Renvoie a la page de connexion (sauf si on y est deja, pour eviter une boucle). */
+function tfRetourConnexion() {
+  sessionStorage.removeItem(TF_SESSION_KEY);
+  const chemin = window.location.pathname.replace(/\/+/g, '/');
+  if (!chemin.endsWith('/index.html') && chemin !== '/') {
+    window.location.href = '/index.html';
+  }
+}
+
+/* Affiche un message en bas de l ecran pendant quelques secondes (erreur ou confirmation). */
+function tfNotifier(message, type) {
+  let zone = document.querySelector('[data-tf-notifications]');
+  if (!zone) {
+    zone = document.createElement('div');
+    zone.className = 'tf-toasts';
+    zone.setAttribute('data-tf-notifications', '');
+    zone.setAttribute('role', 'status');
+    document.body.appendChild(zone);
+  }
+  const bulle = document.createElement('div');
+  bulle.className = 'tf-toast ' + (type || 'erreur');
+  bulle.textContent = message;
+  zone.appendChild(bulle);
+  setTimeout(function () { bulle.remove(); }, 6000);
+}
+
+/* Desactive le bouton d envoi pendant la requete (evite les doubles clics) et affiche l erreur eventuelle. */
+async function tfEnvoyer(formulaire, action) {
+  const bouton = formulaire.querySelector('[type=submit]');
+  if (bouton) bouton.disabled = true;
+  try {
+    await action();
+  } catch (e) {
+    tfNotifier(e.message);
+  } finally {
+    if (bouton) bouton.disabled = false;
+  }
+}
+
+/*
+ * Echange le jeton de rafraichissement contre un nouveau jeton d acces
+ * (POST /api/auth/rafraichir). Plusieurs requetes peuvent recevoir un 401
+ * en meme temps : elles partagent alors la meme demande de renouvellement.
+ */
+let tfRenouvellementEnCours = null;
+function tfRenouvelerJeton() {
+  if (tfRenouvellementEnCours) return tfRenouvellementEnCours;
+  tfRenouvellementEnCours = (async function () {
+    const session = tfLireSession();
+    if (!session || !session.rafraichissement) return false;
+    try {
+      const reponse = await fetch(API_BASE + '/auth/rafraichir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rafraichissement: session.rafraichissement })
+      });
+      if (!reponse.ok) return false;
+      const donnees = await reponse.json();
+      session.jeton = donnees.jeton;
+      session.rafraichissement = donnees.rafraichissement;
+      tfEcrireSession(session);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  })();
+  tfRenouvellementEnCours.finally(function () { tfRenouvellementEnCours = null; });
+  return tfRenouvellementEnCours;
+}
+
+/* Premier message d erreur lisible d une reponse DRF ({message}, {detail} ou {champ: [erreurs]}). */
+function tfMessageErreur(donnees) {
+  if (!donnees) return 'Erreur de communication avec le serveur.';
+  if (donnees.message) return donnees.message;
+  if (donnees.detail) return donnees.detail;
+  for (const cle of Object.keys(donnees)) {
+    const valeur = donnees[cle];
+    if (Array.isArray(valeur) && valeur.length) {
+      return (cle === 'non_field_errors' ? '' : cle + ' : ') + valeur[0];
+    }
+    if (typeof valeur === 'string' && cle !== 'ok') return valeur;
+  }
+  return 'Erreur de communication avec le serveur.';
+}
 
 /*
  * Fonction centrale utilisee par toutes les methodes de Store pour
  * parler a l API :
- * 1. elle recupere le jeton de connexion dans sessionStorage et l ajoute
- *    a l entete "Authorization" (le serveur en a besoin pour savoir
- *    qui fait la demande, voir backend/routes/__init__.py) ;
- * 2. si le serveur repond 401 (jeton invalide/expire), on efface la
- *    session locale et on renvoie l utilisateur a la page de connexion ;
- * 3. sinon, si la reponse n est pas un succes, on transforme le message
- *    d erreur du serveur en exception JavaScript ;
- * 4. si tout va bien, on renvoie les donnees JSON de la reponse.
+ * 1. elle ajoute le jeton d acces a l entete "Authorization" ;
+ * 2. si le serveur repond 401 (jeton expire), elle renouvelle le jeton
+ *    une fois puis rejoue la requete ; si c est impossible, elle renvoie
+ *    a la page de connexion ;
+ * 3. si la reponse n est pas un succes, elle leve une Error avec le
+ *    message du serveur ;
+ * 4. sinon, elle renvoie les donnees JSON de la reponse.
  */
-async function tfRequete(chemin, options) {
+async function tfRequete(chemin, options, dejaRenouvele) {
   options = options || {};
   const entetes = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
-  let jeton = null;
-  try {
-    const brut = sessionStorage.getItem(TF_SESSION_KEY);
-    jeton = brut ? JSON.parse(brut).jeton : null;
-  } catch (e) { jeton = null; }
-  if (jeton) entetes.Authorization = 'Bearer ' + jeton;
+  const session = tfLireSession();
+  if (session && session.jeton) entetes.Authorization = 'Bearer ' + session.jeton;
 
-  const reponse = await fetch(API_BASE + chemin, Object.assign({}, options, { headers: entetes }));
+  let reponse;
+  try {
+    reponse = await fetch(API_BASE + chemin, Object.assign({}, options, { headers: entetes }));
+  } catch (e) {
+    throw new Error('Impossible de joindre le serveur. Verifiez votre connexion.');
+  }
 
   if (reponse.status === 401) {
-    // Session expiree ou jeton invalide : on nettoie et on renvoie vers la connexion,
-    // sauf si on est deja sur la page de connexion (pour eviter une boucle de redirections).
-    sessionStorage.removeItem(TF_SESSION_KEY);
-    if (!window.location.pathname.replace(/\/+/g, '/').endsWith('/index.html') && window.location.pathname !== '/') {
-      window.location.href = '/index.html';
+    if (!dejaRenouvele && await tfRenouvelerJeton()) {
+      return tfRequete(chemin, options, true);
     }
-    throw new Error('Session expiree ou invalide.');
+    tfRetourConnexion();
+    throw new Error('Session expiree, veuillez vous reconnecter.');
   }
 
   const donnees = await reponse.json().catch(function () { return {}; });
   if (!reponse.ok) {
-    throw new Error(donnees.message || 'Erreur de communication avec le serveur.');
+    const erreur = new Error(tfMessageErreur(donnees));
+    erreur.statut = reponse.status;
+    throw erreur;
   }
   return donnees;
+}
+
+/* Comme tfRequete, mais renvoie null quand la ressource n existe pas (404). */
+async function tfRequeteOuNull(chemin, options) {
+  try {
+    return await tfRequete(chemin, options);
+  } catch (e) {
+    if (e.statut === 404) return null;
+    throw e;
+  }
 }
 
 /* Transforme un objet de filtres ({statut: 'ouvert', ...}) en chaine de
@@ -71,14 +175,10 @@ function tfParametres(filtre) {
 }
 
 /*
- * Store expose les memes methodes qu avant (une par action possible :
- * lister, obtenir, ajouter, modifier...), mais chacune est maintenant
- * "async" et va chercher les donnees sur le serveur au lieu de les lire
- * dans le localStorage du navigateur. Quand une fiche n existe pas
- * (ex. Store.chauffeur('inconnu')), on attrape l erreur et on renvoie
- * null, exactement comme le faisait l ancienne version avec le
- * localStorage - le reste du code (admin.js, chauffeur.js) n a donc
- * pas besoin de changer sa facon de vérifier "si ca n existe pas".
+ * Store expose une methode par action possible (lister, obtenir,
+ * ajouter, modifier...). Quand une fiche n existe pas (404), la methode
+ * renvoie null, comme le faisait la version localStorage ; les autres
+ * erreurs (droits, validation, reseau) sont levees pour etre affichees.
  */
 const Store = {
   /* Chauffeurs */
@@ -87,24 +187,29 @@ const Store = {
     return donnees.chauffeurs;
   },
 
-  async chauffeur(id) {
-    try {
-      const donnees = await tfRequete('/chauffeurs/' + encodeURIComponent(id));
-      return donnees.chauffeur;
-    } catch (e) { return null; }
+  /* Dictionnaire id -> chauffeur, pour afficher les noms dans les listes sans une requete par ligne. */
+  async chauffeursParId() {
+    const index = {};
+    (await this.chauffeurs()).forEach(function (c) { index[c.id] = c; });
+    return index;
   },
 
+  async chauffeur(id) {
+    if (!id) return null;
+    const donnees = await tfRequeteOuNull('/chauffeurs/' + encodeURIComponent(id));
+    return donnees ? donnees.chauffeur : null;
+  },
+
+  /* Renvoie {chauffeur, motDePasseInitial} : le mot de passe n est present que s il a ete genere. */
   async ajouterChauffeur(chauffeur) {
     const donnees = await tfRequete('/chauffeurs', { method: 'POST', body: JSON.stringify(chauffeur) });
-    return donnees.chauffeur;
+    return { chauffeur: donnees.chauffeur, motDePasseInitial: donnees.motDePasseInitial || null };
   },
 
   async majChauffeur(id, champs) {
-    try {
-      const donnees = await tfRequete('/chauffeurs/' + encodeURIComponent(id),
-        { method: 'PATCH', body: JSON.stringify(champs) });
-      return donnees.chauffeur;
-    } catch (e) { return null; }
+    const donnees = await tfRequete('/chauffeurs/' + encodeURIComponent(id),
+      { method: 'PATCH', body: JSON.stringify(champs) });
+    return donnees.chauffeur;
   },
 
   /* Trajets */
@@ -114,38 +219,34 @@ const Store = {
   },
 
   async trajet(id) {
-    try {
-      const donnees = await tfRequete('/trajets/' + encodeURIComponent(id));
-      return donnees.trajet;
-    } catch (e) { return null; }
+    if (!id) return null;
+    const donnees = await tfRequeteOuNull('/trajets/' + encodeURIComponent(id));
+    return donnees ? donnees.trajet : null;
   },
 
   async trajetEnCours(chauffeurId) {
+    if (!chauffeurId) return null;
     const donnees = await tfRequete('/trajets/en-cours/' + encodeURIComponent(chauffeurId));
     return donnees.trajet;
   },
 
   async ajouterTrajet(trajet) {
-    // Le serveur ignore un chauffeurId envoye ici : il utilise toujours
-    // celui de la session connectee (voir backend/routes/trajets_routes.py).
+    // Le chauffeur du trajet est toujours celui de la session connectee
+    // (voir backend/apps/dispatch/views.py) : inutile de l envoyer.
     const donnees = await tfRequete('/trajets', { method: 'POST', body: JSON.stringify(trajet) });
     return donnees.trajet;
   },
 
   async ajouterArret(trajetId, arret) {
-    try {
-      const donnees = await tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/arrets',
-        { method: 'POST', body: JSON.stringify(arret) });
-      return donnees.trajet;
-    } catch (e) { return null; }
+    const donnees = await tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/arrets',
+      { method: 'POST', body: JSON.stringify(arret) });
+    return donnees.trajet;
   },
 
   async terminerTrajet(trajetId) {
-    try {
-      const donnees = await tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/terminer',
-        { method: 'POST' });
-      return donnees.trajet;
-    } catch (e) { return null; }
+    const donnees = await tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/terminer',
+      { method: 'POST' });
+    return donnees.trajet;
   },
 
   /* Incidents */
@@ -155,10 +256,9 @@ const Store = {
   },
 
   async incident(id) {
-    try {
-      const donnees = await tfRequete('/incidents/' + encodeURIComponent(id));
-      return donnees.incident;
-    } catch (e) { return null; }
+    if (!id) return null;
+    const donnees = await tfRequeteOuNull('/incidents/' + encodeURIComponent(id));
+    return donnees ? donnees.incident : null;
   },
 
   async ajouterIncident(incident) {
@@ -167,15 +267,19 @@ const Store = {
   },
 
   async traiterIncident(id) {
-    try {
-      const donnees = await tfRequete('/incidents/' + encodeURIComponent(id) + '/traiter', { method: 'POST' });
-      return donnees.incident;
-    } catch (e) { return null; }
+    const donnees = await tfRequete('/incidents/' + encodeURIComponent(id) + '/traiter', { method: 'POST' });
+    return donnees.incident;
   },
 
+  /* Vehicules */
   async vehicules() {
     const donnees = await tfRequete('/vehicules');
     return donnees.vehicules;
+  },
+
+  async ajouterVehicule(vehicule) {
+    const donnees = await tfRequete('/vehicules', { method: 'POST', body: JSON.stringify(vehicule) });
+    return donnees.vehicule;
   },
 
   /* Indicateurs du tableau de bord */

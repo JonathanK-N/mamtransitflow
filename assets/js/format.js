@@ -1,5 +1,8 @@
 /* TransitFlow — formatage et libelles
-   Auteur : Mamadou Barry */
+   Auteur : Mamadou Barry
+   Modifie par : Jonathan K-N — les dates et durees se calculent a partir
+   de l heure reelle du navigateur (et non plus d un "aujourd hui" fige au
+   12 septembre 2026). */
 
 const MOIS = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
@@ -7,6 +10,30 @@ const MOIS_COURT = ['janv.', 'fevr.', 'mars', 'avr.', 'mai', 'juin',
   'juil.', 'aout', 'sept.', 'oct.', 'nov.', 'dec.'];
 
 const Format = {
+  /* Date locale au format AAAA-MM-JJ (decalee de n jours si demande). */
+  aujourdhui(decalageJours) {
+    const d = new Date();
+    if (decalageJours) d.setDate(d.getDate() + decalageJours);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  },
+
+  /* Heure locale actuelle "HH:MM" (decalee de n minutes si demande), pour pre-remplir les formulaires. */
+  heureActuelle(decalageMinutes) {
+    const d = new Date(Date.now() + (decalageMinutes || 0) * 60000);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  },
+
+  /* Instant ISO (UTC) correspondant a une date "AAAA-MM-JJ" et une heure "HH:MM" locales. */
+  instant(date, heure) {
+    return new Date(date + 'T' + heure).toISOString();
+  },
+
+  /* Vrai si le permis expire dans les 60 prochains jours (meme fenetre que /api/indicateurs). */
+  permisBientotExpire(expiration) {
+    return Boolean(expiration) && expiration < this.aujourdhui(60);
+  },
+
   dateLongue(iso) {
     if (!iso) return '—';
     const d = new Date(iso.slice(0, 10) + 'T00:00');
@@ -38,7 +65,7 @@ const Format = {
   },
 
   dureeDepuis(debut, maintenant) {
-    return this.duree(debut, maintenant || '2026-09-12T09:02');
+    return this.duree(debut, maintenant || new Date().toISOString());
   },
 
   progression(trajet, maintenant) {
@@ -46,7 +73,7 @@ const Format = {
     if (trajet.statut === 'planifie') return 0;
     const t0 = new Date(trajet.debut).getTime();
     const t1 = new Date(trajet.finPrevue).getTime();
-    const tn = new Date(maintenant || '2026-09-12T09:02').getTime();
+    const tn = maintenant ? new Date(maintenant).getTime() : Date.now();
     if (!t0 || !t1 || t1 <= t0) return 0;
     return Math.max(0, Math.min(100, Math.round(((tn - t0) / (t1 - t0)) * 100)));
   },

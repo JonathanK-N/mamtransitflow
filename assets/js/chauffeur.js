@@ -1,8 +1,9 @@
 /* TransitFlow — ecrans chauffeur
    Auteur original : Mamadou Barry
    Modifie par : Jonathan K-N — meme principe que admin.js : chaque
-   methode "pageXxx" est passee en async/await parce que les donnees
-   viennent maintenant de l API (voir store.js) au lieu du localStorage. */
+   methode "pageXxx" est en async/await parce que les donnees viennent de
+   l API (voir store.js). Les dates sont celles du jour reel et les
+   erreurs du serveur sont affichees a l utilisateur (tfNotifier). */
 
 const Chauffeur = {
   /*
@@ -17,6 +18,12 @@ const Chauffeur = {
     monterBarreUtilisateur(session, '../');
     this.session = session;
     this.moi = await Store.chauffeur(session.chauffeurId);
+    if (!this.moi) {
+      document.querySelector('main').innerHTML =
+        '<p class="tf-muted">Ce compte n est rattache a aucune fiche chauffeur. ' +
+        'Contactez votre administrateur.</p>';
+      return;
+    }
     const page = document.body.dataset.page;
     const methode = 'page' + page.charAt(0).toUpperCase() + page.slice(1).replace(/-(.)/g, function (m, c) {
       return c.toUpperCase();
@@ -28,9 +35,12 @@ const Chauffeur = {
   async pageMesTrajets() {
     const moi = this.moi;
     document.querySelector('[data-salutation]').textContent = 'Bonjour ' + moi.prenom;
-    document.querySelector('[data-date]').textContent = Format.dateLongue('2026-09-12');
+    document.querySelector('[data-date]').textContent = Format.dateLongue(Format.aujourdhui());
 
-    const enCours = await Store.trajetEnCours(moi.id);
+    // Le serveur ne renvoie que les trajets et incidents du chauffeur connecte.
+    const [enCours, tousTrajets, tousIncidents] = await Promise.all([
+      Store.trajetEnCours(moi.id), Store.trajets({ chauffeurId: moi.id }), Store.incidents()
+    ]);
     const bloc = document.querySelector('[data-trajet-en-cours]');
     const vide = document.querySelector('[data-aucun-trajet]');
 
@@ -51,21 +61,17 @@ const Chauffeur = {
       bloc.querySelector('[data-lien-incident]').href =
         'incident-nouveau.html?trajet=' + encodeURIComponent(enCours.id);
       bloc.querySelector('[data-terminer]').addEventListener('click', async function () {
-        await Store.terminerTrajet(enCours.id);
-        window.location.reload();
+        try {
+          await Store.terminerTrajet(enCours.id);
+          window.location.reload();
+        } catch (e) { tfNotifier(e.message); }
       });
     } else {
       bloc.classList.add('tf-hidden');
       vide.classList.remove('tf-hidden');
     }
 
-    // L API n a pas de route "mes trajets termines" toute faite : on
-    // demande tous les trajets de ce chauffeur puis on filtre nous-memes
-    // ceux qui sont 'termine'. Meme logique pour associer les incidents
-    // a chaque trajet termine (on recupere tous les incidents une fois).
-    const tousTrajets = await Store.trajets({ chauffeurId: moi.id });
     const passes = tousTrajets.filter(function (t) { return t.statut === 'termine'; });
-    const tousIncidents = await Store.incidents();
     document.querySelector('[data-passes]').innerHTML = passes.map(function (t) {
       const incidents = tousIncidents.filter(function (i) { return i.trajetId === t.id; });
       return '<div class="col-12 col-md-4"><div class="tf-card tf-card-pad h-100 d-flex flex-column gap-2">' +
@@ -87,16 +93,23 @@ const Chauffeur = {
   async pageTrajetNouveau() {
     const moi = this.moi;
     const tuiles = document.querySelector('[data-vehicules]');
-    let plaque = moi.plaqueHabituelle;
+    const formulaire = document.querySelector('[data-formulaire]');
+    formulaire.querySelector('[name=heure]').value = Format.heureActuelle();
+    formulaire.querySelector('[name=heurePrevue]').value = Format.heureActuelle(60);
 
-    const vehicules = await Store.vehicules();
+    const [vehicules, enCours] = await Promise.all([Store.vehicules(), Store.trajetEnCours(moi.id)]);
+    let plaque = vehicules.some(function (v) { return v.plaque === moi.plaqueHabituelle; })
+      ? moi.plaqueHabituelle
+      : (vehicules[0] ? vehicules[0].plaque : null);
+
     tuiles.innerHTML = vehicules.map(function (v) {
       return '<div class="col-6 col-md-4"><button type="button" class="tf-tile' +
         (v.plaque === plaque ? ' active' : '') + '" data-plaque="' + Format.echapper(v.plaque) + '">' +
         '<span class="tf-tile-mark"></span>' +
         '<span class="tf-mono" style="font-size:14px">' + Format.echapper(v.plaque) + '</span>' +
         '<span class="tf-tile-note">' + Format.echapper(v.modele) + '</span></button></div>';
-    }).join('');
+    }).join('') || '<div class="col-12 tf-muted">Aucun vehicule dans la flotte : ' +
+      'demandez a votre administrateur d en ajouter un.</div>';
 
     tuiles.querySelectorAll('[data-plaque]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -106,27 +119,29 @@ const Chauffeur = {
       });
     });
 
-    if (await Store.trajetEnCours(moi.id)) {
+    if (enCours) {
       document.querySelector('[data-avertissement]').classList.remove('tf-hidden');
     }
 
-    document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
+    formulaire.addEventListener('submit', function (e) {
       e.preventDefault();
-      const d = new FormData(e.target);
-      // Le serveur ignore le chauffeurId envoye ici et prend toujours
-      // celui de la session connectee (voir backend/routes/trajets_routes.py) ;
-      // on le laisse quand meme dans l objet pour rester lisible.
-      const trajet = await Store.ajouterTrajet({
-        chauffeurId: moi.id,
-        plaque: plaque,
-        depart: d.get('depart').trim(),
-        departAdresse: d.get('departAdresse').trim(),
-        arrivee: d.get('arrivee').trim(),
-        debut: '2026-09-12T' + d.get('heure'),
-        finPrevue: '2026-09-12T' + d.get('heurePrevue')
+      tfEnvoyer(formulaire, async function () {
+        if (!plaque) throw new Error('Choisissez un vehicule.');
+        const d = new FormData(formulaire);
+        const debut = Format.instant(Format.aujourdhui(), d.get('heure'));
+        // Une arrivee prevue "avant" le depart signifie un trajet qui passe minuit.
+        let finPrevue = Format.instant(Format.aujourdhui(), d.get('heurePrevue'));
+        if (finPrevue <= debut) finPrevue = Format.instant(Format.aujourdhui(1), d.get('heurePrevue'));
+        const trajet = await Store.ajouterTrajet({
+          plaque: plaque,
+          depart: d.get('depart').trim(),
+          departAdresse: d.get('departAdresse').trim(),
+          arrivee: d.get('arrivee').trim(),
+          debut: debut,
+          finPrevue: finPrevue
+        });
+        window.location.href = 'trajet-en-cours.html?id=' + encodeURIComponent(trajet.id);
       });
-      await Store.majChauffeur(moi.id, { statut: 'en-trajet' });
-      window.location.href = 'trajet-en-cours.html?id=' + encodeURIComponent(trajet.id);
     });
   },
 
@@ -140,16 +155,20 @@ const Chauffeur = {
         '<p class="tf-muted">Aucun trajet en cours.</p>';
       return;
     }
+    const formulaireArret = document.querySelector('[data-arret]');
+    formulaireArret.querySelector('[name=heure]').value = Format.heureActuelle();
 
     // Redessine le fil du trajet (appelee au chargement et apres l ajout
-    // d un arret). On relit le trajet depuis l API a chaque fois plutot
-    // que de reutiliser "t" tel quel, pour avoir les arrets a jour.
+    // d un arret). On relit le trajet depuis l API a chaque fois pour
+    // avoir les arrets a jour.
     async function dessiner() {
       const [courant, tousIncidents] = await Promise.all([Store.trajet(t.id), Store.incidents()]);
       const incidents = tousIncidents.filter(function (i) { return i.trajetId === courant.id; });
       document.querySelector('[data-titre]').textContent = courant.depart + ' → ' + courant.arrivee;
       document.querySelector('[data-meta]').textContent =
-        courant.plaque + ' · ' + Format.dureeDepuis(courant.debut);
+        courant.plaque + ' · ' + (courant.statut === 'termine'
+          ? 'termine en ' + Format.duree(courant.debut, courant.fin)
+          : Format.dureeDepuis(courant.debut));
 
       const etapes = [{ heure: Format.heure(courant.debut), titre: 'Depart — ' + courant.depart,
         note: courant.departAdresse || courant.depart, classe: 'done' }];
@@ -165,7 +184,7 @@ const Chauffeur = {
         note: 'Heure prevue', classe: 'planned', futur: true });
 
       document.querySelector('[data-deroulement]').innerHTML = etapes.map(function (e, index) {
-        return '<div class="tf-tl-time">' + e.heure + '</div>' +
+        return '<div class="tf-tl-time">' + Format.echapper(e.heure) + '</div>' +
           '<div class="tf-tl-body ' + e.classe + (index === etapes.length - 1 ? ' last' : '') + '">' +
           '<div class="tf-tl-title"' + (e.futur ? ' style="color:var(--tf-muted)"' : '') + '>' +
           Format.echapper(e.titre) + '</div>' +
@@ -176,21 +195,26 @@ const Chauffeur = {
         'incident-nouveau.html?trajet=' + encodeURIComponent(courant.id);
     }
 
-    document.querySelector('[data-arret]').addEventListener('submit', async function (e) {
+    formulaireArret.addEventListener('submit', function (e) {
       e.preventDefault();
-      const d = new FormData(e.target);
-      await Store.ajouterArret(t.id, {
-        lieu: d.get('lieu').trim(),
-        heure: d.get('heure'),
-        note: d.get('note').trim()
+      tfEnvoyer(formulaireArret, async function () {
+        const d = new FormData(formulaireArret);
+        await Store.ajouterArret(t.id, {
+          lieu: d.get('lieu').trim(),
+          heure: d.get('heure'),
+          note: d.get('note').trim()
+        });
+        formulaireArret.reset();
+        formulaireArret.querySelector('[name=heure]').value = Format.heureActuelle();
+        await dessiner();
       });
-      e.target.reset();
-      await dessiner();
     });
 
     document.querySelector('[data-terminer]').addEventListener('click', async function () {
-      await Store.terminerTrajet(t.id);
-      window.location.href = 'mes-trajets.html';
+      try {
+        await Store.terminerTrajet(t.id);
+        window.location.href = 'mes-trajets.html';
+      } catch (e) { tfNotifier(e.message); }
     });
 
     await dessiner();
@@ -202,6 +226,8 @@ const Chauffeur = {
     const params = new URLSearchParams(location.search);
     const trajetId = params.get('trajet');
     const trajet = trajetId ? await Store.trajet(trajetId) : await Store.trajetEnCours(moi.id);
+    const formulaire = document.querySelector('[data-formulaire]');
+    formulaire.querySelector('[name=heure]').value = Format.heureActuelle();
     let type = 'technique';
 
     document.querySelector('[data-rattachement]').textContent = trajet
@@ -216,29 +242,32 @@ const Chauffeur = {
       });
     });
 
-    document.querySelector('[data-formulaire]').addEventListener('submit', async function (e) {
+    formulaire.addEventListener('submit', function (e) {
       e.preventDefault();
-      const d = new FormData(e.target);
-      await Store.ajouterIncident({
-        trajetId: trajet ? trajet.id : null,
-        chauffeurId: moi.id,
-        type: type,
-        titre: d.get('titre').trim(),
-        description: d.get('description').trim(),
-        lieu: d.get('lieu').trim(),
-        date: '2026-09-12',
-        heure: d.get('heure')
+      tfEnvoyer(formulaire, async function () {
+        const d = new FormData(formulaire);
+        await Store.ajouterIncident({
+          trajetId: trajet ? trajet.id : null,
+          type: type,
+          titre: d.get('titre').trim(),
+          description: d.get('description').trim(),
+          lieu: d.get('lieu').trim(),
+          date: Format.aujourdhui(),
+          heure: d.get('heure')
+        });
+        window.location.href = trajet
+          ? 'trajet-en-cours.html?id=' + encodeURIComponent(trajet.id)
+          : 'mes-trajets.html';
       });
-      window.location.href = trajet
-        ? 'trajet-en-cours.html?id=' + encodeURIComponent(trajet.id)
-        : 'mes-trajets.html';
     });
   }
 };
 
-// Chauffeur.demarrer() est asynchrone : on capture une eventuelle
-// erreur (ex. serveur injoignable) pour la voir dans la console plutot
-// que de la laisser disparaitre silencieusement.
+// Chauffeur.demarrer() est asynchrone : une erreur (ex. serveur injoignable)
+// est affichee a l utilisateur plutot que de disparaitre dans la console.
 document.addEventListener('DOMContentLoaded', function () {
-  Chauffeur.demarrer().catch(function (e) { console.error('TransitFlow chauffeur :', e); });
+  Chauffeur.demarrer().catch(function (e) {
+    console.error('TransitFlow chauffeur :', e);
+    tfNotifier(e.message);
+  });
 });

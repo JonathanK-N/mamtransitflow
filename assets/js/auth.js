@@ -1,11 +1,11 @@
 /* TransitFlow — session et garde de page
    Auteur original : Mamadou Barry
    Modifie par : Jonathan K-N — Auth.connecter() et Auth.deconnecter()
-   appellent maintenant l API backend (/api/auth/connexion et
-   /api/auth/deconnexion) au lieu de valider les comptes directement
-   dans le navigateur. La session gardee en sessionStorage contient en
-   plus un "jeton" recu du serveur, que store.js renvoie a chaque
-   requete pour prouver qui est connecte. */
+   appellent l API Django (/api/auth/connexion et /api/auth/deconnexion)
+   au lieu de valider les comptes dans le navigateur. La session gardee en
+   sessionStorage contient en plus le jeton d acces et le jeton de
+   rafraichissement recus du serveur, que store.js utilise a chaque
+   requete. */
 
 // Cle utilisee dans sessionStorage pour garder la session courante.
 // Doit rester identique a TF_SESSION_KEY dans store.js.
@@ -21,9 +21,7 @@ const Auth = {
   /*
    * Envoie courriel/mot de passe/role au serveur (POST /api/auth/connexion).
    * Le serveur repond soit par une erreur ({ok:false, message}), soit
-   * par une session valide + un jeton ({ok:true, session, jeton}).
-   * Si la connexion reussit, on garde session + jeton en sessionStorage
-   * pour que les autres pages (et store.js) puissent les reutiliser.
+   * par une session valide et ses jetons ({ok:true, session, jeton, rafraichissement}).
    */
   async connecter(courriel, motDePasse, role) {
     let reponse;
@@ -34,26 +32,30 @@ const Auth = {
         body: JSON.stringify({ courriel: courriel, motDePasse: motDePasse, role: role })
       });
     } catch (e) {
-      // Le serveur Flask n est pas demarre, ou le reseau a coupe.
+      // Le serveur n est pas demarre, ou le reseau a coupe.
       return { ok: false, message: 'Impossible de joindre le serveur.' };
     }
     const donnees = await reponse.json().catch(function () { return {}; });
     if (!reponse.ok || !donnees.ok) {
       return { ok: false, message: donnees.message || 'Connexion refusee.' };
     }
-    const session = Object.assign({}, donnees.session, { jeton: donnees.jeton });
+    const session = Object.assign({}, donnees.session, {
+      jeton: donnees.jeton,
+      rafraichissement: donnees.rafraichissement
+    });
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     return { ok: true, session: session };
   },
 
-  /* Previent le serveur (pour invalider le jeton), puis nettoie la session locale et redirige. */
+  /* Invalide le jeton de rafraichissement cote serveur, puis nettoie la session locale et redirige. */
   async deconnecter(racine) {
     const session = this.session();
-    if (session && session.jeton) {
+    if (session && session.rafraichissement) {
       try {
         await fetch('/api/auth/deconnexion', {
           method: 'POST',
-          headers: { Authorization: 'Bearer ' + session.jeton }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rafraichissement: session.rafraichissement })
         });
       } catch (e) { /* le serveur est peut-etre injoignable, on deconnecte quand meme */ }
     }
