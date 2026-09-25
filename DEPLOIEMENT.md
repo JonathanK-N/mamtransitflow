@@ -41,6 +41,14 @@ Ce que fait `railway.json` a chaque deploiement :
    | `TF_ADMIN_MOT_DE_PASSE` | son mot de passe (12 caracteres ou plus) |
    | `TF_ADMIN_NOM` | son nom affiche (ex. `Alex Tremblay`) |
 
+   **N importez pas les variables suggerees par Railway depuis
+   `.env.example`** : ce sont des valeurs de developpement (base sur
+   `localhost`, mode debug). Si c est deja fait, supprimez `TF_DATABASE_URL`,
+   `TF_ALLOWED_HOSTS` et `TF_DEBUG`, et remplacez `TF_SECRET_KEY`. Par
+   securite, l application refuse de demarrer avec une base `localhost` ou
+   une cle d exemple, et ignore `TF_DEBUG=1` dans l environnement
+   `production`.
+
    Generer la cle secrete :
    ```
    python -c "import secrets; print(secrets.token_urlsafe(50))"

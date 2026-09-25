@@ -44,26 +44,44 @@ def _liste(valeur: str) -> list:
     return [morceau.strip() for morceau in valeur.split(',') if morceau.strip()]
 
 
-DEBUG = os.environ.get('TF_DEBUG', '1') == '1'
+# Variables injectees automatiquement par Railway dans chaque service.
+SUR_RAILWAY = bool(os.environ.get('RAILWAY_ENVIRONMENT_NAME'))
+RAILWAY_PRODUCTION = os.environ.get('RAILWAY_ENVIRONMENT_NAME') == 'production'
+# `collectstatic` (etape de build) ne fait que copier des fichiers : il n a
+# besoin ni de la vraie cle secrete ni de la base de donnees.
+_COLLECTSTATIC = 'collectstatic' in sys.argv
+
+# Hors Railway, le mode developpement est actif par defaut ; sur Railway, il
+# faut le demander explicitement (TF_DEBUG=1), et il reste interdit dans
+# l environnement "production" : la page de debug de Django expose la
+# configuration a n importe quel visiteur.
+DEBUG = os.environ.get('TF_DEBUG', '0' if SUR_RAILWAY else '1') == '1'
+if DEBUG and RAILWAY_PRODUCTION:
+    print('TransitFlow : TF_DEBUG=1 ignore dans l environnement Railway "production".', file=sys.stderr)
+    DEBUG = False
+
+# Valeurs d exemple (.env.example) qui ne doivent jamais servir en production.
+_CLES_D_EXEMPLE = {'change-moi-en-production', 'django-insecure-cle-de-developpement-a-changer'}
 
 SECRET_KEY = os.environ.get('TF_SECRET_KEY', '')
+if not DEBUG and not _COLLECTSTATIC and (SECRET_KEY in _CLES_D_EXEMPLE or len(SECRET_KEY) < 32):
+    raise ImproperlyConfigured(
+        'TF_SECRET_KEY doit etre une valeur aleatoire d au moins 32 caracteres en production, generee avec : '
+        'python -c "import secrets; print(secrets.token_urlsafe(50))"'
+    )
 if not SECRET_KEY:
-    # `collectstatic` (etape de build Railway) ne fait que copier des fichiers :
-    # il n a pas besoin de la vraie cle, qui peut ne pas encore etre definie.
-    if not DEBUG and 'collectstatic' not in sys.argv:
-        raise ImproperlyConfigured('TF_SECRET_KEY doit etre defini en production (TF_DEBUG=0).')
     SECRET_KEY = 'django-insecure-cle-de-developpement-a-changer'
 
 ALLOWED_HOSTS = _liste(os.environ.get('TF_ALLOWED_HOSTS', 'localhost,127.0.0.1'))
 CSRF_TRUSTED_ORIGINS = _liste(os.environ.get('TF_CSRF_TRUSTED_ORIGINS', ''))
 
-# Railway fournit le domaine public du service : on l autorise
-# automatiquement pour ne pas avoir a le recopier a la main.
-_domaine_railway = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
-if _domaine_railway:
-    ALLOWED_HOSTS.append(_domaine_railway)
-    CSRF_TRUSTED_ORIGINS.append(f'https://{_domaine_railway}')
-if os.environ.get('RAILWAY_ENVIRONMENT_NAME'):
+if SUR_RAILWAY:
+    # Domaines publics generes par Railway (*.up.railway.app). RAILWAY_PUBLIC_DOMAIN
+    # n est injecte qu aux deploiements lances apres la creation du domaine :
+    # on accepte donc le suffixe, le routage de Railway ne transmettant a ce
+    # service que les requetes qui lui sont destinees.
+    ALLOWED_HOSTS.append('.up.railway.app')
+    CSRF_TRUSTED_ORIGINS.append('https://*.up.railway.app')
     # Les sondes de sante de Railway (healthcheckPath) arrivent avec cet hote.
     ALLOWED_HOSTS.append('healthcheck.railway.app')
 
@@ -117,10 +135,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'transitflow.wsgi.application'
 
-# Base de donnees. TF_DATABASE_URL (ou DATABASE_URL, fournie par Railway
-# quand un service Postgres est relie) ; sinon un fichier SQLite local,
-# pratique pour developper/tester sans Docker.
-_url_bd = os.environ.get('TF_DATABASE_URL') or os.environ.get('DATABASE_URL') or ''
+# Base de donnees. DATABASE_URL (reference au service Postgres de Railway)
+# est prioritaire ; sinon TF_DATABASE_URL (developpement avec docker-compose) ;
+# sinon un fichier SQLite local, pratique pour developper/tester sans Docker.
+_url_bd = os.environ.get('DATABASE_URL') or os.environ.get('TF_DATABASE_URL') or ''
+if SUR_RAILWAY and not _COLLECTSTATIC:
+    # Sur Railway, le disque du conteneur est efface a chaque deploiement : une
+    # base SQLite y perdrait toutes les donnees, et "localhost" n y designe
+    # aucun serveur PostgreSQL.
+    if not _url_bd:
+        raise ImproperlyConfigured(
+            'Aucune base de donnees : ajoutez la variable DATABASE_URL=${{Postgres.DATABASE_URL}} au service.')
+    if '@localhost' in _url_bd or '@127.0.0.1' in _url_bd:
+        raise ImproperlyConfigured(
+            'La base de donnees pointe vers localhost (valeur de .env.example) : supprimez TF_DATABASE_URL '
+            'et ajoutez DATABASE_URL=${{Postgres.DATABASE_URL}} au service.')
 if _url_bd:
     # Accepte aussi la forme SQLAlchemy 'postgresql+psycopg://' des anciennes
     # versions du fichier .env.example.
