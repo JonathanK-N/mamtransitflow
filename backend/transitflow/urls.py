@@ -3,7 +3,7 @@ TransitFlow — Routage principal
 Auteur : Jonathan K-N
 
 Assemble les URLs de chaque app (comptes, drivers, fleet, dispatch,
-maintenance, reporting) sous /api/, et sert toujours les pages du
+maintenance, entretien, reporting) sous /api/, et sert toujours les pages du
 front-end (index.html, admin/, chauffeur/, assets/) depuis ce meme
 serveur Django -- comme le faisait backend/app.py (FastAPI) avant lui --
 pour eviter tout probleme de CORS en developpement.
@@ -41,6 +41,7 @@ urlpatterns = [
     path('', include('apps.fleet.urls')),
     path('', include('apps.dispatch.urls')),
     path('', include('apps.maintenance.urls')),
+    path('', include('apps.entretien.urls')),
     path('', include('apps.reporting.urls')),
     path('api/sante', sante),
 

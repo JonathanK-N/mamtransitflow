@@ -3,6 +3,10 @@
 
 from django.urls import path
 
-from .views import VehiculesView
+from .views import KilometrageView, VehiculeDetailView, VehiculesView
 
-urlpatterns = [path('api/vehicules', VehiculesView.as_view())]
+urlpatterns = [
+    path('api/vehicules', VehiculesView.as_view()),
+    path('api/vehicules/<str:plaque>/kilometrage', KilometrageView.as_view()),
+    path('api/vehicules/<str:plaque>', VehiculeDetailView.as_view()),
+]

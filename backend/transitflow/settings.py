@@ -111,6 +111,7 @@ INSTALLED_APPS = [
     'apps.fleet',
     'apps.dispatch',
     'apps.maintenance',
+    'apps.entretien',
     'apps.reporting',
 ]
 
