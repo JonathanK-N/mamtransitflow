@@ -13,14 +13,7 @@
 </head>
 <body data-page="chauffeur-nouveau">
 <nav class="tf-navbar">
-  <a class="tf-brand" href="tableau-de-bord.html">Transit<span>Flow</span></a>
-  <a class="tf-nav-link" href="tableau-de-bord.html">Tableau de bord</a>
-  <a class="tf-nav-link" href="carte.html">Carte</a>
-  <a class="tf-nav-link active" href="chauffeurs.html">Chauffeurs</a>
-  <a class="tf-nav-link" href="trajets.html">Trajets</a>
-  <a class="tf-nav-link" href="incidents.html">Incidents</a>
-  <a class="tf-nav-link" href="entretiens.html">Entretien</a>
-  <a class="tf-nav-link" href="vehicules.html">Vehicules</a>
+  <a class="tf-brand" href="#">Transit<span>Flow</span></a>
   <div class="tf-navbar-user" data-navbar-user></div>
 </nav>
 <main class="tf-page">
@@ -81,33 +74,30 @@
     </fieldset>
 
     <fieldset class="border-0 p-0 m-0">
-      <legend class="tf-mono" style="font-size:10.5px;letter-spacing:.04em;color:var(--tf-muted)">COMPTE DE CONNEXION</legend>
-      <div class="row g-3 mt-1">
-        <div class="col-12 col-md-6"><label class="tf-field">
-          <span class="tf-label">Mot de passe initial (facultatif)</span>
-          <input class="tf-input" name="motDePasse" type="password" autocomplete="new-password" minlength="8"
-                 placeholder="Laisser vide pour en generer un"></label></div>
-        <div class="col-12 col-md-6 d-flex align-items-end">
-          <p class="tf-meta mb-0">Le chauffeur se connecte avec son courriel. Si le champ est vide, un mot de
-            passe est genere et affiche une seule fois apres la creation.</p></div>
-      </div>
+      <legend class="tf-mono" style="font-size:10.5px;letter-spacing:.04em;color:var(--tf-muted)">ACCES AU PORTAIL CHAUFFEUR</legend>
+      <label class="tf-check mt-2">
+        <input type="checkbox" name="inviter" checked>
+        <span><strong>Envoyer une invitation par courriel</strong><br>
+          <span class="tf-meta">Le chauffeur recoit « Rejoignez votre entreprise sur TransitFlow », choisit lui-meme
+            son mot de passe et accede a son espace. Vous ne connaissez jamais son mot de passe.</span></span>
+      </label>
     </fieldset>
 
     <div class="d-flex justify-content-end gap-3 pt-4" style="border-top:1px solid var(--tf-line)">
       <a class="tf-btn tf-btn-ghost" href="chauffeurs.html">Annuler</a>
-      <button class="tf-btn tf-btn-primary" type="submit">Creer le compte</button>
+      <button class="tf-btn tf-btn-primary" type="submit">Creer le chauffeur</button>
     </div>
   </form>
 
   <section class="tf-card tf-card-pad d-flex flex-column gap-3 tf-hidden" data-compte-cree>
-    <h2 class="tf-h2" style="font-size:20px">Compte cree</h2>
-    <p class="mb-0">Transmettez ces identifiants au chauffeur. Le mot de passe ne sera plus affiche.</p>
-    <div class="row g-3">
-      <div class="col-12 col-md-6"><div class="tf-meta mb-1">Courriel</div>
-        <div class="tf-mono" data-identifiant></div></div>
-      <div class="col-12 col-md-6"><div class="tf-meta mb-1">Mot de passe</div>
-        <div class="tf-mono" style="font-size:16px" data-mot-de-passe></div></div>
+    <h2 class="tf-h2" style="font-size:20px">Invitation envoyee</h2>
+    <p class="mb-0" data-message-invitation></p>
+    <div class="tf-copie">
+      <input class="tf-input tf-mono" readonly data-lien-invitation aria-label="Lien d invitation">
+      <button type="button" class="tf-btn tf-btn-ghost" data-copier>Copier le lien</button>
     </div>
+    <p class="tf-meta mb-0">Le lien est personnel et expire dans 7 jours. Vous pourrez le renvoyer depuis la fiche du
+      chauffeur.</p>
     <div class="d-flex justify-content-end">
       <a class="tf-btn tf-btn-primary" data-lien-fiche href="chauffeurs.html">Voir la fiche</a>
     </div>
@@ -116,6 +106,7 @@
 <script src="../assets/js/store.js"></script>
 <script src="../assets/js/format.js"></script>
 <script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
 <script src="../assets/js/admin.js"></script>
 </body>
 </html>

@@ -18,6 +18,15 @@ const Chauffeur = {
     if (!session) return;
     monterBarreUtilisateur(session, '../');
     this.session = session;
+    // Fonction fermee dans le portail : la navigation a remplace la page par un message.
+    try { this.entreprise = await window.tfNavigationPrete; } catch (e) { return; }
+    // Boutons vers des fonctions que l administrateur n a pas ouvertes dans le portail.
+    const portail = (this.entreprise || {}).portail || {};
+    [['trajet-nouveau.html', 'trajets'], ['incident-nouveau.html', 'incidents']].forEach(function (x) {
+      if (portail[x[1]] === false) {
+        document.querySelectorAll('a[href^="' + x[0] + '"]').forEach(function (a) { a.classList.add('tf-hidden'); });
+      }
+    });
     this.moi = await Store.chauffeur(session.chauffeurId);
     if (!this.moi) {
       document.querySelector('main').innerHTML =
@@ -30,6 +39,7 @@ const Chauffeur = {
       return c.toUpperCase();
     });
     if (typeof this[methode] === 'function') await this[methode]();
+    document.body.dataset.pret = '1';
   },
 
   /*
@@ -328,6 +338,7 @@ const Chauffeur = {
 // est affichee a l utilisateur plutot que de disparaitre dans la console.
 document.addEventListener('DOMContentLoaded', function () {
   Chauffeur.demarrer().catch(function (e) {
+    if (e && e.message === 'page-fermee') return;
     console.error('TransitFlow chauffeur :', e);
     tfNotifier(e.message);
   });

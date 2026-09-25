@@ -34,7 +34,7 @@
     <form method="post" class="tf-login-form" data-connexion novalidate>
       <div>
         <h2 class="tf-h1">Connexion</h2>
-        <p class="tf-meta mt-1 mb-0">Accedez a votre espace</p>
+        <p class="tf-meta mt-1 mb-0" data-sous-titre>Accedez a votre espace</p>
       </div>
 
       <div class="tf-segment" role="tablist">
@@ -54,14 +54,29 @@
                required>
       </label>
 
-      <p class="tf-meta mb-0" style="font-size:13.5px">
-        Mot de passe oublie ? Demandez a votre administrateur de le reinitialiser.
+      <p class="mb-0" style="font-size:13.5px">
+        <a href="#" class="tf-link" data-oubli>Mot de passe oublie ?</a>
       </p>
 
       <p class="tf-pill danger tf-hidden mb-0" data-erreur style="justify-content:center"></p>
 
       <button class="tf-btn tf-btn-primary tf-btn-block" type="submit" style="height:50px">Se connecter</button>
 
+    </form>
+
+    <form class="tf-login-form tf-hidden" data-form-oubli novalidate>
+      <div>
+        <h2 class="tf-h1">Mot de passe oublie</h2>
+        <p class="tf-meta mt-1 mb-0">Indiquez votre courriel : nous vous enverrons un lien pour choisir un
+          nouveau mot de passe.</p>
+      </div>
+      <label class="tf-field">
+        <span class="tf-label">Courriel</span>
+        <input class="tf-input" type="email" name="courriel" autocomplete="username" required>
+      </label>
+      <p class="tf-meta tf-hidden mb-0" data-oubli-message role="status"></p>
+      <button class="tf-btn tf-btn-primary tf-btn-block" type="submit" style="height:50px">Envoyer le lien</button>
+      <a href="#" class="tf-link" style="font-size:13.5px" data-retour>&larr; Retour a la connexion</a>
     </form>
   </section>
 </main>
@@ -74,6 +89,44 @@
   var role = 'admin';
   var formulaire = document.querySelector('[data-connexion]');
   var erreur = document.querySelector('[data-erreur]');
+
+  // Nom de l entreprise (route publique) : "Accedez a l espace de Navettes Estrie".
+  fetch('/api/entreprise/publique').then(function (r) { return r.json(); }).then(function (d) {
+    if (d && d.nom) {
+      document.querySelector('[data-sous-titre]').textContent = 'Accedez a l espace de ' + d.nom;
+      document.title = 'Connexion · ' + d.nom + ' · TransitFlow';
+    }
+  }).catch(function () {});
+
+  var formOubli = document.querySelector('[data-form-oubli]');
+  function basculer(oubli) {
+    formulaire.classList.toggle('tf-hidden', oubli);
+    formOubli.classList.toggle('tf-hidden', !oubli);
+    (oubli ? formOubli : formulaire).querySelector('input[type=email]').focus();
+  }
+  document.querySelector('[data-oubli]').addEventListener('click', function (e) {
+    e.preventDefault();
+    formOubli.elements.courriel.value = formulaire.elements.courriel.value;
+    basculer(true);
+  });
+  document.querySelector('[data-retour]').addEventListener('click', function (e) { e.preventDefault(); basculer(false); });
+  formOubli.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!formOubli.reportValidity()) return;
+    var bouton = formOubli.querySelector('[type=submit]');
+    var message = formOubli.querySelector('[data-oubli-message]');
+    bouton.disabled = true;
+    try {
+      var r = await fetch('/api/auth/mot-de-passe-oublie', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courriel: formOubli.elements.courriel.value }) });
+      var d = await r.json().catch(function () { return {}; });
+      message.textContent = d.message || 'Demande envoyee.';
+    } catch (err) {
+      message.textContent = 'Impossible de joindre le serveur.';
+    }
+    message.classList.remove('tf-hidden');
+    bouton.disabled = false;
+  });
 
   document.querySelectorAll('[data-role]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {

@@ -15,6 +15,32 @@ function tfCelluleChauffeur(c) {
     Format.echapper(Format.nomCourt(c)) + '</span>';
 }
 
+/* Panneau "invitation envoyee" : message selon que le courriel est parti ou non, et lien a copier. */
+function tfAfficherInvitation(panneau, chauffeur, lien, courrielEnvoye) {
+  panneau.querySelector('[data-message-invitation]').innerHTML = courrielEnvoye
+    ? 'Un courriel d invitation a ete envoye a <strong>' + Format.echapper(chauffeur.courriel) + '</strong>.'
+    : 'L envoi de courriels n est pas configure (Parametres &gt; Courriel) : copiez ce lien et transmettez-le a ' +
+      '<strong>' + Format.echapper(chauffeur.prenom) + '</strong> par texto ou par courriel.';
+  const champ = panneau.querySelector('[data-lien-invitation]');
+  champ.value = lien;
+  const bouton = panneau.querySelector('[data-copier]');
+  bouton.onclick = async function () {
+    try { await navigator.clipboard.writeText(lien); } catch (e) { champ.select(); document.execCommand('copy'); }
+    bouton.textContent = 'Lien copie';
+    setTimeout(function () { bouton.textContent = 'Copier le lien'; }, 2000);
+  };
+}
+
+/* Pastille de l etat d acces au portail d un chauffeur. */
+function tfPastilleAcces(acces) {
+  const table = {
+    actif: ['Actif', 'ok'], invite: ['Invite', 'warn'], expire: ['Invitation expiree', 'danger'],
+    desactive: ['Desactive', 'muted'], aucun: ['Pas d acces', 'muted']
+  };
+  const t = table[(acces || {}).etat] || table.aucun;
+  return '<span class="tf-pill ' + t[1] + '">' + t[0] + '</span>';
+}
+
 const Admin = {
   /*
    * Point d entree, appele au chargement de chaque page admin/*.html :
@@ -26,11 +52,14 @@ const Admin = {
     const session = Auth.exiger('admin', '../');
     if (!session) return;
     monterBarreUtilisateur(session, '../');
+    // Module desactive : la navigation a remplace la page par un message.
+    try { this.entreprise = await window.tfNavigationPrete; } catch (e) { return; }
     const page = document.body.dataset.page;
     const methode = 'page' + page.charAt(0).toUpperCase() + page.slice(1).replace(/-(.)/g, function (m, c) {
       return c.toUpperCase();
     });
     if (typeof this[methode] === 'function') await this[methode](session);
+    document.body.dataset.pret = '1';
   },
 
   /* Tableau de bord */
@@ -148,17 +177,17 @@ const Admin = {
             '<span class="tf-avatar ' + Format.tonAvatar(c.id) + '">' + Format.initiales(c) + '</span>' +
             '<span><span class="d-block" style="font-weight:500">' +
               Format.echapper(Format.nomComplet(c)) + '</span>' +
-            '<span class="tf-meta">' + Format.echapper(c.age) + ' ans' +
-              (c.aUnCompte ? '' : ' · sans compte') + '</span></span></span></td>' +
+            '<span class="tf-meta">' + Format.echapper(c.age) + ' ans</span></span></span></td>' +
           '<td class="tf-mono">' + Format.echapper(c.telephone) + '</td>' +
           '<td class="tf-muted">' + Format.echapper(c.courriel) + '</td>' +
           '<td class="tf-mono ' + (bientot ? 'tf-danger' : '') + '">' +
             Format.echapper(c.permisExpiration) + '</td>' +
           '<td><span class="tf-pill ' + s.classe + '">' + s.texte + '</span></td>' +
+          '<td>' + tfPastilleAcces(c.acces) + '</td>' +
           '<td class="text-end"><a href="chauffeur.html?id=' + encodeURIComponent(c.id) +
             '" style="font-size:13px">Ouvrir</a></td>' +
           '</tr>';
-      }).join('') || '<tr><td colspan="6" class="tf-muted">Aucun chauffeur ne correspond.</td></tr>';
+      }).join('') || '<tr><td colspan="7" class="tf-muted">Aucun chauffeur ne correspond.</td></tr>';
     }
 
     function redessiner() {
@@ -183,6 +212,66 @@ const Admin = {
   },
 
   /* Fiche chauffeur */
+  /* Carte "Acces au portail" de la fiche chauffeur : inviter, renvoyer, suspendre, retablir. */
+  dessinerAcces(c) {
+    const carte = document.querySelector('[data-acces]');
+    const acces = c.acces || { etat: 'aucun' };
+    const date = function (iso) { return Format.dateLongue(iso); };
+    const textes = {
+      aucun: 'Ce chauffeur n a pas encore acces a son espace. Invitez-le : il recevra un courriel pour choisir ' +
+        'son mot de passe.',
+      invite: 'Invitation envoyee le ' + (acces.envoyeeLe ? date(acces.envoyeeLe) : '') + ', en attente. Le lien ' +
+        'expire le ' + (acces.expireLe ? date(acces.expireLe) : '') + '.',
+      expire: 'L invitation a expire sans etre utilisee. Renvoyez-en une nouvelle.',
+      actif: 'Le chauffeur se connecte avec ' + c.courriel + '. En cas d oubli, il utilise « Mot de passe oublie ».',
+      desactive: 'Acces suspendu : le chauffeur ne peut plus se connecter.'
+    };
+    carte.querySelector('[data-acces-pastille]').innerHTML = tfPastilleAcces(acces);
+    carte.querySelector('[data-acces-texte]').textContent = textes[acces.etat] || '';
+    const boutons = {
+      aucun: [['inviter', 'Inviter le chauffeur', 'tf-btn-primary']],
+      invite: [['inviter', 'Renvoyer l invitation', 'tf-btn-ghost'], ['annuler', 'Annuler l invitation', 'tf-btn-danger']],
+      expire: [['inviter', 'Renvoyer l invitation', 'tf-btn-primary']],
+      actif: [['suspendre', 'Suspendre l acces', 'tf-btn-danger']],
+      desactive: [['retablir', 'Retablir l acces', 'tf-btn-primary']]
+    }[acces.etat] || [];
+    const zone = carte.querySelector('[data-acces-actions]');
+    zone.innerHTML = boutons.map(function (b) {
+      return '<button type="button" class="tf-btn ' + b[2] + '" style="height:38px;font-size:13.5px" data-action-acces="' +
+        b[0] + '">' + b[1] + '</button>';
+    }).join('');
+    const moi = this;
+    zone.querySelectorAll('[data-action-acces]').forEach(function (bouton) {
+      bouton.addEventListener('click', async function () {
+        const action = bouton.dataset.actionAcces;
+        if (action === 'suspendre' && !window.confirm('Suspendre l acces de ' + Format.nomComplet(c) +
+          ' ? Il sera deconnecte de tous ses appareils.')) return;
+        bouton.disabled = true;
+        try {
+          let fiche;
+          if (action === 'inviter') {
+            const r = await Store.inviterChauffeur(c.id);
+            fiche = r.chauffeur;
+            carte.querySelector('[data-acces-lien]').classList.remove('tf-hidden');
+            carte.querySelector('[data-message-invitation]').classList.remove('tf-hidden');
+            tfAfficherInvitation(carte, fiche, r.lien, r.courrielEnvoye);
+            tfNotifier(r.courrielEnvoye ? 'Invitation envoyee a ' + fiche.courriel + '.' : 'Lien d invitation cree.', 'succes');
+          } else if (action === 'annuler') {
+            fiche = await Store.annulerInvitation(c.id);
+            carte.querySelector('[data-acces-lien]').classList.add('tf-hidden');
+            carte.querySelector('[data-message-invitation]').classList.add('tf-hidden');
+          } else {
+            fiche = await Store.accesChauffeur(c.id, action === 'retablir');
+          }
+          moi.dessinerAcces(fiche);
+        } catch (e) {
+          tfNotifier(e.message);
+          bouton.disabled = false;
+        }
+      });
+    });
+  },
+
   async pageChauffeur() {
     const id = new URLSearchParams(location.search).get('id');
     const c = await Store.chauffeur(id);
@@ -213,6 +302,7 @@ const Admin = {
       'Valide jusqu au ' + Format.dateLongue(c.permisExpiration);
     document.querySelector('[data-cree-le]').textContent = Format.dateLongue(c.creeLe);
     document.querySelector('[data-plaque]').textContent = c.plaqueHabituelle || '—';
+    this.dessinerAcces(c);
     const vehicule = vehicules.find(function (v) { return v.plaque === c.plaqueHabituelle; });
     document.querySelector('[data-vehicule]').textContent = vehicule ? vehicule.modele : '—';
     document.querySelector('[data-nb-incidents]').textContent = '(' + incidents.length + ')';
@@ -284,18 +374,15 @@ const Admin = {
           permisExpiration: d.get('permisExpiration'),
           statut: d.get('statut'),
           plaqueHabituelle: d.get('plaque') || null,
-          creerCompte: true,
-          motDePasse: d.get('motDePasse') || ''
+          inviter: d.get('inviter') === 'on'
         });
         const lien = 'chauffeur.html?id=' + encodeURIComponent(resultat.chauffeur.id);
-        if (!resultat.motDePasseInitial) {
+        if (!resultat.invitation) {
           window.location.href = lien;
           return;
         }
-        // Mot de passe genere par le serveur : affiche une seule fois, a transmettre au chauffeur.
         const panneau = document.querySelector('[data-compte-cree]');
-        panneau.querySelector('[data-identifiant]').textContent = resultat.chauffeur.courriel;
-        panneau.querySelector('[data-mot-de-passe]').textContent = resultat.motDePasseInitial;
+        tfAfficherInvitation(panneau, resultat.chauffeur, resultat.invitation.lien, resultat.invitation.courrielEnvoye);
         panneau.querySelector('[data-lien-fiche]').href = lien;
         formulaire.classList.add('tf-hidden');
         panneau.classList.remove('tf-hidden');
@@ -549,6 +636,7 @@ const Admin = {
 // est affichee a l utilisateur plutot que de disparaitre dans la console.
 document.addEventListener('DOMContentLoaded', function () {
   Admin.demarrer().catch(function (e) {
+    if (e && e.message === 'page-fermee') return;
     console.error('TransitFlow admin :', e);
     tfNotifier(e.message);
   });

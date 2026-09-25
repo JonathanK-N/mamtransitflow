@@ -223,7 +223,8 @@ const Store = {
   /* Renvoie {chauffeur, motDePasseInitial} : le mot de passe n est present que s il a ete genere. */
   async ajouterChauffeur(chauffeur) {
     const donnees = await tfRequete('/chauffeurs', { method: 'POST', body: JSON.stringify(chauffeur) });
-    return { chauffeur: donnees.chauffeur, motDePasseInitial: donnees.motDePasseInitial || null };
+    return { chauffeur: donnees.chauffeur, motDePasseInitial: donnees.motDePasseInitial || null,
+             invitation: donnees.invitation || null };
   },
 
   async majChauffeur(id, champs) {
@@ -422,3 +423,85 @@ const Store = {
     return donnees.indicateurs;
   }
 };
+
+/* ---- Entreprise, acces des chauffeurs, paie (Jonathan K-N) ---------------- */
+Object.assign(Store, {
+  async majEntreprise(champs) {
+    const d = await tfRequete('/entreprise', { method: 'PATCH', body: JSON.stringify(champs) });
+    return d.entreprise;
+  },
+
+  /* Invitation a rejoindre l entreprise : renvoie {lien, courrielEnvoye, chauffeur}. */
+  async inviterChauffeur(id) {
+    return tfRequete('/chauffeurs/' + encodeURIComponent(id) + '/invitation', { method: 'POST' });
+  },
+  async annulerInvitation(id) {
+    return (await tfRequete('/chauffeurs/' + encodeURIComponent(id) + '/invitation', { method: 'DELETE' })).chauffeur;
+  },
+  async accesChauffeur(id, actif) {
+    return (await tfRequete('/chauffeurs/' + encodeURIComponent(id) + '/acces',
+      { method: 'POST', body: JSON.stringify({ actif: actif }) })).chauffeur;
+  },
+  async changerMotDePasse(actuel, nouveau, confirmation) {
+    return tfRequete('/auth/mot-de-passe', { method: 'POST',
+      body: JSON.stringify({ actuel: actuel, nouveau: nouveau, confirmation: confirmation }) });
+  },
+
+  /* Paie (administrateur) */
+  async parametresPaie() { return tfRequete('/paie/parametres'); },
+  async majParametresPaie(champs) {
+    return (await tfRequete('/paie/parametres', { method: 'PATCH', body: JSON.stringify(champs) })).parametres;
+  },
+  async ajouterRetenue(champs) {
+    return (await tfRequete('/paie/retenues', { method: 'POST', body: JSON.stringify(champs) })).retenue;
+  },
+  async majRetenue(id, champs) {
+    return (await tfRequete('/paie/retenues/' + id, { method: 'PATCH', body: JSON.stringify(champs) })).retenue;
+  },
+  async supprimerRetenue(id) { return tfRequete('/paie/retenues/' + id, { method: 'DELETE' }); },
+  async profilsPaie() { return (await tfRequete('/paie/profils')).profils; },
+  async majProfilPaie(chauffeurId, profil) {
+    return (await tfRequete('/paie/profils/' + encodeURIComponent(chauffeurId),
+      { method: 'PUT', body: JSON.stringify(profil) })).profil;
+  },
+  async periodesPaie() { return (await tfRequete('/paie/periodes')).periodes; },
+  async ajouterPeriodePaie(periode) {
+    return (await tfRequete('/paie/periodes', { method: 'POST', body: JSON.stringify(periode) })).periode;
+  },
+  async periodePaie(id) { return tfRequeteOuNull('/paie/periodes/' + encodeURIComponent(id)); },
+  async actionPeriodePaie(id, action) {
+    return tfRequete('/paie/periodes/' + encodeURIComponent(id) + '/' + action, { method: 'POST' });
+  },
+  async supprimerPeriodePaie(id) {
+    return tfRequete('/paie/periodes/' + encodeURIComponent(id), { method: 'DELETE' });
+  },
+  async exporterPaie(id) {
+    const reponse = await tfRequete('/paie/periodes/' + encodeURIComponent(id) + '/export.csv',
+      { reponseBrute: true });
+    return reponse.blob();
+  },
+  async ajouterLigneBulletin(bulletinId, ligne) {
+    return (await tfRequete('/paie/bulletins/' + encodeURIComponent(bulletinId) + '/lignes',
+      { method: 'POST', body: JSON.stringify(ligne) })).bulletin;
+  },
+  async supprimerLigneBulletin(id) {
+    return (await tfRequete('/paie/lignes/' + id, { method: 'DELETE' })).bulletin;
+  },
+
+  /* Paie et vehicule (portail chauffeur, ou administrateur pour un bulletin) */
+  async bulletinPaie(id) { return tfRequeteOuNull('/paie/bulletins/' + encodeURIComponent(id)); },
+  async mesBulletins() { return (await tfRequete('/paie/mes-bulletins')).bulletins; },
+  async monVehicule() { return tfRequete('/entretien/mon-vehicule'); }
+});
+
+/* Telecharge un Blob sous le nom donne (export CSV). */
+function tfTelecharger(blob, nom) {
+  const url = URL.createObjectURL(blob);
+  const lien = document.createElement('a');
+  lien.href = url;
+  lien.download = nom;
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}

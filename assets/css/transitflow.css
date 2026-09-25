@@ -471,3 +471,65 @@ select.tf-input.sm { padding-right: 34px; background-position: right 12px center
 .tf-voyant.intermittent { background: var(--tf-accent); }
 .tf-voyant.perdue, .tf-voyant.aucune { background: #B8B0A7; }
 .tf-voyant.en-ligne { box-shadow: 0 0 0 4px rgba(47, 107, 84, .15); }
+
+/* ---- Navigation generee (auth.js) : nom de l entreprise sous la marque ---- */
+.tf-nav-entreprise {
+  flex: none; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12.5px; color: var(--tf-on-dark-muted); margin: 0 14px 0 -4px; padding-left: 12px;
+  border-left: 1px solid #4A423B;
+}
+@media (max-width: 1280px) { .tf-nav-entreprise { display: none; } }
+.tf-link { color: var(--tf-accent-deep); text-decoration: none; font-weight: 500; }
+.tf-link:hover { text-decoration: underline; }
+.tf-check { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; font-size: 14.5px; line-height: 1.45; }
+.tf-check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--tf-accent); flex: none; }
+.tf-copie { display: flex; gap: 10px; flex-wrap: wrap; }
+.tf-copie .tf-input { flex: 1 1 320px; font-size: 13px; }
+
+/* ---- Parametres, applications, portail, paie ------------------------------- */
+.tf-alerte { background: var(--tf-accent-tint); color: var(--tf-accent-deep); border-radius: 12px; padding: 14px 16px;
+  font-size: 13.5px; line-height: 1.55; }
+.tf-apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.tf-app { border: 1px solid var(--tf-line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column;
+  gap: 10px; background: #fff; }
+.tf-app.inactive { background: var(--tf-bg); }
+.tf-app-icone { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-size: 19px; background: var(--tf-accent-tint); }
+.tf-app.inactive .tf-app-icone { filter: grayscale(1); opacity: .6; }
+.tf-reglage { display: flex; gap: 16px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--tf-line); }
+.tf-reglage:last-child { border-bottom: none; }
+.tf-switch { position: relative; width: 44px; height: 26px; flex: none; }
+.tf-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.tf-switch span { position: absolute; inset: 0; background: #D9D2CA; border-radius: 26px; cursor: pointer; transition: .2s; }
+.tf-switch span::before { content: ''; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: #fff;
+  border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.tf-switch input:checked + span { background: var(--tf-accent); }
+.tf-switch input:checked + span::before { transform: translateX(18px); }
+.tf-switch input:disabled + span { opacity: .45; cursor: not-allowed; }
+.tf-switch input:focus-visible + span { outline: 2px solid var(--tf-accent); outline-offset: 2px; }
+.tf-lien-suppr { border: none; background: none; color: var(--tf-muted); font-size: 13px; padding: 2px 6px; border-radius: 6px; }
+.tf-lien-suppr:hover { color: var(--tf-danger); background: var(--tf-danger-tint); }
+
+.tf-bulletin { padding: 28px; display: flex; flex-direction: column; gap: 20px; max-width: 900px; }
+.tf-bulletin-employeur { font-size: 18px; font-weight: 600; }
+.tf-bulletin-infos { font-size: 14px; padding: 14px 0; border-top: 1px solid var(--tf-line); border-bottom: 1px solid var(--tf-line); }
+.tf-bulletin-table tbody td { padding-top: 9px; padding-bottom: 9px; font-size: 14px; }
+.tf-bulletin-section td { font-weight: 600; font-size: 12.5px !important; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--tf-muted); background: var(--tf-bg); }
+.tf-bulletin-totaux { margin-left: auto; width: min(100%, 360px); display: flex; flex-direction: column; gap: 8px; }
+.tf-bulletin-totaux > div { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; }
+.tf-bulletin-totaux .net { font-size: 18px; font-weight: 600; padding-top: 10px; border-top: 2px solid var(--tf-ink); }
+
+@media print {
+  .tf-navbar, .tf-no-print, .tf-toasts, .tf-modal-backdrop { display: none !important; }
+  body { background: #fff !important; }
+  .tf-page { padding: 0 !important; }
+  .tf-bulletin { box-shadow: none !important; max-width: none; padding: 0; }
+  [data-bulletin] { display: block !important; }
+}
+/* Liste empilee (portail chauffeur) : lisible sur telephone, sans defilement horizontal. */
+.tf-liste { list-style: none; margin: 0; padding: 6px 0 4px; }
+.tf-liste li { display: flex; align-items: center; gap: 12px; padding: 13px 22px; border-top: 1px solid var(--tf-line);
+  font-size: 14.5px; }
+.tf-liste li:first-child { border-top: none; }
+@media (max-width: 600px) { .tf-navbar-user > span:nth-child(2) { display: none; } }

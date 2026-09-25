@@ -207,17 +207,17 @@ const Format = {
     return 'tous les ' + morceaux.join(' ou ');
   },
 
-  /* Ce qui reste avant l echeance : "dans 600 km · 30 j" / "depasse de 200 km". */
+  /* Ce qui reste avant l echeance : "600 km restants · 30 j restants" / "depasse de 200 km · 180 j restants". */
   resteEcheance(echeance) {
     const morceaux = [];
     if (echeance.kmRestants !== null && echeance.kmRestants !== undefined) {
       morceaux.push(echeance.kmRestants > 0
-        ? Number(echeance.kmRestants).toLocaleString('fr-CA') + ' km'
+        ? Number(echeance.kmRestants).toLocaleString('fr-CA') + ' km restants'
         : 'depasse de ' + Number(-echeance.kmRestants).toLocaleString('fr-CA') + ' km');
     }
     if (echeance.joursRestants !== null && echeance.joursRestants !== undefined) {
       morceaux.push(echeance.joursRestants > 0
-        ? echeance.joursRestants + ' j'
+        ? echeance.joursRestants + ' j restants'
         : (echeance.joursRestants === 0 ? 'aujourd hui' : 'depasse de ' + (-echeance.joursRestants) + ' j'));
     }
     return morceaux.join(' · ') || '—';

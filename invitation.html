@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<!-- Invitation a rejoindre l entreprise / nouveau mot de passe — Auteur : Jonathan K-N
+     Le chauffeur arrive ici depuis le courriel "Rejoignez <entreprise> sur
+     TransitFlow" (lien invitation.html?jeton=...). Il choisit son mot de
+     passe et entre directement dans son espace. Le meme ecran sert au lien
+     "Mot de passe oublie". -->
+<title>Rejoindre · TransitFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/css/transitflow.css" rel="stylesheet">
+</head>
+<body>
+<main class="tf-login">
+  <aside class="tf-login-aside">
+    <span class="tf-brand" style="margin:0">Transit<span>Flow</span></span>
+    <div class="d-flex flex-column gap-4">
+      <h1 class="tf-login-title" data-titre-aside>Bienvenue<br>a bord.</h1>
+      <p class="tf-login-sub mb-0">Vos trajets, vos incidents et vos informations au meme endroit,
+        sur votre telephone comme sur ordinateur.</p>
+    </div>
+    <div class="tf-placeholder" style="height:150px;background:repeating-linear-gradient(45deg,#332D28 0 7px,#3A332D 7px 14px)">
+      <img src="assets/img/accueil-navette.jpg" alt="Navette de transport avec passagers a bord">
+    </div>
+  </aside>
+
+  <section class="tf-login-main">
+    <div class="tf-login-form" data-chargement><p class="tf-meta mb-0">Verification du lien...</p></div>
+
+    <div class="tf-login-form tf-hidden" data-invalide>
+      <div>
+        <h2 class="tf-h1">Lien non valide</h2>
+        <p class="tf-meta mt-2 mb-0" data-invalide-message></p>
+      </div>
+      <a class="tf-btn tf-btn-primary tf-btn-block" href="index.html" style="height:50px">Aller a la connexion</a>
+    </div>
+
+    <form class="tf-login-form tf-hidden" data-formulaire novalidate>
+      <div>
+        <h2 class="tf-h1" data-titre>Rejoindre</h2>
+        <p class="tf-meta mt-1 mb-0" data-sous-titre></p>
+      </div>
+      <label class="tf-field">
+        <span class="tf-label">Courriel</span>
+        <input class="tf-input" type="email" name="courriel" autocomplete="username" readonly>
+      </label>
+      <label class="tf-field">
+        <span class="tf-label">Choisissez un mot de passe</span>
+        <input class="tf-input" type="password" name="motDePasse" autocomplete="new-password" minlength="8" required>
+        <span class="tf-meta">8 caracteres ou plus, pas uniquement des chiffres, pas un mot de passe trop courant.</span>
+      </label>
+      <label class="tf-field">
+        <span class="tf-label">Confirmez le mot de passe</span>
+        <input class="tf-input" type="password" name="confirmation" autocomplete="new-password" minlength="8" required>
+      </label>
+      <p class="tf-pill danger tf-hidden mb-0" data-erreur style="justify-content:center;white-space:normal"></p>
+      <button class="tf-btn tf-btn-primary tf-btn-block" type="submit" style="height:50px" data-valider>
+        Activer mon compte</button>
+    </form>
+  </section>
+</main>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/format.js"></script>
+<script src="assets/js/auth.js"></script>
+<script>
+(function () {
+  var jeton = new URLSearchParams(window.location.search).get('jeton') || '';
+  var formulaire = document.querySelector('[data-formulaire]');
+  var erreur = document.querySelector('[data-erreur]');
+  // Le jeton ne doit pas rester dans l historique ni etre envoye a d autres sites.
+  if (window.history.replaceState) window.history.replaceState(null, '', 'invitation.html');
+
+  function montrer(selecteur) {
+    ['[data-chargement]', '[data-invalide]', '[data-formulaire]'].forEach(function (s) {
+      document.querySelector(s).classList.toggle('tf-hidden', s !== selecteur);
+    });
+  }
+
+  function invalide(message) {
+    document.querySelector('[data-invalide-message]').textContent = message ||
+      'Ce lien a expire ou a deja ete utilise. Demandez un nouveau lien a votre administrateur.';
+    montrer('[data-invalide]');
+  }
+
+  async function charger() {
+    if (!jeton) return invalide('Ce lien est incomplet. Ouvrez-le directement depuis le courriel recu.');
+    var r, d;
+    try {
+      r = await fetch('/api/invitations/' + encodeURIComponent(jeton));
+      d = await r.json();
+    } catch (e) { return invalide('Impossible de joindre le serveur. Reessayez dans un instant.'); }
+    if (!r.ok || !d.valide) return invalide(d.message);
+
+    var reinitialisation = d.type === 'reinitialisation';
+    document.title = (reinitialisation ? 'Nouveau mot de passe' : 'Rejoindre ' + d.entreprise) + ' · TransitFlow';
+    document.querySelector('[data-titre]').textContent = reinitialisation
+      ? 'Nouveau mot de passe' : 'Rejoindre ' + d.entreprise;
+    document.querySelector('[data-sous-titre]').textContent = reinitialisation
+      ? 'Choisissez un nouveau mot de passe pour votre compte.'
+      : 'Bonjour ' + d.prenom + ', ' + d.entreprise + ' vous invite a utiliser TransitFlow. ' +
+        'Choisissez votre mot de passe pour activer votre compte.';
+    document.querySelector('[data-titre-aside]').innerHTML = reinitialisation
+      ? 'Content de vous<br>revoir.' : 'Bienvenue chez<br>' + Format.echapper(d.entreprise) + '.';
+    document.querySelector('[data-valider]').textContent = reinitialisation
+      ? 'Enregistrer et me connecter' : 'Activer mon compte';
+    formulaire.elements.courriel.value = d.courriel;
+    montrer('[data-formulaire]');
+    formulaire.elements.motDePasse.focus();
+  }
+
+  formulaire.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    erreur.classList.add('tf-hidden');
+    if (!formulaire.reportValidity()) return;
+    var bouton = formulaire.querySelector('[type=submit]');
+    bouton.disabled = true;
+    try {
+      var r = await fetch('/api/invitations/' + encodeURIComponent(jeton), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motDePasse: formulaire.elements.motDePasse.value,
+                               confirmation: formulaire.elements.confirmation.value })
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (r.status === 410) return invalide(d.message);
+      if (!r.ok || !d.ok) throw new Error(d.message || 'Activation impossible.');
+      // Connexion directe : meme session que la page de connexion (auth.js).
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(Object.assign({}, d.session,
+        { jeton: d.jeton, rafraichissement: d.rafraichissement })));
+      window.location.href = d.accueil;
+    } catch (err) {
+      erreur.textContent = err.message === 'Failed to fetch' ? 'Impossible de joindre le serveur.' : err.message;
+      erreur.classList.remove('tf-hidden');
+      bouton.disabled = false;
+    }
+  });
+
+  charger();
+})();
+</script>
+</body>
+</html>
