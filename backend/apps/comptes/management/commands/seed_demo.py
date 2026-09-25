@@ -40,11 +40,11 @@ ADMIN = ('a.tremblay@transitflow.ca', 'Alex Tremblay')
 
 # (plaque, modele, annee, kilometrage actuel, mise en service il y a N jours)
 VEHICULES = [
-    ('QC-4821', 'Ford Transit 2023', 2023, 48210, 820),
-    ('QC-1094', 'Mercedes Sprinter 2022', 2022, 91540, 1180),
-    ('QC-7733', 'Ford Transit 2024', 2024, 17350, 310),
-    ('QC-2287', 'Nissan NV200 2021', 2021, 126800, 1560),
-    ('QC-5512', 'Ford Transit 2022', 2022, 73020, 1050),
+    ('QC-4821', 'Ford Transit', 2023, 48210, 820),
+    ('QC-1094', 'Mercedes-Benz Sprinter', 2022, 91540, 1180),
+    ('QC-7733', 'Ford Transit', 2024, 17350, 310),
+    ('QC-2287', 'Nissan NV200', 2021, 126800, 1560),
+    ('QC-5512', 'Ford Transit', 2022, 73020, 1050),
 ]
 
 # Programme preventif type d une navette : (type, libelle, intervalle km, intervalle jours)

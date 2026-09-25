@@ -437,3 +437,16 @@ def test_km_parcourus_depuis_le_releve_precedant_la_periode(vehicule):
     debut = AUJOURDHUI() - timedelta(days=30)
     assert _km_parcourus(vehicule.pk, debut, AUJOURDHUI()) == 12000
     assert _km_parcourus(vehicule.pk, debut - timedelta(days=365), debut - timedelta(days=100)) == 0
+
+
+def test_incident_indique_son_bon_de_travail(client, jeton_admin, vehicule):
+    trajet, jeton_chauffeur = trajet_en_cours(client, jeton_admin)
+    incident = client.post('/api/incidents', {'trajetId': trajet['id'], 'type': 'technique', 'titre': 'Voyant',
+                                              'description': 'x', 'lieu': 'x', 'heure': '08:00'},
+                           format='json', **entete_auth(jeton_chauffeur)).json()['incident']
+    assert incident['bonTravailId'] is None
+    bon = creer_bon(client, jeton_admin, incidentId=incident['id'])
+    liste = client.get('/api/incidents', **entete_auth(jeton_admin)).json()['incidents']
+    assert liste[0]['bonTravailId'] == bon['id']
+    detail = client.get(f"/api/incidents/{incident['id']}", **entete_auth(jeton_admin)).json()['incident']
+    assert detail['bonTravailId'] == bon['id']

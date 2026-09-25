@@ -13,11 +13,18 @@ class IncidentSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='code', read_only=True)
     trajetId = serializers.CharField(source='trajet.code', read_only=True, default=None)
     chauffeurId = serializers.CharField(source='chauffeur.code', read_only=True)
+    bonTravailId = serializers.SerializerMethodField()
 
     class Meta:
         model = Incident
-        fields = ['id', 'trajetId', 'chauffeurId', 'type', 'titre', 'description', 'lieu', 'date', 'heure', 'statut']
+        fields = ['id', 'trajetId', 'chauffeurId', 'type', 'titre', 'description', 'lieu', 'date', 'heure', 'statut',
+                  'bonTravailId']
         read_only_fields = ['statut']
+
+    def get_bonTravailId(self, incident):
+        """Bon de travail ouvert a partir de cet incident (voir apps/entretien), sinon None."""
+        bon = getattr(incident, 'bon_travail', None)
+        return bon.code if bon else None
 
     def validate_type(self, valeur):
         if valeur not in TYPES_VALIDES:

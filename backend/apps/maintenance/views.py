@@ -29,7 +29,7 @@ class IncidentsView(APIView):
         return [classe()]
 
     def get(self, request):
-        incidents = Incident.objects.select_related('trajet', 'chauffeur')
+        incidents = Incident.objects.select_related('trajet', 'chauffeur', 'bon_travail')
         if not est_admin(request.user):
             incidents = incidents.filter(chauffeur_id=request.user.chauffeur_id)
         type_ = request.query_params.get('type')
