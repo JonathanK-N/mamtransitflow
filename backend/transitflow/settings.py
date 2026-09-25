@@ -63,12 +63,22 @@ if DEBUG and RAILWAY_PRODUCTION:
 # Valeurs d exemple (.env.example) qui ne doivent jamais servir en production.
 _CLES_D_EXEMPLE = {'change-moi-en-production', 'django-insecure-cle-de-developpement-a-changer'}
 
-SECRET_KEY = os.environ.get('TF_SECRET_KEY', '')
-if not DEBUG and not _COLLECTSTATIC and (SECRET_KEY in _CLES_D_EXEMPLE or len(SECRET_KEY) < 32):
-    raise ImproperlyConfigured(
-        'TF_SECRET_KEY doit etre une valeur aleatoire d au moins 32 caracteres en production, generee avec : '
-        'python -c "import secrets; print(secrets.token_urlsafe(50))"'
-    )
+SECRET_KEY = os.environ.get('TF_SECRET_KEY', '').strip()
+if not DEBUG and not _COLLECTSTATIC:
+    # Le message dit pourquoi la cle est refusee, sans jamais l afficher.
+    if not SECRET_KEY:
+        _probleme = 'la variable TF_SECRET_KEY est absente ou vide dans ce service'
+    elif SECRET_KEY in _CLES_D_EXEMPLE:
+        _probleme = 'TF_SECRET_KEY contient encore la valeur d exemple de .env.example'
+    elif len(SECRET_KEY) < 32:
+        _probleme = f'TF_SECRET_KEY est trop courte ({len(SECRET_KEY)} caracteres, 32 minimum)'
+    else:
+        _probleme = ''
+    if _probleme:
+        raise ImproperlyConfigured(
+            f'Cle secrete refusee : {_probleme}. Generez une valeur aleatoire, par exemple avec : '
+            'python -c "import secrets; print(secrets.token_urlsafe(50))"'
+        )
 if not SECRET_KEY:
     SECRET_KEY = 'django-insecure-cle-de-developpement-a-changer'
 
