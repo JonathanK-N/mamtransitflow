@@ -37,7 +37,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.comptes.permissions import DansGroupe
+from apps.comptes.permissions import DansGroupe, EstConnecte
+from apps.societe.permissions import ModuleActif, PortailAutorise
 from . import services
 from .models import TYPES_ENTRETIEN, BonTravail, PlanEntretien
 from .serializers import (AnnulerSerializer, BonCreationSerializer, BonMajSerializer, BonTravailSerializer,
@@ -70,7 +71,7 @@ def _bons():
 
 
 class AdminSeulement(APIView):
-    permission_classes = [DansGroupe('fleet.admin')]
+    permission_classes = [ModuleActif('entretien'), DansGroupe('fleet.admin')]
 
 
 # ---- Plans preventifs -----------------------------------------------------
@@ -404,3 +405,36 @@ def _cellule(texte):
     """Neutralise l injection de formules dans Excel (=, +, -, @ en debut de cellule)."""
     texte = texte or ''
     return "'" + texte if texte[:1] in ('=', '+', '-', '@', '\t', '\r') else texte
+
+
+class MonVehiculeView(APIView):
+    """
+    GET /api/entretien/mon-vehicule : portail chauffeur (droit 'vehicule').
+    Le vehicule du trajet en cours, sinon le vehicule habituel du chauffeur :
+    compteur, statut, prochains entretiens et interventions ouvertes.
+    """
+    permission_classes = [EstConnecte, ModuleActif('entretien'), PortailAutorise('vehicule')]
+
+    def get(self, request):
+        from apps.dispatch.models import Trajet
+        from apps.fleet.models import Vehicule
+
+        chauffeur = request.user.chauffeur
+        if not chauffeur:
+            return Response({'ok': True, 'vehicule': None})
+        en_cours = Trajet.objects.filter(chauffeur=chauffeur, statut='en-cours').first()
+        plaque = en_cours.plaque if en_cours else chauffeur.plaque_habituelle_id
+        vehicule = Vehicule.objects.filter(plaque=plaque).first() if plaque else None
+        if not vehicule:
+            return Response({'ok': True, 'vehicule': None})
+        plans = PlanEntretienSerializer(_plans().filter(actif=True, vehicule=vehicule), many=True).data
+        bons = BonTravail.objects.filter(vehicule=vehicule, statut__in=BonTravail.STATUTS_OUVERTS) \
+            .order_by('date_prevue')
+        return Response({'ok': True, 'source': 'trajet-en-cours' if en_cours else 'habituel', 'vehicule': {
+            'plaque': vehicule.plaque, 'modele': vehicule.modele, 'annee': vehicule.annee,
+            'kilometrage': vehicule.kilometrage, 'statut': vehicule.statut,
+            'statutLibelle': vehicule.get_statut_display()},
+            'entretiens': [{'libelle': p['libelle'], 'echeance': p['echeance']} for p in plans],
+            'interventions': [{'id': b.code, 'titre': b.titre, 'statut': b.statut,
+                               'statutLibelle': b.get_statut_display(), 'datePrevue': b.date_prevue.isoformat()}
+                              for b in bons]})

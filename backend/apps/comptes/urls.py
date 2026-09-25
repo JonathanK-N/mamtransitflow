@@ -8,12 +8,16 @@
 
 from django.urls import path
 
-from .views import ConnexionView, CreerCompteView, DeconnexionView, RafraichirView, SessionView
+from .views import (ChangerMotDePasseView, ConnexionView, CreerCompteView, DeconnexionView, InvitationPubliqueView,
+                    MotDePasseOublieView, RafraichirView, SessionView)
 
 urlpatterns = [
     path('api/auth/connexion', ConnexionView.as_view()),
     path('api/auth/rafraichir', RafraichirView.as_view()),
     path('api/auth/deconnexion', DeconnexionView.as_view()),
     path('api/auth/session', SessionView.as_view()),
-    path('api/auth/comptes', CreerCompteView.as_view())
+    path('api/auth/comptes', CreerCompteView.as_view()),
+    path('api/auth/mot-de-passe-oublie', MotDePasseOublieView.as_view()),
+    path('api/auth/mot-de-passe', ChangerMotDePasseView.as_view()),
+    path('api/invitations/<str:jeton>', InvitationPubliqueView.as_view()),
 ]

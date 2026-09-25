@@ -126,3 +126,108 @@ class CreerCompteView(APIView):
         utilisateur.groups.set(groupes)
         return Response({'ok': True, 'compte': SessionSerializer(utilisateur).data},
                          status=status.HTTP_201_CREATED)
+
+
+# ---- Invitations, mot de passe oublie, changement de mot de passe ----------
+
+from django.contrib.auth.password_validation import validate_password  # noqa: E402
+from django.core.cache import cache  # noqa: E402
+from django.core.exceptions import ValidationError as ErreurDjango  # noqa: E402
+
+from . import invitations as service_invitations  # noqa: E402
+
+
+def _session_et_jetons(utilisateur):
+    rafraichissement = RefreshToken.for_user(utilisateur)
+    session = SessionSerializer(utilisateur).data
+    accueil = 'admin/tableau-de-bord.html' if session['role'] == 'admin' else 'chauffeur/mes-trajets.html'
+    return {'session': session, 'jeton': str(rafraichissement.access_token),
+            'rafraichissement': str(rafraichissement), 'accueil': accueil}
+
+
+def _trop_de_demandes(request, cle, maximum=5, secondes=900) -> bool:
+    """Limitation simple par adresse IP (mot de passe oublie, essais de jetons)."""
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '')).split(',')[0].strip()
+    compteur = f'tf-limite:{cle}:{ip}'
+    cache.add(compteur, 0, secondes)
+    return cache.incr(compteur) > maximum
+
+
+def _verifier_mot_de_passe(mot_de_passe, confirmation, utilisateur=None):
+    if mot_de_passe != confirmation:
+        return 'Les deux mots de passe ne sont pas identiques.'
+    try:
+        validate_password(mot_de_passe, user=utilisateur)
+    except ErreurDjango as e:
+        return ' '.join(e.messages)
+    return None
+
+
+class InvitationPubliqueView(APIView):
+    """GET : ce que la page invitation.html affiche. POST : choisir son mot de passe."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, jeton):
+        if _trop_de_demandes(request, 'jeton', maximum=60):
+            return Response({'ok': False, 'message': 'Trop de tentatives, reessayez plus tard.'}, status=429)
+        from apps.societe.models import Entreprise
+
+        invitation = service_invitations.trouver(jeton)
+        entreprise = Entreprise.courante().nom
+        if not invitation or not invitation.valide:
+            message = ('Ce lien a deja ete utilise.' if invitation and invitation.utilisee_le else
+                       'Ce lien a expire ou a ete remplace. Demandez un nouveau lien a votre administrateur.')
+            return Response({'ok': False, 'valide': False, 'entreprise': entreprise, 'message': message},
+                            status=status.HTTP_410_GONE)
+        prenom = invitation.chauffeur.prenom if invitation.chauffeur else ''
+        return Response({'ok': True, 'valide': True, 'type': invitation.type, 'entreprise': entreprise,
+                         'prenom': prenom, 'courriel': invitation.courriel,
+                         'expireLe': invitation.expire_le.isoformat()})
+
+    def post(self, request, jeton):
+        if _trop_de_demandes(request, 'jeton', maximum=60):
+            return Response({'ok': False, 'message': 'Trop de tentatives, reessayez plus tard.'}, status=429)
+        invitation = service_invitations.trouver(jeton)
+        if not invitation or not invitation.valide:
+            return Response({'ok': False, 'message': 'Ce lien n est plus valide. Demandez un nouveau lien.'},
+                            status=status.HTTP_410_GONE)
+        mot_de_passe = str(request.data.get('motDePasse', ''))
+        erreur = _verifier_mot_de_passe(mot_de_passe, str(request.data.get('confirmation', '')),
+                                        Utilisateur(courriel=invitation.courriel))
+        if erreur:
+            return Response({'ok': False, 'message': erreur}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            utilisateur = service_invitations.accepter(invitation, mot_de_passe)
+        except ValueError as e:
+            return Response({'ok': False, 'message': str(e)}, status=status.HTTP_409_CONFLICT)
+        return Response({'ok': True, **_session_et_jetons(utilisateur)})
+
+
+class MotDePasseOublieView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        courriel = str(request.data.get('courriel', '')).strip()
+        if _trop_de_demandes(request, 'oubli'):
+            return Response({'ok': False, 'message': 'Trop de demandes, reessayez dans 15 minutes.'}, status=429)
+        if courriel:
+            service_invitations.demander_reinitialisation(request, courriel)
+        # Meme reponse que le compte existe ou non : on ne revele pas qui a un compte.
+        return Response({'ok': True, 'message': 'Si un compte existe pour ce courriel, un lien vient de lui etre '
+                                                'envoye. Sinon, adressez-vous a votre administrateur.'})
+
+
+class ChangerMotDePasseView(APIView):
+    permission_classes = [EstConnecte]
+
+    def post(self, request):
+        if not request.user.check_password(str(request.data.get('actuel', ''))):
+            return Response({'ok': False, 'message': 'Mot de passe actuel incorrect.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        nouveau = str(request.data.get('nouveau', ''))
+        erreur = _verifier_mot_de_passe(nouveau, str(request.data.get('confirmation', '')), request.user)
+        if erreur:
+            return Response({'ok': False, 'message': erreur}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(nouveau)
+        request.user.save(update_fields=['password'])
+        return Response({'ok': True, 'message': 'Mot de passe modifie.'})

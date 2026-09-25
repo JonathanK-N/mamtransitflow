@@ -25,14 +25,20 @@ class ChauffeurSerializer(serializers.ModelSerializer):
                                              allow_blank=True)
     creeLe = serializers.DateTimeField(source='cree_le', read_only=True)
     aUnCompte = serializers.SerializerMethodField()
+    acces = serializers.SerializerMethodField()
 
     class Meta:
         model = Chauffeur
         fields = ['id', 'prenom', 'nom', 'age', 'telephone', 'courriel', 'adresse',
-                  'permisNumero', 'permisExpiration', 'statut', 'plaqueHabituelle', 'creeLe', 'aUnCompte']
+                  'permisNumero', 'permisExpiration', 'statut', 'plaqueHabituelle', 'creeLe', 'aUnCompte', 'acces']
 
     def get_aUnCompte(self, obj) -> bool:
         return hasattr(obj, 'compte')
+
+    def get_acces(self, obj) -> dict:
+        """Acces au portail : aucun, invite (lien en attente), expire, actif ou desactive."""
+        from apps.comptes.invitations import statut_acces
+        return statut_acces(obj)
 
     def validate_plaqueHabituelle(self, valeur):
         # Le formulaire envoie '' quand "Aucun vehicule" est choisi.
@@ -63,10 +69,12 @@ class ChauffeurCreationSerializer(ChauffeurSerializer):
     renvoye une seule fois dans la reponse (motDePasseInitial).
     """
     creerCompte = serializers.BooleanField(write_only=True, required=False, default=False)
+    # Envoie l invitation a rejoindre l entreprise des la creation (voir la vue).
+    inviter = serializers.BooleanField(write_only=True, required=False, default=False)
     motDePasse = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta(ChauffeurSerializer.Meta):
-        fields = ChauffeurSerializer.Meta.fields + ['creerCompte', 'motDePasse']
+        fields = ChauffeurSerializer.Meta.fields + ['creerCompte', 'motDePasse', 'inviter']
 
     def validate(self, donnees):
         from apps.comptes.models import Utilisateur
@@ -86,6 +94,7 @@ class ChauffeurCreationSerializer(ChauffeurSerializer):
         from apps.comptes.models import Utilisateur
 
         creer_compte = donnees.pop('creerCompte', False)
+        donnees.pop('inviter', None)
         mot_de_passe = donnees.pop('motDePasse', '') or None
         chauffeur = Chauffeur.objects.create(**donnees)
 

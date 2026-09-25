@@ -63,3 +63,40 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     def a_groupe(self, nom_groupe: str) -> bool:
         """Vrai si ce compte appartient au groupe de permission indique (ex. 'fleet.admin')."""
         return self.groups.filter(name=nom_groupe).exists()
+
+
+class Invitation(models.Model):
+    """
+    Lien envoye par courriel pour rejoindre l entreprise (type 'invitation')
+    ou choisir un nouveau mot de passe (type 'reinitialisation').
+
+    Seule l empreinte SHA-256 du jeton est gardee : une fuite de la base ne
+    donne aucun lien utilisable. Un lien sert une seule fois et expire.
+    """
+    TYPES = [('invitation', 'Invitation'), ('reinitialisation', 'Reinitialisation du mot de passe')]
+
+    type = models.CharField(max_length=20, choices=TYPES, default='invitation')
+    courriel = models.EmailField()
+    chauffeur = models.ForeignKey('drivers.Chauffeur', null=True, blank=True, on_delete=models.CASCADE,
+                                  related_name='invitations')
+    utilisateur = models.ForeignKey(Utilisateur, null=True, blank=True, on_delete=models.CASCADE,
+                                    related_name='invitations')
+    empreinte = models.CharField(max_length=64, unique=True)
+    expire_le = models.DateTimeField()
+    utilisee_le = models.DateTimeField(null=True, blank=True)
+    revoquee = models.BooleanField(default=False)
+    courriel_envoye = models.BooleanField(default=False)
+    cree_par = models.ForeignKey(Utilisateur, null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name='invitations_envoyees')
+    cree_le = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-cree_le']
+
+    def __str__(self):
+        return f'{self.get_type_display()} {self.courriel}'
+
+    @property
+    def valide(self) -> bool:
+        from django.utils import timezone
+        return not self.revoquee and self.utilisee_le is None and self.expire_le > timezone.now()

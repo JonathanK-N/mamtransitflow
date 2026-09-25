@@ -3,7 +3,7 @@
 
 import pytest
 
-PAGES = ['/', '/index.html', '/admin/tableau-de-bord.html', '/chauffeur/mes-trajets.html',
+PAGES = ['/', '/index.html', '/invitation.html', '/admin/tableau-de-bord.html', '/chauffeur/mes-trajets.html',
          '/assets/js/admin-flotte.js', '/assets/css/transitflow.css']
 
 
@@ -28,3 +28,7 @@ def test_front_code_du_backend_non_expose(client):
     # Remontee de dossier refusee par Django (SuspiciousFileOperation -> 400).
     assert client.get('/admin/../backend/manage.py').status_code == 400
     assert client.get('/backend/manage.py').status_code == 404
+
+
+def test_page_invitation_sans_referer(client):
+    assert client.get('/invitation.html')['Referrer-Policy'] == 'no-referrer'

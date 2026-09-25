@@ -3,13 +3,14 @@
 
 from django.urls import path
 
-from .views import (AnnulerBonView, BonDetailView, BonsView, CoutsView, DemarrerBonView, EcheancesView,
+from .views import (MonVehiculeView, AnnulerBonView, BonDetailView, BonsView, CoutsView, DemarrerBonView, EcheancesView,
                     ExportBonsView, PlanDetailView, PlansView, TerminerBonView)
 
 urlpatterns = [
     path('api/entretien/plans', PlansView.as_view()),
     path('api/entretien/plans/<str:code>', PlanDetailView.as_view()),
     path('api/entretien/echeances', EcheancesView.as_view()),
+    path('api/entretien/mon-vehicule', MonVehiculeView.as_view()),
     path('api/entretien/bons', BonsView.as_view()),
     path('api/entretien/bons/<str:code>/demarrer', DemarrerBonView.as_view()),
     path('api/entretien/bons/<str:code>/terminer', TerminerBonView.as_view()),

@@ -45,6 +45,14 @@ def page_accueil(request):
     return servir_front(request, path='index.html', document_root=RACINE_PROJET)
 
 
+def page_invitation(request):
+    """Lien recu par courriel (invitation d un chauffeur, mot de passe oublie)."""
+    reponse = servir_front(request, path='invitation.html', document_root=RACINE_PROJET)
+    # Le jeton est dans l adresse : il ne doit jamais partir dans un Referer.
+    reponse['Referrer-Policy'] = 'no-referrer'
+    return reponse
+
+
 urlpatterns = [
     path('django-admin/', admin.site.urls),
 
@@ -59,6 +67,8 @@ urlpatterns = [
     path('', include('apps.entretien.urls')),
     path('', include('apps.suivi.urls')),
     path('', include('apps.reporting.urls')),
+    path('', include('apps.societe.urls')),
+    path('', include('apps.paie.urls')),
     path('api/sante', sante),
 
     # ---- Pages statiques du front-end -----------------------------------
@@ -66,6 +76,7 @@ urlpatterns = [
     # backend) : seulement les dossiers/fichiers dont le front-end a besoin.
     path('', page_accueil),
     path('index.html', page_accueil),
+    path('invitation.html', page_invitation),
     re_path(r'^assets/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'assets'}),
     re_path(r'^admin/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'admin'}),
     re_path(r'^chauffeur/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'chauffeur'}),

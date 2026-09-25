@@ -114,6 +114,8 @@ INSTALLED_APPS = [
     'apps.entretien',
     'apps.suivi',
     'apps.reporting',
+    'apps.societe',
+    'apps.paie',
 ]
 
 MIDDLEWARE = [
@@ -229,6 +231,32 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ---- Courriels (invitations, reinitialisation de mot de passe) -----------
+# Deux facons d envoyer, au choix :
+# - SMTP : TF_EMAIL_HOST (+ TF_EMAIL_PORT, TF_EMAIL_UTILISATEUR,
+#   TF_EMAIL_MOT_DE_PASSE, TF_EMAIL_TLS=1) ;
+# - Resend (API HTTPS, utile quand l hebergeur bloque le port SMTP) :
+#   TF_RESEND_CLE.
+# TF_EMAIL_EXPEDITEUR : adresse d envoi (ex. "TransitFlow <noreply@exemple.ca>").
+# Sans configuration, rien n est envoye : l administrateur copie le lien
+# d invitation affiche dans l interface et le transmet lui-meme.
+TF_EMAIL_EXPEDITEUR = os.environ.get('TF_EMAIL_EXPEDITEUR', 'TransitFlow <noreply@transitflow.local>')
+TF_RESEND_CLE = os.environ.get('TF_RESEND_CLE', '')
+DEFAULT_FROM_EMAIL = TF_EMAIL_EXPEDITEUR
+if os.environ.get('TF_EMAIL_HOST'):
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.environ['TF_EMAIL_HOST']
+    EMAIL_PORT = int(os.environ.get('TF_EMAIL_PORT', '587'))
+    EMAIL_HOST_USER = os.environ.get('TF_EMAIL_UTILISATEUR', '')
+    EMAIL_HOST_PASSWORD = os.environ.get('TF_EMAIL_MOT_DE_PASSE', '')
+    EMAIL_USE_TLS = os.environ.get('TF_EMAIL_TLS', '1') == '1'
+    EMAIL_TIMEOUT = 15
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+TF_COURRIEL_CONFIGURE = bool(os.environ.get('TF_EMAIL_HOST') or TF_RESEND_CLE)
+# Duree de validite d un lien d invitation ou de reinitialisation.
+TF_INVITATION_JOURS = int(os.environ.get('TF_INVITATION_JOURS', '7'))
 
 # ---- Production (TF_DEBUG=0) ---------------------------------------------
 if not DEBUG:

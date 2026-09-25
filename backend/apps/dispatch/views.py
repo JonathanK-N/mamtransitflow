@@ -26,6 +26,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.comptes.permissions import DansGroupe, EstConnecte, est_admin, voit_tout
+from apps.societe.permissions import PortailAutorise
 from apps.drivers.models import Chauffeur
 from apps.fleet.models import Vehicule
 from apps.fleet.services import enregistrer_kilometrage
@@ -47,8 +48,9 @@ def _trajet_visible(request, code):
 
 class TrajetsView(APIView):
     def get_permissions(self):
-        classe = EstConnecte if self.request.method == 'GET' else DansGroupe('fleet.driver')
-        return [classe()]
+        if self.request.method == 'GET':
+            return [EstConnecte()]
+        return [DansGroupe('fleet.driver')(), PortailAutorise('trajets')()]
 
     def get(self, request):
         trajets = Trajet.objects.select_related('chauffeur').prefetch_related('arrets')

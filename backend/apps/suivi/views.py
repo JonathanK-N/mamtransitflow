@@ -20,7 +20,8 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.comptes.permissions import DansGroupe, voit_tout
+from apps.comptes.permissions import EstConnecte, DansGroupe, voit_tout
+from apps.societe.permissions import ModuleActif
 from apps.dispatch.models import Trajet
 from . import services
 from .models import PositionGPS
@@ -32,7 +33,7 @@ def _erreur(message, code):
 
 
 class PositionsView(APIView):
-    permission_classes = [DansGroupe('fleet.driver')]
+    permission_classes = [ModuleActif('suivi'), DansGroupe('fleet.driver')]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'positions'
 
@@ -51,6 +52,8 @@ class PositionsView(APIView):
 
 
 class ParcoursView(APIView):
+    permission_classes = [EstConnecte, ModuleActif('suivi')]
+
     def get(self, request, code):
         trajet = Trajet.depuis_code(code)
         if not trajet or not voit_tout(request.user, trajet.chauffeur):
@@ -71,7 +74,7 @@ class ParcoursView(APIView):
 
 
 class EnDirectView(APIView):
-    permission_classes = [DansGroupe('fleet.admin')]
+    permission_classes = [ModuleActif('suivi'), DansGroupe('fleet.admin')]
 
     def get(self, request):
         maintenant = timezone.now()
