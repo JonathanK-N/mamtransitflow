@@ -86,6 +86,10 @@ class Command(BaseCommand):
         mot_de_passe = options['mot_de_passe']
 
         if options['reset']:
+            # La paie d abord : un chauffeur qui a des bulletins est protege contre la suppression.
+            from apps.paie.models import PeriodePaie, ProfilPaie
+            PeriodePaie.objects.all().delete()
+            ProfilPaie.objects.all().delete()
             BonTravail.objects.all().delete()
             PlanEntretien.objects.all().delete()
             Incident.objects.all().delete()
@@ -141,6 +145,7 @@ class Command(BaseCommand):
             self._creer_trajets(chauffeurs, aujourdhui, a)
         if not PlanEntretien.objects.exists():
             self._creer_entretien(aujourdhui)
+        self._creer_entreprise_et_paie(chauffeurs, aujourdhui, a)
 
         self.stdout.write(self.style.SUCCESS(
             'Donnees de demonstration pretes.\n'
@@ -148,6 +153,58 @@ class Command(BaseCommand):
             f'  Chauffeurs     : {", ".join(c[0] for c in CHAUFFEURS)}\n'
             f'  Mot de passe   : {mot_de_passe}'
         ))
+
+    def _creer_entreprise_et_paie(self, chauffeurs, aujourdhui: date, a):
+        """Fiche entreprise, remuneration des chauffeurs, une paie validee et une paie en brouillon."""
+        from decimal import Decimal
+
+        from apps.paie import services as paie
+        from apps.paie.models import PeriodePaie, ProfilPaie
+        from apps.societe.models import Entreprise
+
+        entreprise = Entreprise.courante()
+        if entreprise.nom == Entreprise._meta.get_field('nom').default:
+            entreprise.nom, entreprise.ville, entreprise.province = 'Navettes Estrie (demo)', 'Sherbrooke', 'QC'
+            entreprise.adresse, entreprise.code_postal = '2500 boulevard de Portland', 'J1J 1V7'
+            entreprise.portail_paie = True
+            entreprise.save()
+
+        remunerations = {
+            'a.diallo@transitflow.ca': dict(mode='horaire', taux_horaire=Decimal('24.50')),
+            'm.traore@transitflow.ca': dict(mode='horaire', taux_horaire=Decimal('26.00')),
+            's.fortin@transitflow.ca': dict(mode='trajet', taux_trajet=Decimal('85.00')),
+            'm.barry@transitflow.ca': dict(mode='fixe', salaire_periode=Decimal('1850.00')),
+        }
+        for courriel, champs in remunerations.items():
+            if courriel in chauffeurs:
+                ProfilPaie.objects.get_or_create(chauffeur=chauffeurs[courriel], defaults=champs)
+
+        if PeriodePaie.objects.exists():
+            return
+        # Deux semaines de travail terminees pour la paie validee (heures reelles des trajets).
+        lundi = aujourdhui - timedelta(days=aujourdhui.weekday())
+        debut_validee = lundi - timedelta(days=14)
+        horaires = [('a.diallo@transitflow.ca', 'QC-4821', 9), ('m.traore@transitflow.ca', 'QC-1094', 10),
+                    ('s.fortin@transitflow.ca', 'QC-7733', 4)]
+        for jour in range(12):
+            date_jour = debut_validee + timedelta(days=jour)
+            if date_jour.weekday() >= 5:
+                continue
+            for courriel, plaque, heures in horaires:
+                decalage = (date_jour - aujourdhui).days
+                debut = a(decalage, '06:00')
+                Trajet.objects.create(chauffeur=chauffeurs[courriel], plaque=plaque, depart='Sherbrooke',
+                                      arrivee='Montreal', depart_adresse='Terminus Sherbrooke', debut=debut,
+                                      fin_prevue=debut + timedelta(hours=heures), fin=debut + timedelta(hours=heures),
+                                      statut='termine')
+        validee = PeriodePaie.objects.create(debut=debut_validee, fin=debut_validee + timedelta(days=13),
+                                             date_paiement=debut_validee + timedelta(days=18))
+        paie.calculer_periode(validee)
+        paie.changer_statut(validee, 'valider')
+        brouillon = PeriodePaie.objects.create(debut=validee.fin + timedelta(days=1),
+                                               fin=validee.fin + timedelta(days=14),
+                                               date_paiement=validee.fin + timedelta(days=19))
+        paie.calculer_periode(brouillon)
 
     def _creer_trajets(self, chauffeurs, aujourdhui: date, a):
         diallo = chauffeurs['a.diallo@transitflow.ca']

@@ -1,9 +1,45 @@
 # TransitFlow
 
-Logiciel de gestion de flotte pour une entreprise de transport par navette
-(trajets interurbains) : chauffeurs, vehicules, trajets, arrets, incidents,
-entretien de la flotte (plans preventifs, bons de travail, couts) et
-suivi GPS en direct sur une carte (Leaflet / OpenStreetMap).
+ERP de gestion pour les entreprises de transport de personnes (navettes
+interurbaines, transport adapte ou scolaire, navettes d aeroport et
+d hotel, nolisement), de quelques vehicules a une centaine.
+
+- **Applications de base** : chauffeurs (fiches, permis, invitations,
+  acces au portail), trajets et incidents, vehicules et compteurs.
+- **Applications activables** (Parametres > Applications) : entretien de
+  la flotte (plans preventifs, bons de travail, couts), suivi GPS en direct
+  (Leaflet / OpenStreetMap), paie (heures tirees des trajets, cotisations
+  du Quebec, bulletins).
+- **Deux espaces** : l administrateur gere tout ; le chauffeur a un
+  portail (telephone ou ordinateur) dont l administrateur choisit le
+  contenu (Parametres > Portail chauffeur). Le serveur applique ces choix
+  (403), les menus ne font que les refleter.
+
+### Arrivee d un chauffeur
+
+1. L administrateur cree sa fiche (Chauffeurs > Nouveau chauffeur), case
+   « Envoyer une invitation » cochee.
+2. Le chauffeur recoit « Rejoignez <entreprise> sur TransitFlow »
+   (ou, sans envoi de courriels configure, l administrateur lui transmet le
+   lien affiche). Le lien est personnel, a usage unique, valable 7 jours.
+3. Il choisit son mot de passe sur `invitation.html` et arrive dans son
+   portail. L administrateur ne connait jamais son mot de passe ; il peut
+   renvoyer l invitation, suspendre ou retablir l acces depuis la fiche.
+4. En cas d oubli : « Mot de passe oublie » sur la page de connexion.
+
+### Paie
+
+Remuneration par chauffeur (a l heure, au trajet, salaire fixe), heures
+tirees des trajets termines, heures supplementaires au-dela de 40 h par
+semaine (majorees de 50 %), cotisations RRQ, AE et RQAP 2026 avec plafonds
+annuels, lignes manuelles (prime, remboursement, avance), cycle
+brouillon -> validee -> payee, export CSV, bulletins imprimables (PDF)
+visibles par le chauffeur une fois la paie validee.
+**Limites** : les retenues d impot sont des taux forfaitaires fixes par
+l entreprise (pas les tables TP-1015.F / T4127) ; les remises
+gouvernementales et les releves 1 / T4 se font hors de TransitFlow. Faire
+valider les parametres par un comptable ; mettre a jour les taux chaque
+1er janvier (Parametres > Paie).
 
 Backend : Django + Django REST Framework, organise en apps independantes
 (comme les modules d un ERP). Front-end (a venir : Vue.js) actuellement en
@@ -61,10 +97,13 @@ python -m pytest -q
 Les memes tests tournent sur GitHub Actions a chaque push, sur PostgreSQL
 (`.github/workflows/tests.yml`).
 
-Test de bout en bout dans un vrai navigateur (module d entretien, cote
-administrateur et chauffeur, y compris l affichage mobile) : voir l en-tete
-de [`e2e/parcours_entretien.py`](e2e/parcours_entretien.py). Il se lance
-sur une base de demonstration neuve (`seed_demo`) avec le serveur demarre.
+Tests de bout en bout dans un vrai navigateur, chacun sur une base de
+demonstration neuve (`seed_demo`) avec le serveur demarre (voir l en-tete
+de chaque fichier) :
+- [`e2e/parcours_erp.py`](e2e/parcours_erp.py) : applications, invitation
+  d un chauffeur, portail, paie, mot de passe oublie, mobile ;
+- [`e2e/parcours_entretien.py`](e2e/parcours_entretien.py) : entretien de la flotte ;
+- [`e2e/parcours_gps.py`](e2e/parcours_gps.py) : suivi GPS.
 
 ## Deploiement
 
@@ -161,7 +200,8 @@ backend/
   transitflow/    configuration du projet Django (settings, urls)
   apps/           un dossier par module metier (comptes, drivers, fleet,
                   dispatch, maintenance [incidents], entretien, suivi [GPS],
-                  reporting) — chacun a ses modeles,
+                  reporting, societe [entreprise, modules, portail], paie)
+                  — chacun a ses modeles,
                   serializers et routes, independamment des autres ; les
                   tests de chaque app vivent dans son propre dossier tests/
 admin/            pages de l espace administrateur

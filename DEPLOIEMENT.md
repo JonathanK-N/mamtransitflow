@@ -104,6 +104,21 @@ publique et se connecter avec `TF_ADMIN_COURRIEL` / `TF_ADMIN_MOT_DE_PASSE`
 | `WEB_CONCURRENCY` | `2` | Nombre de processus gunicorn |
 | `TF_LOG_LEVEL` | `INFO` | Niveau des journaux |
 
+### Envoi des courriels (invitations, mot de passe oublie)
+
+Sans configuration, aucun courriel ne part : a la creation d un chauffeur,
+l interface affiche le lien d invitation a lui transmettre. Pour l envoi
+automatique, au choix :
+
+| Variable | Exemple | Effet |
+|---|---|---|
+| `TF_RESEND_CLE` | `re_...` | Envoi par l API Resend (HTTPS) : recommande sur Railway, qui bloque souvent le port SMTP |
+| `TF_EMAIL_HOST` | `smtp.office365.com` | Envoi SMTP (avec `TF_EMAIL_PORT` 587, `TF_EMAIL_UTILISATEUR`, `TF_EMAIL_MOT_DE_PASSE`, `TF_EMAIL_TLS` 1) |
+| `TF_EMAIL_EXPEDITEUR` | `Navettes Estrie <noreply@exemple.ca>` | Adresse d envoi (domaine verifie chez le fournisseur) |
+| `TF_INVITATION_JOURS` | `7` | Validite des liens d invitation et de reinitialisation |
+
+L etat de la configuration est visible dans Parametres > Courriel.
+
 ## Domaine personnalise
 
 **Settings → Networking → Custom Domain**, puis ajouter le domaine a
