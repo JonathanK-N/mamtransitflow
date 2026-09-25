@@ -81,6 +81,16 @@ a:hover { color: var(--tf-accent-deep); }
   font-weight: 500;
 }
 .tf-navbar-user { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 14px; }
+/* Les libelles ne se coupent jamais sur deux lignes : sur un ecran etroit,
+   la barre defile horizontalement plutot que de se deformer. */
+.tf-navbar { overflow-x: auto; scrollbar-width: none; }
+.tf-navbar::-webkit-scrollbar { display: none; }
+.tf-nav-link, .tf-brand, .tf-navbar-user, .tf-navbar-user > * { white-space: nowrap; flex: none; }
+@media (max-width: 1280px) {
+  .tf-navbar { padding: 0 18px; gap: 4px; }
+  .tf-nav-link { padding: 8px 11px; font-size: 13.5px; }
+  .tf-brand { margin-right: 12px; }
+}
 
 /* Surfaces */
 .tf-page { padding: 28px; display: flex; flex-direction: column; gap: 18px; }
