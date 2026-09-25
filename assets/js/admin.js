@@ -5,7 +5,8 @@
    Les noms des chauffeurs sont resolus avec un seul appel
    (Store.chauffeursParId) plutot qu une requete par ligne de tableau, les
    dates sont celles du jour reel, et les erreurs du serveur sont
-   affichees a l utilisateur (tfNotifier). */
+   affichees a l utilisateur (tfNotifier). Les pages de la flotte et de
+   l entretien sont dans admin-flotte.js. */
 
 /* Avatar + nom court d un chauffeur (ou "Inconnu" s il a ete supprime). */
 function tfCelluleChauffeur(c) {
@@ -36,11 +37,12 @@ const Admin = {
   async pageTableauDeBord(session) {
     // Les appels ne dependent pas les uns des autres : Promise.all()
     // les lance tous en meme temps.
-    const [k, trajetsEnCours, incidentsOuverts, chauffeurs] = await Promise.all([
+    const [k, trajetsEnCours, incidentsOuverts, chauffeurs, entretien] = await Promise.all([
       Store.indicateurs(),
       Store.trajets({ statut: 'en-cours' }),
       Store.incidents({ statut: 'ouvert' }),
-      Store.chauffeurs()
+      Store.chauffeurs(),
+      Store.echeances()
     ]);
     const parId = {};
     chauffeurs.forEach(function (c) { parId[c.id] = c; });
@@ -93,6 +95,31 @@ const Admin = {
         '<div class="tf-meta mt-1">' + Format.echapper(Format.nomCourt(c)) + ' — ' +
         Format.dateLongue(c.permisExpiration) + '</div></div></div>');
     });
+    // Entretien : echeances depassees ou proches (les plus urgentes d abord, voir /api/entretien/echeances).
+    entretien.echeances.slice(0, 5).forEach(function (p) {
+      const retard = p.echeance.etat === 'en-retard';
+      morceaux.push('<a class="tf-alert' + (retard ? ' high' : '') + '" style="color:inherit" href="' +
+        (p.bonOuvert ? 'entretiens.html?bon=' + encodeURIComponent(p.bonOuvert)
+                     : 'vehicule.html?plaque=' + encodeURIComponent(p.vehicule)) + '">' +
+        '<div class="tf-alert-bar"></div><div>' +
+        '<div style="font-size:13.5px;font-weight:500">' + (retard ? 'Entretien en retard' : 'Entretien a prevoir') +
+        ' — ' + Format.echapper(p.vehicule) + '</div>' +
+        '<div class="tf-meta mt-1">' + Format.echapper(p.libelle) + ' · ' +
+        Format.echapper(Format.resteEcheance(p.echeance)) +
+        (p.bonOuvert ? ' · ' + Format.echapper(p.bonOuvert) + ' planifie' : '') + '</div></div></a>');
+    });
+    if (entretien.echeances.length > 5) {
+      morceaux.push('<a class="tf-meta" href="entretiens.html?onglet=echeances">+ ' +
+        (entretien.echeances.length - 5) + ' autre(s) echeance(s) d entretien</a>');
+    }
+    if (k.vehiculesEnMaintenance) {
+      morceaux.push('<a class="tf-alert" style="color:inherit" href="vehicules.html"><div class="tf-alert-bar"></div><div>' +
+        '<div style="font-size:13.5px;font-weight:500">' + k.vehiculesEnMaintenance + ' vehicule' +
+        (k.vehiculesEnMaintenance > 1 ? 's' : '') + ' a l atelier</div>' +
+        '<div class="tf-meta mt-1">' + k.vehiculesDisponibles + ' disponible' +
+        (k.vehiculesDisponibles > 1 ? 's' : '') + ' pour les trajets</div></div></a>');
+    }
+
     document.querySelector('[data-alertes]').innerHTML = morceaux.join('') ||
       '<div class="tf-meta">Aucune alerte en cours.</div>';
   },
@@ -276,40 +303,7 @@ const Admin = {
     });
   },
 
-  /* Liste et ajout des vehicules de la flotte */
-  async pageVehicules() {
-    const corps = document.querySelector('[data-liste-vehicules]');
-    const formulaire = document.querySelector('[data-formulaire]');
-
-    async function dessiner() {
-      const [vehicules, chauffeurs] = await Promise.all([Store.vehicules(), Store.chauffeurs()]);
-      document.querySelector('[data-compteur]').textContent =
-        vehicules.length + ' vehicule' + (vehicules.length > 1 ? 's' : '');
-      corps.innerHTML = vehicules.map(function (v) {
-        const habituels = chauffeurs.filter(function (c) { return c.plaqueHabituelle === v.plaque; });
-        return '<tr><td class="tf-mono">' + Format.echapper(v.plaque) + '</td>' +
-          '<td>' + Format.echapper(v.modele) + '</td>' +
-          '<td class="tf-muted">' + (habituels.map(function (c) {
-            return Format.echapper(Format.nomCourt(c));
-          }).join(', ') || '—') + '</td></tr>';
-      }).join('') || '<tr><td colspan="3" class="tf-muted">Aucun vehicule. Ajoutez le premier ci-dessus.</td></tr>';
-    }
-
-    formulaire.addEventListener('submit', function (e) {
-      e.preventDefault();
-      tfEnvoyer(formulaire, async function () {
-        const d = new FormData(formulaire);
-        const vehicule = await Store.ajouterVehicule({
-          plaque: d.get('plaque').trim().toUpperCase(),
-          modele: d.get('modele').trim()
-        });
-        formulaire.reset();
-        tfNotifier('Vehicule ' + vehicule.plaque + ' ajoute.', 'succes');
-        await dessiner();
-      });
-    });
-    return dessiner();
-  },
+  /* Vehicules, fiche vehicule et entretien : voir admin-flotte.js */
 
   /* Liste des trajets */
   pageTrajets() {
@@ -474,7 +468,16 @@ const Admin = {
           (i.statut === 'ouvert'
             ? '<button type="button" class="tf-btn tf-btn-dark flex-fill" data-traiter>Marquer comme traite</button>'
             : '<span class="tf-btn tf-btn-ghost flex-fill" style="cursor:default">Deja traite</span>') +
-        '</div>';
+        '</div>' +
+        // Un incident technique peut ouvrir un bon de travail (voir entretiens.html).
+        (i.type === 'technique'
+          ? (i.bonTravailId
+            ? '<a class="tf-btn tf-btn-ghost" href="entretiens.html?bon=' + encodeURIComponent(i.bonTravailId) +
+              '">Voir le bon de travail ' + Format.echapper(i.bonTravailId) + '</a>'
+            : (i.statut === 'ouvert'
+              ? '<a class="tf-btn tf-btn-primary" href="entretiens.html?nouveau=1&incident=' +
+                encodeURIComponent(i.id) + '">Creer un bon de travail</a>' : ''))
+          : '');
       const bouton = panneau.querySelector('[data-traiter]');
       if (bouton) bouton.addEventListener('click', async function () {
         try {

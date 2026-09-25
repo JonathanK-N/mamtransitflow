@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Jonathan K-N">
+<title>Entretien · TransitFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="../assets/css/transitflow.css" rel="stylesheet">
+</head>
+<body data-page="entretiens">
+<nav class="tf-navbar">
+  <a class="tf-brand" href="tableau-de-bord.html">Transit<span>Flow</span></a>
+  <a class="tf-nav-link" href="tableau-de-bord.html">Tableau de bord</a>
+  <a class="tf-nav-link" href="chauffeurs.html">Chauffeurs</a>
+  <a class="tf-nav-link" href="trajets.html">Trajets</a>
+  <a class="tf-nav-link" href="incidents.html">Incidents</a>
+  <a class="tf-nav-link active" href="entretiens.html">Entretien</a>
+  <a class="tf-nav-link" href="vehicules.html">Vehicules</a>
+  <div class="tf-navbar-user" data-navbar-user></div>
+</nav>
+<main class="tf-page">
+  <div class="d-flex align-items-end justify-content-between flex-wrap gap-3">
+    <div>
+      <h1 class="tf-h1">Entretien de la flotte</h1>
+      <p class="tf-meta mt-1 mb-0" data-sous-titre></p>
+    </div>
+    <div class="d-flex gap-3 flex-wrap">
+      <button type="button" class="tf-btn tf-btn-ghost" data-exporter>Exporter (CSV)</button>
+      <button type="button" class="tf-btn tf-btn-primary" data-nouveau-bon>+ Nouveau bon de travail</button>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-6 col-lg-3"><div class="tf-card tf-stat h-100">
+      <span class="tf-stat-label">Entretiens en retard</span>
+      <span class="tf-stat-value tf-danger" data-kpi="en-retard">—</span>
+      <span class="tf-stat-note">echeance depassee</span>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="tf-card tf-stat h-100">
+      <span class="tf-stat-label">A prevoir</span>
+      <span class="tf-stat-value" style="color:var(--tf-accent-ink)" data-kpi="bientot">—</span>
+      <span class="tf-stat-note">echeance proche</span>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="tf-card tf-stat h-100">
+      <span class="tf-stat-label">Bons ouverts</span>
+      <span class="tf-stat-value" data-kpi="ouverts">—</span>
+      <span class="tf-stat-note" data-kpi-note="ouverts"></span>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="tf-card tf-stat h-100">
+      <span class="tf-stat-label">Couts depuis le 1er janvier</span>
+      <span class="tf-stat-value" style="font-size:27px" data-kpi="couts">—</span>
+      <span class="tf-stat-note" data-kpi-note="couts"></span>
+    </div></div>
+  </div>
+
+  <section class="tf-card">
+    <nav class="tf-tabs">
+      <button type="button" class="tf-tab active" data-onglet="bons">Bons de travail</button>
+      <button type="button" class="tf-tab" data-onglet="echeances">Echeances <span class="tf-mono" data-nb-echeances></span></button>
+      <button type="button" class="tf-tab" data-onglet="couts">Couts</button>
+    </nav>
+
+    <div data-volet="bons">
+      <div class="d-flex gap-2 flex-wrap align-items-center px-4 pt-3">
+        <button type="button" class="tf-chip active" data-filtre-bon="ouverts">Ouverts</button>
+        <button type="button" class="tf-chip" data-filtre-bon="en-retard">En retard</button>
+        <button type="button" class="tf-chip" data-filtre-bon="termine">Termines</button>
+        <button type="button" class="tf-chip" data-filtre-bon="annule">Annules</button>
+        <button type="button" class="tf-chip" data-filtre-bon="tous">Tous</button>
+        <select class="tf-input sm ms-lg-auto" style="width:auto;min-width:170px" data-filtre-vehicule aria-label="Vehicule">
+          <option value="">Tous les vehicules</option></select>
+        <input class="tf-input sm" style="width:220px;max-width:100%" type="search" placeholder="Rechercher (titre, BT-12...)"
+               data-recherche aria-label="Rechercher">
+      </div>
+      <div class="row g-0 mt-3">
+        <div class="col-12 col-xl-7">
+          <div class="tf-table-scroll" style="border-radius:0">
+            <table class="tf-table">
+              <thead><tr><th>BON</th><th>VEHICULE</th><th>INTERVENTION</th><th>PREVU LE</th><th>STATUT</th></tr></thead>
+              <tbody data-liste-bons></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5" style="border-left:1px solid var(--tf-line)">
+          <div class="tf-card-pad d-flex flex-column gap-4" data-detail-bon></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tf-hidden" data-volet="echeances">
+      <div class="d-flex align-items-center gap-3 px-4 pt-3 flex-wrap">
+        <span class="tf-meta" data-resume-echeances></span>
+        <label class="ms-auto d-inline-flex align-items-center gap-2 tf-meta" style="cursor:pointer">
+          <input type="checkbox" data-echeances-toutes> Afficher aussi les entretiens a jour</label>
+      </div>
+      <div class="tf-table-scroll mt-2">
+        <table class="tf-table">
+          <thead><tr><th>VEHICULE</th><th>ENTRETIEN</th><th>PROCHAIN</th><th>RESTE</th><th>ETAT</th><th></th></tr></thead>
+          <tbody data-liste-echeances></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tf-hidden tf-card-pad d-flex flex-column gap-4" data-volet="couts">
+      <form class="d-flex gap-3 flex-wrap align-items-end" data-periode>
+        <label class="tf-field"><span class="tf-label">Du</span>
+          <input class="tf-input sm" type="date" name="debut" required></label>
+        <label class="tf-field"><span class="tf-label">Au</span>
+          <input class="tf-input sm" type="date" name="fin" required></label>
+        <button class="tf-btn tf-btn-dark sm" style="height:40px" type="submit">Afficher</button>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="tf-chip" data-preset="annee">Cette annee</button>
+          <button type="button" class="tf-chip" data-preset="12mois">12 derniers mois</button>
+          <button type="button" class="tf-chip" data-preset="mois">Ce mois-ci</button>
+        </div>
+      </form>
+      <div class="row g-3" data-totaux></div>
+      <div class="row g-4 align-items-start">
+        <div class="col-12 col-xl-7">
+          <h3 class="tf-h3 mb-3">Par vehicule</h3>
+          <div class="tf-table-scroll" style="border:1px solid var(--tf-line)">
+            <table class="tf-table">
+              <thead><tr><th>VEHICULE</th><th class="text-end">BONS</th><th class="text-end">PIECES</th>
+                <th class="text-end">MAIN-D OEUVRE</th><th class="text-end">TOTAL</th><th class="text-end">COUT / KM</th></tr></thead>
+              <tbody data-couts-vehicules></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <h3 class="tf-h3 mb-3">Par type d intervention</h3>
+          <div class="tf-bars" data-couts-types></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/format.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="../assets/js/admin.js"></script>
+<script src="../assets/js/admin-flotte.js"></script>
+</body>
+</html>

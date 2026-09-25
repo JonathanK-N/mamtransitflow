@@ -357,3 +357,58 @@ textarea.tf-input { height: auto; min-height: 84px; padding: 13px 16px; line-hei
   background: var(--tf-danger); color: #fff;
 }
 .tf-toast.succes { background: var(--tf-ok); }
+
+/* ---- Flotte et entretien ------------------------------------------------ */
+.tf-pill.muted { background: transparent; border: 1px solid var(--tf-border); color: var(--tf-muted); }
+select.tf-input {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236F6860' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+}
+.tf-input.sm { height: 40px; font-size: 14px; padding: 0 12px; }
+select.tf-input.sm { padding-right: 34px; background-position: right 12px center; }
+.tf-btn.sm { height: 36px; padding: 0 14px; font-size: 13px; }
+.tf-btn:disabled { opacity: .55; cursor: not-allowed; }
+.tf-btn-danger { background: #fff; border-color: #EBC5C0; color: var(--tf-danger); }
+.tf-btn-danger:hover { background: var(--tf-danger-tint); color: var(--tf-danger); }
+.tf-table-scroll { overflow-x: auto; border-radius: var(--tf-radius); }
+.tf-table-scroll .tf-table { min-width: 720px; }
+.tf-table td.tf-mono, .tf-table td .tf-mono { white-space: nowrap; }
+.tf-table tbody tr[data-ligne] { cursor: pointer; }
+.tf-table tbody tr[data-ligne]:hover { background: #FFFCF8; }
+
+/* Onglets */
+.tf-tabs { display: flex; gap: 26px; padding: 0 22px; border-bottom: 1px solid var(--tf-line); overflow-x: auto; }
+.tf-tab {
+  border: none; background: none;
+  padding: 16px 0 13px;
+  font-family: inherit; font-size: 14.5px; color: var(--tf-muted);
+  border-bottom: 2.5px solid transparent;
+  white-space: nowrap; cursor: pointer;
+}
+.tf-tab.active { color: var(--tf-ink); font-weight: 500; border-bottom-color: var(--tf-accent); }
+.tf-tab .tf-mono { font-size: 12.5px; }
+
+/* Barres horizontales (couts par type) */
+.tf-bars { display: flex; flex-direction: column; gap: 12px; }
+.tf-bar-row { display: grid; grid-template-columns: minmax(120px, 190px) 1fr auto; gap: 14px; align-items: center; font-size: 13.5px; }
+.tf-bar { height: 10px; border-radius: 999px; background: var(--tf-line); overflow: hidden; }
+.tf-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--tf-accent); }
+
+/* Grille de proprietes (fiche vehicule, detail d un bon) */
+.tf-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px; }
+.tf-props > div > .tf-meta { margin-bottom: 4px; }
+.tf-props-value { font-size: 14.5px; }
+
+.tf-form-error {
+  padding: 11px 14px; border-radius: var(--tf-radius-sm);
+  background: var(--tf-danger-tint); color: var(--tf-danger); font-size: 13.5px;
+}
+.tf-empty { padding: 26px 22px; color: var(--tf-muted); font-size: 14px; }
+
+@media (max-width: 900px) {
+  .tf-bar-row { grid-template-columns: 110px 1fr auto; gap: 10px; }
+  .tf-modal { padding: 22px; }
+}

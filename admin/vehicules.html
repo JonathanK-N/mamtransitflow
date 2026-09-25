@@ -18,31 +18,47 @@
   <a class="tf-nav-link" href="chauffeurs.html">Chauffeurs</a>
   <a class="tf-nav-link" href="trajets.html">Trajets</a>
   <a class="tf-nav-link" href="incidents.html">Incidents</a>
+  <a class="tf-nav-link" href="entretiens.html">Entretien</a>
   <a class="tf-nav-link active" href="vehicules.html">Vehicules</a>
   <div class="tf-navbar-user" data-navbar-user></div>
 </nav>
 <main class="tf-page">
-  <div>
-    <h1 class="tf-h1">Vehicules</h1>
-    <p class="tf-meta mt-1 mb-0" data-compteur></p>
+  <div class="d-flex align-items-end justify-content-between flex-wrap gap-3">
+    <div>
+      <h1 class="tf-h1">Vehicules</h1>
+      <p class="tf-meta mt-1 mb-0" data-compteur></p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="tf-chip active" data-filtre-vehicule="tous">Tous</button>
+      <button type="button" class="tf-chip" data-filtre-vehicule="actif">Actifs</button>
+      <button type="button" class="tf-chip" data-filtre-vehicule="maintenance">En maintenance</button>
+      <button type="button" class="tf-chip" data-filtre-vehicule="hors-service">Hors service</button>
+    </div>
   </div>
 
   <form class="tf-card tf-card-pad" data-formulaire>
     <div class="row g-3 align-items-end">
-      <div class="col-12 col-md-4"><label class="tf-field">
+      <div class="col-12 col-sm-6 col-lg-2"><label class="tf-field">
         <span class="tf-label">Plaque</span>
         <input class="tf-input tf-mono" name="plaque" maxlength="20" placeholder="QC-0000" required></label></div>
-      <div class="col-12 col-md-5"><label class="tf-field">
+      <div class="col-12 col-sm-6 col-lg-4"><label class="tf-field">
         <span class="tf-label">Modele</span>
-        <input class="tf-input" name="modele" maxlength="100" placeholder="Ford Transit 2024" required></label></div>
-      <div class="col-12 col-md-3">
+        <input class="tf-input" name="modele" maxlength="100" placeholder="Ford Transit" required></label></div>
+      <div class="col-6 col-lg-2"><label class="tf-field">
+        <span class="tf-label">Annee</span>
+        <input class="tf-input tf-mono" name="annee" type="number" min="1980" placeholder="2024"></label></div>
+      <div class="col-6 col-lg-2"><label class="tf-field">
+        <span class="tf-label">Compteur (km)</span>
+        <input class="tf-input tf-mono" name="kilometrage" type="number" min="0" step="1" placeholder="0"></label></div>
+      <div class="col-12 col-lg-2">
         <button class="tf-btn tf-btn-primary tf-btn-block" type="submit">+ Ajouter</button></div>
     </div>
   </form>
 
-  <section class="tf-card tf-table-wrap">
+  <section class="tf-card tf-table-scroll">
     <table class="tf-table">
-      <thead><tr><th>PLAQUE</th><th>MODELE</th><th>CHAUFFEURS HABITUELS</th></tr></thead>
+      <thead><tr><th>PLAQUE</th><th>MODELE</th><th>COMPTEUR</th><th>STATUT</th><th>ENTRETIEN</th>
+        <th>CHAUFFEURS HABITUELS</th><th></th></tr></thead>
       <tbody data-liste-vehicules></tbody>
     </table>
   </section>
@@ -50,6 +66,8 @@
 <script src="../assets/js/store.js"></script>
 <script src="../assets/js/format.js"></script>
 <script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
 <script src="../assets/js/admin.js"></script>
+<script src="../assets/js/admin-flotte.js"></script>
 </body>
 </html>

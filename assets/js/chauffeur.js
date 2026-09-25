@@ -3,7 +3,8 @@
    Modifie par : Jonathan K-N — meme principe que admin.js : chaque
    methode "pageXxx" est en async/await parce que les donnees viennent de
    l API (voir store.js). Les dates sont celles du jour reel et les
-   erreurs du serveur sont affichees a l utilisateur (tfNotifier). */
+   erreurs du serveur sont affichees a l utilisateur (tfNotifier). A
+   l arrivee, le chauffeur peut saisir le compteur du vehicule. */
 
 const Chauffeur = {
   /*
@@ -29,6 +30,27 @@ const Chauffeur = {
       return c.toUpperCase();
     });
     if (typeof this[methode] === 'function') await this[methode]();
+  },
+
+  /*
+   * Fenetre "Marquer l arrivee" : le compteur du vehicule est demande (facultatif)
+   * pour alimenter le suivi d entretien de la flotte. Renvoie true si le trajet est termine.
+   */
+  async marquerArrivee(trajet) {
+    const vehicules = await Store.vehicules();
+    const vehicule = vehicules.find(function (v) { return v.plaque === trajet.plaque; });
+    const actuel = vehicule ? vehicule.kilometrage : 0;
+    return tfModale({
+      titre: 'Marquer l arrivee',
+      sousTitre: trajet.depart + ' → ' + trajet.arrivee + ' · ' + trajet.plaque,
+      corps: tfChamp('Compteur du vehicule (km)',
+        '<input class="tf-input tf-mono" name="kilometrage" type="number" inputmode="numeric" min="' + actuel +
+        '" step="1" placeholder="' + actuel + '">',
+        'Facultatif — dernier releve : ' + Format.km(actuel) + '. Sert au suivi de l entretien.'),
+      valider: 'Terminer le trajet',
+      danger: true,
+      async action(d) { await Store.terminerTrajet(trajet.id, tfNombre(d, 'kilometrage')); }
+    });
   },
 
   /* Mes trajets */
@@ -62,8 +84,7 @@ const Chauffeur = {
         'incident-nouveau.html?trajet=' + encodeURIComponent(enCours.id);
       bloc.querySelector('[data-terminer]').addEventListener('click', async function () {
         try {
-          await Store.terminerTrajet(enCours.id);
-          window.location.reload();
+          if (await Chauffeur.marquerArrivee(enCours)) window.location.reload();
         } catch (e) { tfNotifier(e.message); }
       });
     } else {
@@ -98,20 +119,25 @@ const Chauffeur = {
     formulaire.querySelector('[name=heurePrevue]').value = Format.heureActuelle(60);
 
     const [vehicules, enCours] = await Promise.all([Store.vehicules(), Store.trajetEnCours(moi.id)]);
-    let plaque = vehicules.some(function (v) { return v.plaque === moi.plaqueHabituelle; })
+    // Seuls les vehicules 'actif' peuvent partir : ceux en maintenance ou
+    // hors service sont affiches mais grises (le serveur les refuse aussi).
+    const disponibles = vehicules.filter(function (v) { return v.disponible; });
+    let plaque = disponibles.some(function (v) { return v.plaque === moi.plaqueHabituelle; })
       ? moi.plaqueHabituelle
-      : (vehicules[0] ? vehicules[0].plaque : null);
+      : (disponibles[0] ? disponibles[0].plaque : null);
 
     tuiles.innerHTML = vehicules.map(function (v) {
       return '<div class="col-6 col-md-4"><button type="button" class="tf-tile' +
-        (v.plaque === plaque ? ' active' : '') + '" data-plaque="' + Format.echapper(v.plaque) + '">' +
+        (v.plaque === plaque ? ' active' : '') + '" data-plaque="' + Format.echapper(v.plaque) + '"' +
+        (v.disponible ? '' : ' disabled style="opacity:.55;cursor:not-allowed"') + '>' +
         '<span class="tf-tile-mark"></span>' +
         '<span class="tf-mono" style="font-size:14px">' + Format.echapper(v.plaque) + '</span>' +
-        '<span class="tf-tile-note">' + Format.echapper(v.modele) + '</span></button></div>';
+        '<span class="tf-tile-note">' + Format.echapper(v.modele) +
+        (v.disponible ? '' : ' · ' + Format.statutVehicule(v.statut).texte.toLowerCase()) + '</span></button></div>';
     }).join('') || '<div class="col-12 tf-muted">Aucun vehicule dans la flotte : ' +
       'demandez a votre administrateur d en ajouter un.</div>';
 
-    tuiles.querySelectorAll('[data-plaque]').forEach(function (b) {
+    tuiles.querySelectorAll('[data-plaque]:not([disabled])').forEach(function (b) {
       b.addEventListener('click', function () {
         tuiles.querySelectorAll('[data-plaque]').forEach(function (x) { x.classList.remove('active'); });
         b.classList.add('active');
@@ -212,8 +238,7 @@ const Chauffeur = {
 
     document.querySelector('[data-terminer]').addEventListener('click', async function () {
       try {
-        await Store.terminerTrajet(t.id);
-        window.location.href = 'mes-trajets.html';
+        if (await Chauffeur.marquerArrivee(t)) window.location.href = 'mes-trajets.html';
       } catch (e) { tfNotifier(e.message); }
     });
 

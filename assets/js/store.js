@@ -27,6 +27,11 @@ function tfEcrireSession(session) {
   sessionStorage.setItem(TF_SESSION_KEY, JSON.stringify(session));
 }
 
+/* Vrai des que le navigateur commence a quitter la page (voir tfRequete). */
+let tfPageQuittee = false;
+window.addEventListener('pagehide', function () { tfPageQuittee = true; });
+window.addEventListener('pageshow', function () { tfPageQuittee = false; });
+
 /* Renvoie a la page de connexion (sauf si on y est deja, pour eviter une boucle). */
 function tfRetourConnexion() {
   sessionStorage.removeItem(TF_SESSION_KEY);
@@ -114,7 +119,8 @@ function tfMessageErreur(donnees) {
 
 /*
  * Fonction centrale utilisee par toutes les methodes de Store pour
- * parler a l API :
+ * parler a l API (options.reponseBrute : renvoie la Response telle quelle,
+ * pour un telechargement de fichier) :
  * 1. elle ajoute le jeton d acces a l entete "Authorization" ;
  * 2. si le serveur repond 401 (jeton expire), elle renouvelle le jeton
  *    une fois puis rejoue la requete ; si c est impossible, elle renvoie
@@ -133,6 +139,9 @@ async function tfRequete(chemin, options, dejaRenouvele) {
   try {
     reponse = await fetch(API_BASE + chemin, Object.assign({}, options, { headers: entetes }));
   } catch (e) {
+    // Requete interrompue parce que l utilisateur quitte la page (clic sur
+    // un lien pendant le chargement) : ce n est pas une panne, on n affiche rien.
+    if (tfPageQuittee) return new Promise(function () {});
     throw new Error('Impossible de joindre le serveur. Verifiez votre connexion.');
   }
 
@@ -143,6 +152,8 @@ async function tfRequete(chemin, options, dejaRenouvele) {
     tfRetourConnexion();
     throw new Error('Session expiree, veuillez vous reconnecter.');
   }
+
+  if (options.reponseBrute && reponse.ok) return reponse;
 
   const donnees = await reponse.json().catch(function () { return {}; });
   if (!reponse.ok) {
@@ -243,9 +254,12 @@ const Store = {
     return donnees.trajet;
   },
 
-  async terminerTrajet(trajetId) {
+  /* kilometrage (facultatif) : compteur du vehicule a l arrivee, pour le suivi d entretien. */
+  async terminerTrajet(trajetId, kilometrage) {
+    const corps = (kilometrage === undefined || kilometrage === null || kilometrage === '')
+      ? {} : { kilometrage: Number(kilometrage) };
     const donnees = await tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/terminer',
-      { method: 'POST' });
+      { method: 'POST', body: JSON.stringify(corps) });
     return donnees.trajet;
   },
 
@@ -272,14 +286,108 @@ const Store = {
   },
 
   /* Vehicules */
-  async vehicules() {
-    const donnees = await tfRequete('/vehicules');
+  async vehicules(filtre) {
+    const donnees = await tfRequete('/vehicules' + tfParametres(filtre));
     return donnees.vehicules;
   },
 
   async ajouterVehicule(vehicule) {
     const donnees = await tfRequete('/vehicules', { method: 'POST', body: JSON.stringify(vehicule) });
     return donnees.vehicule;
+  },
+
+  /* Fiche complete : {vehicule, releves, chauffeursHabituels}, ou null si la plaque n existe pas. */
+  async vehicule(plaque) {
+    if (!plaque) return null;
+    return tfRequeteOuNull('/vehicules/' + encodeURIComponent(plaque));
+  },
+
+  async majVehicule(plaque, champs) {
+    const donnees = await tfRequete('/vehicules/' + encodeURIComponent(plaque),
+      { method: 'PATCH', body: JSON.stringify(champs) });
+    return donnees.vehicule;
+  },
+
+  async releverKilometrage(plaque, kilometrage, note) {
+    const donnees = await tfRequete('/vehicules/' + encodeURIComponent(plaque) + '/kilometrage',
+      { method: 'POST', body: JSON.stringify({ kilometrage: Number(kilometrage), note: note || '' }) });
+    return donnees.vehicule;
+  },
+
+  /* Entretien : plans preventifs */
+  async plansEntretien(filtre) {
+    const donnees = await tfRequete('/entretien/plans' + tfParametres(filtre));
+    return donnees.plans;
+  },
+
+  async ajouterPlan(plan) {
+    const donnees = await tfRequete('/entretien/plans', { method: 'POST', body: JSON.stringify(plan) });
+    return donnees.plan;
+  },
+
+  async majPlan(id, champs) {
+    const donnees = await tfRequete('/entretien/plans/' + encodeURIComponent(id),
+      { method: 'PATCH', body: JSON.stringify(champs) });
+    return donnees.plan;
+  },
+
+  async desactiverPlan(id) {
+    const donnees = await tfRequete('/entretien/plans/' + encodeURIComponent(id), { method: 'DELETE' });
+    return donnees.plan;
+  },
+
+  /* {echeances, resume} ; tous=true inclut les plans a jour. */
+  async echeances(tous) {
+    return tfRequete('/entretien/echeances' + (tous ? '?tous=1' : ''));
+  },
+
+  /* Entretien : bons de travail */
+  async bonsTravail(filtre) {
+    const donnees = await tfRequete('/entretien/bons' + tfParametres(filtre));
+    return donnees.bons;
+  },
+
+  async bonTravail(id) {
+    if (!id) return null;
+    const donnees = await tfRequeteOuNull('/entretien/bons/' + encodeURIComponent(id));
+    return donnees ? donnees.bon : null;
+  },
+
+  async ajouterBon(bon) {
+    const donnees = await tfRequete('/entretien/bons', { method: 'POST', body: JSON.stringify(bon) });
+    return donnees.bon;
+  },
+
+  async majBon(id, champs) {
+    const donnees = await tfRequete('/entretien/bons/' + encodeURIComponent(id),
+      { method: 'PATCH', body: JSON.stringify(champs) });
+    return donnees.bon;
+  },
+
+  /* action : 'demarrer', 'terminer' ou 'annuler' ; corps selon l action (voir backend/apps/entretien/views.py). */
+  async actionBon(id, action, corps) {
+    const donnees = await tfRequete('/entretien/bons/' + encodeURIComponent(id) + '/' + action,
+      { method: 'POST', body: JSON.stringify(corps || {}) });
+    return donnees.bon;
+  },
+
+  async coutsEntretien(filtre) {
+    return tfRequete('/entretien/couts' + tfParametres(filtre));
+  },
+
+  /* Telecharge l export CSV des bons (memes filtres que la liste). */
+  async exporterBons(filtre) {
+    const reponse = await tfRequete('/entretien/export.csv' + tfParametres(filtre), { reponseBrute: true });
+    const fichier = await reponse.blob();
+    const nom = (/filename="([^"]+)"/.exec(reponse.headers.get('Content-Disposition') || '') || [])[1] ||
+      'bons-de-travail.csv';
+    const lien = document.createElement('a');
+    lien.href = URL.createObjectURL(fichier);
+    lien.download = nom;
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(function () { URL.revokeObjectURL(lien.href); }, 1000);
   },
 
   /* Indicateurs du tableau de bord */
