@@ -1,0 +1,3 @@
+# Point d entree des dependances pour Railway (Railpack detecte Python via ce fichier).
+# La liste reelle est tenue dans backend/requirements.txt.
+-r backend/requirements.txt

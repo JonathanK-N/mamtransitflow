@@ -1,0 +1,60 @@
+# TransitFlow — tests automatiques du backend a chaque push et pull request.
+# Railway peut attendre le succes de ce workflow avant de deployer
+# (option "Wait for CI" du service, voir DEPLOIEMENT.md).
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: transitflow
+          POSTGRES_PASSWORD: transitflow
+          POSTGRES_DB: transitflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U transitflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Memes conditions qu en production : PostgreSQL et TF_DEBUG=0.
+      TF_DATABASE_URL: postgresql://transitflow:transitflow@localhost:5432/transitflow
+      TF_DEBUG: '0'
+      TF_SECRET_KEY: cle-de-test-uniquement-pour-l-integration-continue-0123456789
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Dependances
+        run: pip install -r requirements-dev.txt
+
+      - name: Verifications Django
+        run: |
+          python manage.py check --deploy --fail-level WARNING
+          python manage.py makemigrations --check --dry-run
+
+      - name: Tests
+        # Le client de test parle en HTTP : pas de redirection vers HTTPS ici.
+        env:
+          TF_SSL_REDIRECT: '0'
+        run: python -m pytest -q

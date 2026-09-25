@@ -1,0 +1,17 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "python backend/manage.py collectstatic --noinput"
+  },
+  "deploy": {
+    "preDeployCommand": [
+      "python backend/manage.py migrate --noinput && python backend/manage.py bootstrap --depuis-env"
+    ],
+    "startCommand": "gunicorn --chdir backend transitflow.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --timeout 60 --access-logfile - --error-logfile -",
+    "healthcheckPath": "/api/sante",
+    "healthcheckTimeout": 120,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5
+  }
+}

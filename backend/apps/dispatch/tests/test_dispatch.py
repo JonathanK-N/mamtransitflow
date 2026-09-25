@@ -3,6 +3,8 @@ TransitFlow — Tests de l app dispatch (trajets, arrets)
 Auteur : Jonathan K-N
 """
 
+import re
+
 import pytest
 
 from apps.fleet.models import Vehicule
@@ -36,7 +38,7 @@ def test_creation_trajet_et_maj_chauffeur(client, jeton_admin):
     r = client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton))
     assert r.status_code == 201
     trajet = r.json()['trajet']
-    assert trajet['id'] == 'T-1'
+    assert re.fullmatch(r'T-\d+', trajet['id'])
     assert trajet['statut'] == 'en-cours'
     assert trajet['chauffeurId'] == fiche['id']
     assert trajet['arrets'] == []
@@ -126,9 +128,9 @@ def test_chauffeur_ne_voit_que_ses_trajets(client, jeton_admin):
 def test_trajet_en_cours(client, jeton_admin):
     fiche, jeton = creer_chauffeur_avec_compte(client, jeton_admin)
     assert client.get(f"/api/trajets/en-cours/{fiche['id']}", **entete_auth(jeton_admin)).json()['trajet'] is None
-    client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton))
+    trajet = client.post('/api/trajets', TRAJET_VALIDE, format='json', **entete_auth(jeton)).json()['trajet']
     r = client.get(f"/api/trajets/en-cours/{fiche['id']}", **entete_auth(jeton_admin))
-    assert r.json()['trajet']['id'] == 'T-1'
+    assert r.json()['trajet']['id'] == trajet['id']
 
 
 def test_liste_filtre_par_chauffeur(client, jeton_admin):

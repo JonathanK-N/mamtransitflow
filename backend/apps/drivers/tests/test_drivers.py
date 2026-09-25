@@ -3,6 +3,8 @@ TransitFlow — Tests de l app drivers (chauffeurs)
 Auteur : Jonathan K-N
 """
 
+import re
+
 from conftest import CHAUFFEUR_VALIDE, creer_chauffeur_avec_compte, entete_auth
 
 
@@ -15,7 +17,7 @@ def test_creation_chauffeur(client, jeton_admin):
     r = client.post('/api/chauffeurs', CHAUFFEUR_VALIDE, format='json', **entete_auth(jeton_admin))
     assert r.status_code == 201
     fiche = r.json()['chauffeur']
-    assert fiche['id'] == 'c1'
+    assert re.fullmatch(r'c\d+', fiche['id'])
     assert fiche['statut'] == 'disponible'
     assert fiche['aUnCompte'] is False
     assert 'creeLe' in fiche

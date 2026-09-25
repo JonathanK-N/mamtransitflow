@@ -60,6 +60,9 @@ _domaine_railway = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
 if _domaine_railway:
     ALLOWED_HOSTS.append(_domaine_railway)
     CSRF_TRUSTED_ORIGINS.append(f'https://{_domaine_railway}')
+if os.environ.get('RAILWAY_ENVIRONMENT_NAME'):
+    # Les sondes de sante de Railway (healthcheckPath) arrivent avec cet hote.
+    ALLOWED_HOSTS.append('healthcheck.railway.app')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -193,6 +196,10 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = int(os.environ.get('TF_HSTS_SECONDS', '3600'))
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = 'same-origin'
+    # HSTS reste limite au domaine du service : on ne peut pas l imposer a
+    # tous les sous-domaines de up.railway.app ni l inscrire a la liste de
+    # prechargement des navigateurs.
+    SILENCED_SYSTEM_CHECKS = ['security.W005', 'security.W021']
 
 LOGGING = {
     'version': 1,
