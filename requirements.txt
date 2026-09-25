@@ -1,3 +1,12 @@
-# Point d entree des dependances pour Railway (Railpack detecte Python via ce fichier).
-# La liste reelle est tenue dans backend/requirements.txt.
--r backend/requirements.txt
+# Dependances de production de TransitFlow.
+# Ce fichier est a la racine pour Railway : Railpack ne copie que lui avant
+# l installation, un renvoi vers un autre fichier y est donc impossible.
+Django==5.2.17
+djangorestframework==3.18.1
+djangorestframework-simplejwt==5.5.1
+argon2-cffi==25.1.0
+psycopg[binary]==3.3.5
+dj-database-url==3.0.1
+python-dotenv==1.1.1
+whitenoise==6.9.0
+gunicorn==23.0.0

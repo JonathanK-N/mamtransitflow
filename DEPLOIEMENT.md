@@ -8,7 +8,7 @@ et les pages du front-end) relie a **une base PostgreSQL Railway**.
 | Fichier | Role |
 |---|---|
 | `railway.json` | Build, pre-deploiement, commande de demarrage, sonde de sante |
-| `requirements.txt` | Point d entree des dependances (renvoie a `backend/requirements.txt`) |
+| `requirements.txt` | Dependances de production (a la racine : Railpack ne copie que ce fichier avant l installation) |
 | `.python-version` | Version de Python (3.12) |
 | `.github/workflows/tests.yml` | Tests automatiques (option "Wait for CI") |
 

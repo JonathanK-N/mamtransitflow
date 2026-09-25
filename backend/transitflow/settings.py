@@ -22,6 +22,7 @@ Genere par `django-admin startproject`, puis adapte pour TransitFlow :
 """
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -47,7 +48,9 @@ DEBUG = os.environ.get('TF_DEBUG', '1') == '1'
 
 SECRET_KEY = os.environ.get('TF_SECRET_KEY', '')
 if not SECRET_KEY:
-    if not DEBUG:
+    # `collectstatic` (etape de build Railway) ne fait que copier des fichiers :
+    # il n a pas besoin de la vraie cle, qui peut ne pas encore etre definie.
+    if not DEBUG and 'collectstatic' not in sys.argv:
         raise ImproperlyConfigured('TF_SECRET_KEY doit etre defini en production (TF_DEBUG=0).')
     SECRET_KEY = 'django-insecure-cle-de-developpement-a-changer'
 
