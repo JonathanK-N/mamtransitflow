@@ -307,13 +307,15 @@ textarea.tf-input { height: auto; min-height: 84px; padding: 13px 16px; line-hei
 .tf-login-title { font-size: 38px; font-weight: 500; line-height: 1.18; letter-spacing: -.025em; }
 .tf-login-sub { font-size: 15.5px; line-height: 1.6; color: var(--tf-on-dark-muted); max-width: 330px; }
 .tf-login-main { display: flex; align-items: center; justify-content: center; padding: 48px; }
-.tf-login-form { width: 378px; display: flex; flex-direction: column; gap: 20px; }
+.tf-login-form { width: 378px; max-width: 100%; display: flex; flex-direction: column; gap: 20px; }
 
 @media (max-width: 900px) {
-  .tf-login { grid-template-columns: 1fr; }
+  .tf-login { grid-template-columns: minmax(0, 1fr); }
   .tf-login-aside { display: none; }
+  .tf-login-main { padding: 32px 16px; }
   .tf-page { padding: 18px; }
   .tf-navbar { padding: 0 14px; overflow-x: auto; }
+  .tf-nav-link, .tf-brand { white-space: nowrap; flex: none; }
 }
 
 /* Modale */
