@@ -437,7 +437,7 @@ Object.assign(Admin, {
         return '<div class="d-flex align-items-baseline gap-3" style="font-size:13.5px">' +
           '<span class="tf-mono" style="min-width:92px">' + Format.km(r.kilometrage) + '</span>' +
           '<span class="tf-meta flex-fill">' + Format.echapper(sources[r.source] || r.source) +
-          (r.note ? ' · ' + Format.echapper(r.note) : '') + '</span>' +
+          (r.note && r.note !== (sources[r.source] || r.source) ? ' · ' + Format.echapper(r.note) : '') + '</span>' +
           '<span class="tf-meta tf-mono">' + Format.dateCourte(r.releveLe) + '</span></div>';
       }).join('') || '<span class="tf-meta">Aucun releve.</span>';
 
