@@ -439,6 +439,28 @@ def test_km_parcourus_depuis_le_releve_precedant_la_periode(vehicule):
     assert _km_parcourus(vehicule.pk, debut - timedelta(days=365), debut - timedelta(days=100)) == 0
 
 
+
+def test_cout_par_km_non_calcule_si_releves_posterieurs_aux_couts(client, jeton_admin, vehicule):
+    """Cas vu en production : bons clotures il y a 30 jours, premier releve
+    aujourd hui. 577 $ / 176 km donnait 3,282 $/km : on n affiche rien."""
+    BonTravail.objects.create(vehicule=vehicule, type='freins', titre='Freins', statut='termine',
+                              date_prevue=AUJOURDHUI() - timedelta(days=30), cout_pieces=Decimal('577.60'),
+                              fin=timezone.now() - timedelta(days=30))
+    ReleveKilometrage.objects.create(vehicule=vehicule, kilometrage=91540, source='initial')
+    ReleveKilometrage.objects.create(vehicule=vehicule, kilometrage=91716, source='trajet')
+
+    ligne = client.get('/api/entretien/couts', **entete_auth(jeton_admin)).json()['parVehicule'][0]
+    assert ligne['total'] == 577.6
+    assert ligne['kmParcourus'] is None and ligne['coutParKm'] is None
+    assert ligne['historiqueKmSuffisant'] is False
+
+    # Un releve anterieur aux couts rend le calcul possible.
+    ancien = ReleveKilometrage.objects.create(vehicule=vehicule, kilometrage=79540, source='initial')
+    ReleveKilometrage.objects.filter(pk=ancien.pk).update(releve_le=timezone.now() - timedelta(days=45))
+    ligne = client.get('/api/entretien/couts', **entete_auth(jeton_admin)).json()['parVehicule'][0]
+    assert ligne['kmParcourus'] == 12176 and ligne['coutParKm'] == round(577.6 / 12176, 3)
+    assert ligne['historiqueKmSuffisant'] is True
+
 def test_incident_indique_son_bon_de_travail(client, jeton_admin, vehicule):
     trajet, jeton_chauffeur = trajet_en_cours(client, jeton_admin)
     incident = client.post('/api/incidents', {'trajetId': trajet['id'], 'type': 'technique', 'titre': 'Voyant',

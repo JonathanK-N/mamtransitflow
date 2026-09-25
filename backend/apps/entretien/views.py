@@ -311,12 +311,17 @@ class CoutsView(AdminSeulement):
         for l in bons.values('vehicule__plaque', 'vehicule__modele', 'vehicule_id').annotate(
                 nombre=Count('id'), pieces=_somme('cout_pieces'), mainOeuvre=_somme('cout_main_oeuvre'),
                 total=_somme(total)).order_by('-total'):
-            parcourus = _km_parcourus(l['vehicule_id'], debut, fin)
+            premier_cout = bons.filter(vehicule_id=l['vehicule_id']).order_by('fin') \
+                .values_list('fin', flat=True).first()
+            parcourus = _km_parcourus(l['vehicule_id'], debut, fin, couvrir_depuis=premier_cout)
             par_vehicule.append({
                 'vehicule': l['vehicule__plaque'], 'modele': l['vehicule__modele'], 'nombre': l['nombre'],
                 'pieces': float(l['pieces']), 'mainOeuvre': float(l['mainOeuvre']), 'total': float(l['total']),
                 'kmParcourus': parcourus,
                 'coutParKm': round(float(l['total']) / parcourus, 3) if parcourus else None,
+                # Faux quand les releves de compteur ne couvrent pas toute la periode
+                # ou les couts ont ete engages : le cout au km n est pas calcule.
+                'historiqueKmSuffisant': parcourus is not None,
             })
 
         return Response({
@@ -330,11 +335,18 @@ class CoutsView(AdminSeulement):
         })
 
 
-def _km_parcourus(vehicule_id, debut, fin) -> int:
+def _km_parcourus(vehicule_id, debut, fin, couvrir_depuis=None):
     """
     Kilometres parcourus sur la periode : dernier releve de la periode moins
     le dernier releve connu AVANT la periode (ou, a defaut, le premier releve
     de la periode). Le compteur ne reculant jamais, la difference est >= 0.
+
+    couvrir_depuis (datetime, optionnel) : instant a partir duquel la distance
+    doit etre connue, en pratique la cloture du premier bon de la periode. Sans
+    releve anterieur a la periode, si le premier releve de la periode est
+    posterieur a cet instant, les kilometres mesures ne couvrent qu une partie
+    des couts : on renvoie None plutot qu une distance trop courte (qui
+    donnerait un cout au km aberrant, ex. 577 $ / 176 km).
     """
     from apps.fleet.models import ReleveKilometrage
 
@@ -342,11 +354,14 @@ def _km_parcourus(vehicule_id, debut, fin) -> int:
     dans_periode = releves.filter(releve_le__date__gte=debut, releve_le__date__lte=fin)
     arrivee = dans_periode.order_by('-kilometrage').values_list('kilometrage', flat=True).first()
     if arrivee is None:
-        return 0
+        return None if couvrir_depuis is not None else 0
     depart = releves.filter(releve_le__date__lt=debut).order_by('-kilometrage') \
         .values_list('kilometrage', flat=True).first()
     if depart is None:
-        depart = dans_periode.order_by('kilometrage').values_list('kilometrage', flat=True).first()
+        premier = dans_periode.order_by('releve_le', 'kilometrage').values_list('kilometrage', 'releve_le').first()
+        if couvrir_depuis is not None and premier[1] > couvrir_depuis:
+            return None
+        depart = premier[0]
     return max(0, arrivee - depart)
 
 

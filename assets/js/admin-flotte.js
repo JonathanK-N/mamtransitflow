@@ -814,7 +814,9 @@ Object.assign(Admin, {
           '<td class="tf-mono text-end">' + Format.montant(v.pieces) + '</td>' +
           '<td class="tf-mono text-end">' + Format.montant(v.mainOeuvre) + '</td>' +
           '<td class="tf-mono text-end" style="font-weight:500">' + Format.montant(v.total) + '</td>' +
-          '<td class="tf-mono text-end tf-muted">' + (v.coutParKm !== null
+          '<td class="tf-mono text-end tf-muted"' + (v.coutParKm === null ? ' title="' + (v.historiqueKmSuffisant === false
+            ? 'Releves de compteur insuffisants : ils ne couvrent pas toute la periode des couts'
+            : 'Aucun kilometre releve sur la periode') + '"' : '') + '>' + (v.coutParKm !== null
             ? v.coutParKm.toLocaleString('fr-CA', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' $'
             : '—') + '</td></tr>';
       }).join('') || '<tr><td colspan="6" class="tf-muted">Aucune intervention terminee sur la periode.</td></tr>';

@@ -31,7 +31,7 @@ from apps.dispatch.models import Arret, Trajet
 from apps.drivers.models import Chauffeur
 from apps.entretien.models import BonTravail, PlanEntretien
 from apps.entretien import services as entretien
-from apps.fleet.models import Vehicule
+from apps.fleet.models import ReleveKilometrage, Vehicule
 from apps.fleet.services import enregistrer_kilometrage
 from apps.maintenance.models import Incident
 from apps.suivi.models import PositionGPS
@@ -104,7 +104,13 @@ class Command(BaseCommand):
                 'mise_en_service': aujourdhui - timedelta(days=jours_service),
             })
             if cree or not vehicule.releves.exists():
-                enregistrer_kilometrage(vehicule, kilometrage, source='initial', note='Donnees de demonstration')
+                # Historique : un releve il y a 120 jours (~100 km/jour), pour que le
+                # cout au km de la demonstration porte sur une distance realiste.
+                ancien = enregistrer_kilometrage(vehicule, max(0, kilometrage - 12000), source='initial',
+                                                 note='Donnees de demonstration')
+                ReleveKilometrage.objects.filter(pk=ancien.pk).update(
+                    releve_le=timezone.now() - timedelta(days=120))
+                enregistrer_kilometrage(vehicule, kilometrage, source='manuel', note='Donnees de demonstration')
 
         courriel_admin, nom_admin = ADMIN
         if not Utilisateur.objects.filter(courriel=courriel_admin).exists():
