@@ -73,7 +73,17 @@ publique et se connecter avec `TF_ADMIN_COURRIEL` / `TF_ADMIN_MOT_DE_PASSE`
   genere et affiche **une seule fois**, a transmettre au chauffeur.
 - **Mot de passe administrateur** : `TF_ADMIN_MOT_DE_PASSE` ne sert qu a la
   creation du compte ; le changer ensuite dans `/django-admin/` n est pas
-  ecrase par les deploiements suivants.
+  ecrase par les deploiements suivants. Le journal de demarrage indique
+  toujours le compte concerne (`Compte administrateur cree : ...` ou
+  `le compte ... existe deja`) : verifier son orthographe en cas d echec
+  de connexion.
+- **Connexion administrateur impossible** (mot de passe perdu, ou
+  `TF_ADMIN_MOT_DE_PASSE` modifie apres la creation du compte) : ajouter
+  `TF_ADMIN_REINITIALISER=1` aux variables du service et redeployer. Le
+  compte `TF_ADMIN_COURRIEL` reprend le mot de passe `TF_ADMIN_MOT_DE_PASSE`
+  et est reactive (le journal affiche `Compte administrateur ... reinitialise`).
+  **Retirer ensuite la variable.** Les espaces en debut et fin de ces
+  variables sont ignores.
 - **Donnees de demonstration** (environnement de test uniquement) :
   ```
   railway run python backend/manage.py seed_demo --force

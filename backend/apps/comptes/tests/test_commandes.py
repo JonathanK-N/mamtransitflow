@@ -22,6 +22,59 @@ def test_bootstrap_depuis_env(monkeypatch):
     assert admin.a_groupe('fleet.admin')
 
 
+def _connexion(courriel, mot_de_passe):
+    from rest_framework.test import APIClient
+    return APIClient().post('/api/auth/connexion', {'courriel': courriel, 'motDePasse': mot_de_passe,
+                                                   'role': 'admin'}, format='json')
+
+
+def test_bootstrap_ignore_les_espaces_des_variables(monkeypatch):
+    monkeypatch.setenv('TF_ADMIN_COURRIEL', '  patron@exemple.com ')
+    monkeypatch.setenv('TF_ADMIN_MOT_DE_PASSE', ' Un-Mot-De-Passe-Solide \n')
+    call_command('bootstrap', '--depuis-env')
+    assert Utilisateur.objects.get().courriel == 'patron@exemple.com'
+    assert _connexion('patron@exemple.com', 'Un-Mot-De-Passe-Solide').status_code == 200
+
+
+def test_bootstrap_ne_change_pas_un_compte_existant_par_defaut(monkeypatch):
+    monkeypatch.setenv('TF_ADMIN_COURRIEL', 'patron@exemple.com')
+    monkeypatch.setenv('TF_ADMIN_MOT_DE_PASSE', 'Ancien-Mot-De-Passe-1')
+    call_command('bootstrap', '--depuis-env')
+    monkeypatch.setenv('TF_ADMIN_MOT_DE_PASSE', 'Nouveau-Mot-De-Passe-2')
+    call_command('bootstrap', '--depuis-env')
+    assert _connexion('patron@exemple.com', 'Ancien-Mot-De-Passe-1').status_code == 200
+    assert _connexion('patron@exemple.com', 'Nouveau-Mot-De-Passe-2').status_code == 401
+
+
+def test_bootstrap_reinitialise_le_mot_de_passe_sur_demande(monkeypatch):
+    from django.contrib.auth.models import Group
+
+    monkeypatch.setenv('TF_ADMIN_COURRIEL', 'patron@exemple.com')
+    monkeypatch.setenv('TF_ADMIN_MOT_DE_PASSE', 'Ancien-Mot-De-Passe-1')
+    call_command('bootstrap', '--depuis-env')
+    admin = Utilisateur.objects.get()
+    admin.is_active = False
+    admin.save()
+    admin.groups.remove(Group.objects.get(name='fleet.admin'))
+
+    monkeypatch.setenv('TF_ADMIN_MOT_DE_PASSE', 'Nouveau-Mot-De-Passe-2')
+    monkeypatch.setenv('TF_ADMIN_REINITIALISER', '1')
+    call_command('bootstrap', '--depuis-env')
+    assert _connexion('patron@exemple.com', 'Ancien-Mot-De-Passe-1').status_code == 401
+    r = _connexion('patron@exemple.com', 'Nouveau-Mot-De-Passe-2')
+    assert r.status_code == 200 and r.json()['session']['role'] == 'admin'
+    assert Utilisateur.objects.count() == 1
+
+
+def test_connexion_mot_de_passe_compare_tel_quel(monkeypatch):
+    from django.contrib.auth.models import Group
+
+    compte = Utilisateur.objects.create_user(courriel='a@exemple.com', mot_de_passe=' espace-avant-et-apres ')
+    compte.groups.add(Group.objects.get(name='fleet.admin'))
+    assert _connexion('a@exemple.com', ' espace-avant-et-apres ').status_code == 200
+    assert _connexion('a@exemple.com', 'espace-avant-et-apres').status_code == 401
+
+
 def test_bootstrap_depuis_env_sans_variables(monkeypatch):
     monkeypatch.delenv('TF_ADMIN_COURRIEL', raising=False)
     monkeypatch.delenv('TF_ADMIN_MOT_DE_PASSE', raising=False)

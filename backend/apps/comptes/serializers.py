@@ -52,14 +52,17 @@ class SessionSerializer(serializers.Serializer):
 
 class ConnexionSerializer(serializers.Serializer):
     courriel = serializers.EmailField()
-    motDePasse = serializers.CharField(write_only=True)
+    # Mot de passe compare tel quel : DRF retire par defaut les espaces en
+    # debut et fin de chaine, ce qui rendait inutilisable tout mot de passe
+    # enregistre avec un espace (copier-coller dans une variable Railway).
+    motDePasse = serializers.CharField(write_only=True, trim_whitespace=False)
     role = serializers.CharField(required=False, allow_blank=True)
 
 
 class CompteEntreeSerializer(serializers.Serializer):
     """Cree un compte de connexion (route reservee a 'fleet.admin', voir views.py)."""
     courriel = serializers.EmailField()
-    motDePasse = serializers.CharField()
+    motDePasse = serializers.CharField(trim_whitespace=False)
     nom = serializers.CharField(required=False, allow_blank=True, default='')
     chauffeurId = serializers.CharField(required=False, allow_null=True, default=None)
     groupes = serializers.ListField(child=serializers.CharField(), default=['fleet.driver'])
