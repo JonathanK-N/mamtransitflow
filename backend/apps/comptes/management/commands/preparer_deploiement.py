@@ -2,15 +2,16 @@
 TransitFlow — Preparation d un deploiement
 Auteur : Jonathan K-N
 
-Commande unique lancee par Railway avant chaque deploiement
-(deploy.preDeployCommand dans railway.json) :
+Commande unique lancee au demarrage du conteneur Railway, juste avant
+gunicorn (deploy.startCommand dans railway.json) :
 1. applique les migrations (tables a jour) ;
 2. cree les groupes de base et, si TF_ADMIN_COURRIEL / TF_ADMIN_MOT_DE_PASSE
    sont definis, le premier administrateur (bootstrap --depuis-env).
 
-Une seule commande Python plutot que "migrate && bootstrap" : Railway
-n execute pas forcement la commande de pre-deploiement dans un shell, et
-l operateur && n y serait alors pas interprete.
+Elle etait d abord declaree en commande de pre-deploiement, mais Railway
+ne semblait pas l executer : les tables n etaient pas creees et la connexion
+repondait 500. La commande de demarrage, elle, passe toujours par un
+shell. Elle est sans effet de bord a chaque redemarrage.
 
 Usage (depuis la racine du projet) :
   python backend/manage.py preparer_deploiement

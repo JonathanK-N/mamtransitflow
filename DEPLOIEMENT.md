@@ -7,7 +7,7 @@ et les pages du front-end) relie a **une base PostgreSQL Railway**.
 
 | Fichier | Role |
 |---|---|
-| `railway.json` | Build, pre-deploiement, commande de demarrage, sonde de sante |
+| `railway.json` | Build, commande de demarrage (migrations incluses), sonde de sante |
 | `requirements.txt` | Dependances de production (a la racine : Railpack ne copie que ce fichier avant l installation) |
 | `.python-version` | Version de Python (3.12) |
 | `.github/workflows/tests.yml` | Tests automatiques (option "Wait for CI") |
@@ -16,7 +16,8 @@ Ce que fait `railway.json` a chaque deploiement :
 
 1. **Build** : installation des dependances, puis `collectstatic` (fichiers
    CSS/JS de `/django-admin/`, servis par WhiteNoise).
-2. **Pre-deploiement** (`manage.py preparer_deploiement`) : `migrate` (tables a jour), puis
+2. **Au demarrage du conteneur**, avant gunicorn (`manage.py preparer_deploiement`) :
+   `migrate` (tables a jour), puis
    `bootstrap --depuis-env` (groupes de permission + premier
    administrateur s il n existe pas encore).
 3. **Demarrage** : `gunicorn` sur le port fourni par Railway.
@@ -101,7 +102,7 @@ publique et se connecter avec `TF_ADMIN_COURRIEL` / `TF_ADMIN_MOT_DE_PASSE`
 - **Le deploiement echoue a la sonde de sante** : consulter les journaux de
   deploiement ; le plus souvent `TF_SECRET_KEY` est absente alors que
   `TF_DEBUG=0` (Django refuse alors de demarrer, volontairement).
-- **Erreur de base de donnees au pre-deploiement** : verifier que
+- **Erreur de base de donnees au demarrage** (ou erreur 500 a la connexion) : verifier que
   `DATABASE_URL` reference bien le service Postgres du meme projet.
 - **Page `/django-admin/` sans style** : le build n a pas execute
   `collectstatic` ; verifier `railway.json`.
