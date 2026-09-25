@@ -98,6 +98,8 @@ publique et se connecter avec `TF_ADMIN_COURRIEL` / `TF_ADMIN_MOT_DE_PASSE`
 | `TF_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Domaines supplementaires (ex. domaine personnalise) |
 | `TF_CSRF_TRUSTED_ORIGINS` | — | Origines HTTPS supplementaires pour `/django-admin/` |
 | `TF_JETON_MINUTES` | `60` | Duree du jeton d acces (le jeton de rafraichissement dure 7 jours) |
+| `TF_GPS_RETENTION_JOURS` | `90` | Duree de conservation des positions GPS des trajets termines |
+| `TF_GPS_LIMITE` | `30/min` | Nombre maximal d envois de positions par chauffeur |
 | `TF_HSTS_SECONDS` | `3600` | Duree HSTS ; augmenter (ex. `31536000`) une fois le domaine stable |
 | `WEB_CONCURRENCY` | `2` | Nombre de processus gunicorn |
 | `TF_LOG_LEVEL` | `INFO` | Niveau des journaux |

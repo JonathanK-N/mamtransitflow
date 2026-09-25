@@ -2,8 +2,8 @@
 
 Logiciel de gestion de flotte pour une entreprise de transport par navette
 (trajets interurbains) : chauffeurs, vehicules, trajets, arrets, incidents,
-entretien de la flotte (plans preventifs, bons de travail, couts), et (a
-venir) suivi GPS en direct sur une carte.
+entretien de la flotte (plans preventifs, bons de travail, couts) et
+suivi GPS en direct sur une carte (Leaflet / OpenStreetMap).
 
 Backend : Django + Django REST Framework, organise en apps independantes
 (comme les modules d un ERP). Front-end (a venir : Vue.js) actuellement en
@@ -102,6 +102,9 @@ l entete `Authorization: Bearer <jeton>`. Un administrateur (groupe
 | `POST entretien/bons/<BT-1>/demarrer` · `terminer` · `annuler` | cycle de vie du bon (admin) |
 | `GET entretien/couts` | couts des bons termines par vehicule, type et categorie (`?debut=`, `?fin=`) (admin) |
 | `GET entretien/export.csv` | export CSV (Excel) des bons, memes filtres que la liste (admin) |
+| `POST trajets/<T-1>/positions` | lot de positions GPS `{positions: [{lat, lng, precision, vitesse, cap, horodatage}]}` (chauffeur du trajet en cours ; 200 points max, 30 envois/min) |
+| `GET trajets/<T-1>/parcours` | trace GPS du trajet, distance, vitesses moyenne et maximale (admin, ou chauffeur du trajet) |
+| `GET suivi/en-direct` | dernier point et etat du signal de chaque trajet en cours (admin) |
 | `GET indicateurs` | indicateurs du tableau de bord (admin) |
 | `GET sante` | verification que le serveur repond |
 
@@ -121,6 +124,35 @@ l entete `Authorization: Bearer <jeton>`. Un administrateur (groupe
 - **Couts** : pieces et main-d oeuvre par bon, synthese par periode,
   vehicule (avec cout au kilometre) et type d intervention, export CSV.
 
+## Suivi GPS en direct
+
+- **Chauffeur** : sur la page *Trajet en cours*, le telephone partage sa
+  position (API de geolocalisation du navigateur, HTTPS obligatoire). Les
+  points sont envoyes par lots toutes les 10 s ; en cas de coupure de
+  reseau ils sont gardes et renvoyes au retour du signal (le serveur
+  ignore les doublons). L ecran est maintenu allume quand le navigateur le
+  permet. Le partage s arrete a l arrivee.
+- **Limite a connaitre** : une page web ne peut pas localiser un telephone
+  dont l ecran est eteint ou le navigateur en arriere-plan. Pour un suivi
+  en arriere-plan, il faudra une application mobile (etape ulterieure) ;
+  l API actuelle est deja prete a la recevoir.
+- **Administrateur** : *Carte* affiche tous les vehicules en route
+  (rafraichie toutes les 5 s, mise en pause quand l onglet est cache), avec
+  l etat du signal (en ligne < 1 min, faible < 5 min, perdu au-dela) et la
+  trace du vehicule selectionne. La fiche d un trajet montre son parcours,
+  la distance et les vitesses.
+- **Donnees personnelles** : les positions des trajets termines depuis
+  plus de 90 jours sont supprimees a chaque demarrage du serveur
+  (`python manage.py purger_positions`, duree reglable par
+  `TF_GPS_RETENTION_JOURS`).
+- **Choix technique** : des requetes HTTP courtes plutot que des
+  WebSockets. Le fonctionnement reste identique sur l hebergement actuel
+  (gunicorn, sans Redis) et supporte plusieurs dizaines de vehicules ; le
+  passage a Django Channels ne changerait que le transport.
+
+Test de bout en bout : [`e2e/parcours_gps.py`](e2e/parcours_gps.py)
+(position du telephone simulee, coupure de reseau, localisation refusee).
+
 ## Structure
 
 ```
@@ -128,7 +160,8 @@ backend/
   manage.py
   transitflow/    configuration du projet Django (settings, urls)
   apps/           un dossier par module metier (comptes, drivers, fleet,
-                  dispatch, maintenance [incidents], entretien, reporting) — chacun a ses modeles,
+                  dispatch, maintenance [incidents], entretien, suivi [GPS],
+                  reporting) — chacun a ses modeles,
                   serializers et routes, independamment des autres ; les
                   tests de chaque app vivent dans son propre dossier tests/
 admin/            pages de l espace administrateur

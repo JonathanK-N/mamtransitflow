@@ -35,7 +35,7 @@
     </div>
 
     <div class="col-12 col-lg-5 d-flex flex-column gap-3">
-      <form class="tf-card tf-card-pad d-flex flex-column gap-3" data-arret>
+      <form method="post" class="tf-card tf-card-pad d-flex flex-column gap-3" data-arret>
         <h2 class="tf-h3">Ajouter un arret</h2>
         <label class="tf-field">
           <span class="tf-label">Lieu de l arret</span>
@@ -49,6 +49,17 @@
         <button class="tf-btn tf-btn-primary" type="submit">Enregistrer l arret</button>
       </form>
 
+      <section class="tf-card tf-card-pad d-flex flex-column gap-2" data-gps>
+        <div class="d-flex align-items-center gap-2">
+          <h2 class="tf-h3">Position GPS</h2>
+          <span class="tf-pill ms-auto" data-gps-statut>—</span>
+        </div>
+        <p class="tf-meta mb-0" data-gps-detail></p>
+        <button type="button" class="tf-btn tf-btn-ghost sm tf-hidden" data-gps-relancer>Activer la localisation</button>
+        <p class="tf-meta mb-0" style="font-size:12px">Gardez cette page ouverte pendant le trajet : votre position
+          est partagee avec le repartiteur uniquement tant que le trajet est en cours.</p>
+      </section>
+
       <section class="tf-card tf-card-pad d-flex flex-column gap-3">
         <a class="tf-btn tf-btn-ghost" data-lien-incident href="incident-nouveau.html">
           Signaler un incident</a>
@@ -61,6 +72,7 @@
 <script src="../assets/js/format.js"></script>
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/ui.js"></script>
+<script src="../assets/js/gps.js"></script>
 <script src="../assets/js/chauffeur.js"></script>
 </body>
 </html>

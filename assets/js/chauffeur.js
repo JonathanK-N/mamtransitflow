@@ -40,6 +40,8 @@ const Chauffeur = {
     const vehicules = await Store.vehicules();
     const vehicule = vehicules.find(function (v) { return v.plaque === trajet.plaque; });
     const actuel = vehicule ? vehicule.kilometrage : 0;
+    // Les derniers points GPS partent avant la cloture (le serveur les refuse ensuite).
+    const suivi = Chauffeur.suivi || (typeof SuiviGPS === 'function' ? new SuiviGPS(trajet.id) : null);
     return tfModale({
       titre: 'Marquer l arrivee',
       sousTitre: trajet.depart + ' → ' + trajet.arrivee + ' · ' + trajet.plaque,
@@ -49,8 +51,40 @@ const Chauffeur = {
         'Facultatif — dernier releve : ' + Format.km(actuel) + '. Sert au suivi de l entretien.'),
       valider: 'Terminer le trajet',
       danger: true,
-      async action(d) { await Store.terminerTrajet(trajet.id, tfNombre(d, 'kilometrage')); }
+      async action(d) {
+        if (suivi) await suivi.arreter();
+        await Store.terminerTrajet(trajet.id, tfNombre(d, 'kilometrage'));
+      }
     });
+  },
+
+  /* Partage de la position pendant le trajet (voir gps.js) et affichage de son etat. */
+  partagerPosition(trajet) {
+    const pastille = document.querySelector('[data-gps-statut]');
+    const detail = document.querySelector('[data-gps-detail]');
+    const relancer = document.querySelector('[data-gps-relancer]');
+    const libelles = {
+      actif: ['Actif', 'ok'], attente: ['Recherche', 'warn'], refuse: ['Refuse', 'danger'],
+      indisponible: ['Indisponible', 'danger'], arrete: ['Arrete', '']
+    };
+    function afficher(etat) {
+      const l = libelles[etat.statut] || [etat.statut, ''];
+      pastille.className = 'tf-pill ms-auto ' + l[1];
+      pastille.textContent = l[0];
+      const morceaux = [];
+      if (etat.message) morceaux.push(etat.message);
+      if (etat.statut === 'actif' && etat.precision) morceaux.push('Precision ' + Math.round(etat.precision) + ' m');
+      if (etat.dernierEnvoi) morceaux.push('envoye ' + Format.depuis((Date.now() - etat.dernierEnvoi) / 1000));
+      if (etat.enAttente > 0) morceaux.push(etat.enAttente + ' point(s) en attente');
+      detail.textContent = morceaux.join(' · ') || 'Demarrage...';
+      relancer.classList.toggle('tf-hidden', etat.statut !== 'refuse');
+    }
+    this.suivi = new SuiviGPS(trajet.id, { rappel: afficher });
+    const suivi = this.suivi;
+    relancer.addEventListener('click', function () { suivi.arreter().then(function () { suivi.demarrer(); }); });
+    // Rafraichit "envoye il y a ..." meme sans nouvelle position.
+    setInterval(function () { afficher(suivi.etat); }, 5000);
+    suivi.demarrer();
   },
 
   /* Mes trajets */
@@ -183,6 +217,8 @@ const Chauffeur = {
     }
     const formulaireArret = document.querySelector('[data-arret]');
     formulaireArret.querySelector('[name=heure]').value = Format.heureActuelle();
+    if (t.statut === 'en-cours') this.partagerPosition(t);
+    else document.querySelector('[data-gps]').classList.add('tf-hidden');
 
     // Redessine le fil du trajet (appelee au chargement et apres l ajout
     // d un arret). On relit le trajet depuis l API a chaque fois pour

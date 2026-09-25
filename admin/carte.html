@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Jonathan K-N">
+<title>Carte en direct · TransitFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link href="../assets/css/transitflow.css" rel="stylesheet">
+</head>
+<body data-page="carte">
+<nav class="tf-navbar">
+  <a class="tf-brand" href="tableau-de-bord.html">Transit<span>Flow</span></a>
+  <a class="tf-nav-link" href="tableau-de-bord.html">Tableau de bord</a>
+  <a class="tf-nav-link active" href="carte.html">Carte</a>
+  <a class="tf-nav-link" href="chauffeurs.html">Chauffeurs</a>
+  <a class="tf-nav-link" href="trajets.html">Trajets</a>
+  <a class="tf-nav-link" href="incidents.html">Incidents</a>
+  <a class="tf-nav-link" href="entretiens.html">Entretien</a>
+  <a class="tf-nav-link" href="vehicules.html">Vehicules</a>
+  <div class="tf-navbar-user" data-navbar-user></div>
+</nav>
+<main class="tf-page">
+  <div class="d-flex align-items-end justify-content-between flex-wrap gap-3">
+    <div>
+      <h1 class="tf-h1">Carte en direct</h1>
+      <p class="tf-meta mt-1 mb-0" data-resume>Chargement...</p>
+    </div>
+    <div class="d-flex gap-3 align-items-center flex-wrap">
+      <label class="d-inline-flex align-items-center gap-2 tf-meta" style="cursor:pointer">
+        <input type="checkbox" data-suivre> Recadrer automatiquement</label>
+      <button type="button" class="tf-btn tf-btn-ghost sm" data-recadrer>Voir tous les vehicules</button>
+    </div>
+  </div>
+
+  <div class="row g-3 align-items-stretch">
+    <div class="col-12 col-xl-8">
+      <section class="tf-card p-2 position-relative">
+        <div class="tf-carte tf-carte-plein" data-carte role="application" aria-label="Carte des vehicules en route"></div>
+        <div class="tf-hidden position-absolute top-50 start-50 translate-middle tf-card tf-card-pad text-center"
+             style="z-index:500;max-width:340px" data-carte-vide>
+          <div style="font-weight:500">Aucun vehicule localise</div>
+          <div class="tf-meta mt-1">Les positions apparaissent quand un chauffeur a un trajet en cours et garde
+            la page du trajet ouverte sur son telephone.</div>
+        </div>
+      </section>
+    </div>
+    <div class="col-12 col-xl-4">
+      <section class="tf-card h-100">
+        <header class="px-4 pt-4 pb-3"><h2 class="tf-h3">Vehicules en route</h2></header>
+        <div class="tf-liste-suivi" data-liste-suivi></div>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/format.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="../assets/js/carte.js"></script>
+<script src="../assets/js/admin.js"></script>
+<script src="../assets/js/admin-carte.js"></script>
+</body>
+</html>

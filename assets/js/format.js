@@ -223,6 +223,38 @@ const Format = {
     return morceaux.join(' · ') || '—';
   },
 
+  /* ---- Suivi GPS ---- */
+
+  /* 12 -> "il y a 12 s", 190 -> "il y a 3 min", 7300 -> "il y a 2 h" */
+  depuis(secondes) {
+    if (secondes === null || secondes === undefined) return 'jamais';
+    if (secondes < 5) return 'a l instant';
+    if (secondes < 60) return 'il y a ' + Math.round(secondes) + ' s';
+    if (secondes < 3600) return 'il y a ' + Math.floor(secondes / 60) + ' min';
+    return 'il y a ' + Math.floor(secondes / 3600) + ' h';
+  },
+
+  /* 12430 -> "12,4 km", 830 -> "830 m" */
+  distance(metres) {
+    if (metres === null || metres === undefined) return '—';
+    if (metres < 1000) return Math.round(metres) + ' m';
+    return (metres / 1000).toLocaleString('fr-CA', { maximumFractionDigits: 1 }) + ' km';
+  },
+
+  vitesse(kmh) {
+    return (kmh === null || kmh === undefined) ? '—' : Math.round(kmh) + ' km/h';
+  },
+
+  liaison(etat) {
+    const table = {
+      'en-ligne': { texte: 'En ligne', classe: 'ok' },
+      'intermittent': { texte: 'Signal faible', classe: 'warn' },
+      'perdue': { texte: 'Signal perdu', classe: '' },
+      'aucune': { texte: 'Aucune position', classe: '' }
+    };
+    return table[etat] || { texte: etat, classe: '' };
+  },
+
   echapper(valeur) {
     return String(valeur === null || valeur === undefined ? '' : valeur)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

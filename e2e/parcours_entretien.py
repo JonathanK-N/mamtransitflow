@@ -41,7 +41,8 @@ def ok(msg):
 async def nouvelle_page(navigateur, largeur=1440, hauteur=1000):
     pg = await navigateur.new_page(viewport={'width': largeur, 'height': hauteur}, accept_downloads=True)
     if BOOTSTRAP:
-        await pg.route('https://cdn.jsdelivr.net/**', lambda r: r.fulfill(path=BOOTSTRAP, content_type='text/css'))
+        await pg.route('https://cdn.jsdelivr.net/npm/bootstrap*/**',
+                       lambda r: r.fulfill(path=BOOTSTRAP, content_type='text/css'))
         await pg.route('https://fonts.googleapis.com/**', lambda r: r.fulfill(body='', content_type='text/css'))
     pg.erreurs = []
     pg.on('pageerror', lambda e: pg.erreurs.append(str(e)))

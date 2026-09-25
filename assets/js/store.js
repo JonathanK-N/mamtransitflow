@@ -27,6 +27,15 @@ function tfEcrireSession(session) {
   sessionStorage.setItem(TF_SESSION_KEY, JSON.stringify(session));
 }
 
+/* Tous les formulaires de l application sont envoyes par JavaScript (fetch).
+   Si l utilisateur valide un formulaire avant que la page ait fini de
+   brancher son gestionnaire, le navigateur l enverrait lui-meme et
+   rechargerait la page (en perdant la saisie). On bloque cet envoi natif
+   des le chargement de ce fichier ; les gestionnaires de chaque page
+   s executent normalement. Les formulaires sont en method="post" : meme
+   sans JavaScript, aucune saisie (mot de passe) n apparait dans l URL. */
+document.addEventListener('submit', function (e) { e.preventDefault(); }, true);
+
 /* Vrai des que le navigateur commence a quitter la page (voir tfRequete). */
 let tfPageQuittee = false;
 window.addEventListener('pagehide', function () { tfPageQuittee = true; });
@@ -388,6 +397,23 @@ const Store = {
     lien.click();
     lien.remove();
     setTimeout(function () { URL.revokeObjectURL(lien.href); }, 1000);
+  },
+
+  /* Suivi GPS (backend/apps/suivi) */
+  async envoyerPositions(trajetId, positions) {
+    return tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/positions',
+      { method: 'POST', body: JSON.stringify({ positions: positions }) });
+  },
+
+  /* {positions, statistiques, liaison, nombrePoints} du trajet. */
+  async parcours(trajetId) {
+    return tfRequete('/trajets/' + encodeURIComponent(trajetId) + '/parcours');
+  },
+
+  /* Dernier point de chaque trajet en cours (administrateur). */
+  async enDirect() {
+    const donnees = await tfRequete('/suivi/en-direct');
+    return donnees.vehicules;
   },
 
   /* Indicateurs du tableau de bord */

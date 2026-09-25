@@ -15,6 +15,7 @@
 <nav class="tf-navbar">
   <a class="tf-brand" href="tableau-de-bord.html">Transit<span>Flow</span></a>
   <a class="tf-nav-link" href="tableau-de-bord.html">Tableau de bord</a>
+  <a class="tf-nav-link" href="carte.html">Carte</a>
   <a class="tf-nav-link" href="chauffeurs.html">Chauffeurs</a>
   <a class="tf-nav-link" href="trajets.html">Trajets</a>
   <a class="tf-nav-link" href="incidents.html">Incidents</a>
@@ -106,7 +107,7 @@
     </div>
 
     <div class="tf-hidden tf-card-pad d-flex flex-column gap-4" data-volet="couts">
-      <form class="d-flex gap-3 flex-wrap align-items-end" data-periode>
+      <form method="post" class="d-flex gap-3 flex-wrap align-items-end" data-periode>
         <label class="tf-field"><span class="tf-label">Du</span>
           <input class="tf-input sm" type="date" name="debut" required></label>
         <label class="tf-field"><span class="tf-label">Au</span>

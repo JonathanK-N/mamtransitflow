@@ -404,6 +404,11 @@ const Admin = {
       note: t.statut === 'termine' ? 'Trajet termine' : 'Heure prevue',
       classe: t.statut === 'termine' ? 'done' : 'planned', futur: t.statut !== 'termine' });
 
+    // Carte du parcours GPS (admin-carte.js), chargee sans bloquer le reste de la page.
+    if (typeof tfCarteTrajet === 'function') {
+      tfCarteTrajet(t).catch(function (e) { tfNotifier(e.message); });
+    }
+
     document.querySelector('[data-deroulement]').innerHTML = etapes.map(function (e, index) {
       const dernier = index === etapes.length - 1 ? ' last' : '';
       let corps;

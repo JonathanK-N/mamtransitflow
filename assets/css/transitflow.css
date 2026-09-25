@@ -422,3 +422,52 @@ select.tf-input.sm { padding-right: 34px; background-position: right 12px center
   .tf-bar-row { grid-template-columns: 110px 1fr auto; gap: 10px; }
   .tf-modal { padding: 22px; }
 }
+
+/* ---- Suivi GPS (Leaflet) ------------------------------------------------ */
+.tf-carte { width: 100%; border-radius: var(--tf-radius-sm); overflow: hidden; background: #EDE7DF; z-index: 0; }
+.tf-carte-plein { height: calc(100vh - 230px); min-height: 440px; }
+.leaflet-container { font-family: var(--tf-font); }
+.leaflet-popup-content { font-size: 13.5px; line-height: 1.5; margin: 12px 14px; }
+.tf-marqueur { position: relative; width: 0; height: 0; }
+.tf-marqueur-point {
+  position: absolute; left: -9px; top: -9px;
+  width: 18px; height: 18px; border-radius: 999px;
+  background: var(--tf-ok); border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(42, 37, 33, .45);
+}
+.tf-marqueur.intermittent .tf-marqueur-point { background: var(--tf-accent); }
+.tf-marqueur.perdue .tf-marqueur-point { background: #9A928A; }
+.tf-marqueur.selection .tf-marqueur-point { box-shadow: 0 0 0 4px rgba(217, 112, 47, .35), 0 1px 6px rgba(42, 37, 33, .45); }
+.tf-marqueur-cap {
+  position: absolute; left: -6px; top: -21px; width: 12px; height: 12px;
+  transform-origin: 6px 21px;
+}
+.tf-marqueur-cap::before {
+  content: ""; position: absolute; left: 1px; top: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--tf-dark);
+}
+.tf-marqueur-etiquette {
+  position: absolute; left: 14px; top: -12px;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--tf-dark); color: #fff;
+  font-family: var(--tf-mono); font-size: 11.5px; white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(42, 37, 33, .3);
+}
+.tf-marqueur-borne {
+  width: 14px; height: 14px; border-radius: 999px; border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(42, 37, 33, .4); margin: -7px 0 0 -7px;
+}
+.tf-marqueur-borne.depart { background: var(--tf-ok); }
+.tf-marqueur-borne.arrivee { background: var(--tf-dark); }
+.tf-liste-suivi { display: flex; flex-direction: column; }
+.tf-liste-suivi button {
+  display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left;
+  padding: 14px 18px; border: none; border-top: 1px solid var(--tf-line); background: #fff;
+  font-family: inherit; cursor: pointer;
+}
+.tf-liste-suivi button:hover { background: #FFFCF8; }
+.tf-liste-suivi button.active { background: #FFF9F4; box-shadow: inset 3px 0 0 var(--tf-accent); }
+.tf-voyant { width: 10px; height: 10px; border-radius: 999px; background: var(--tf-ok); flex: none; margin-top: 6px; }
+.tf-voyant.intermittent { background: var(--tf-accent); }
+.tf-voyant.perdue, .tf-voyant.aucune { background: #B8B0A7; }
+.tf-voyant.en-ligne { box-shadow: 0 0 0 4px rgba(47, 107, 84, .15); }
