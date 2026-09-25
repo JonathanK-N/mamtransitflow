@@ -21,6 +21,13 @@ GROUPES_DE_BASE = ['fleet.admin', 'fleet.driver']
 
 
 @pytest.fixture(autouse=True)
+def _cache_vide():
+    """Le compteur de limitation de debit (apps/suivi) vit dans le cache : chaque test repart de zero."""
+    from django.core.cache import cache
+    cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def _groupes_de_base(db):
     """Cree les groupes de permission de base avant chaque test (comme le fait la commande bootstrap)."""
     for code in GROUPES_DE_BASE:

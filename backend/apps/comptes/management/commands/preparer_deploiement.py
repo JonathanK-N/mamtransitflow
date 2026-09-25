@@ -6,7 +6,8 @@ Commande unique lancee au demarrage du conteneur Railway, juste avant
 gunicorn (deploy.startCommand dans railway.json) :
 1. applique les migrations (tables a jour) ;
 2. cree les groupes de base et, si TF_ADMIN_COURRIEL / TF_ADMIN_MOT_DE_PASSE
-   sont definis, le premier administrateur (bootstrap --depuis-env).
+   sont definis, le premier administrateur (bootstrap --depuis-env) ;
+3. supprime les positions GPS trop anciennes (purger_positions).
 
 Elle etait d abord declaree en commande de pre-deploiement, mais Railway
 ne semblait pas l executer : les tables n etaient pas creees et la connexion
@@ -29,4 +30,5 @@ class Command(BaseCommand):
         call_command('migrate', interactive=False, verbosity=1, stdout=self.stdout, stderr=self.stderr)
         self.stdout.write('Comptes de base...')
         call_command('bootstrap', depuis_env=True, stdout=self.stdout, stderr=self.stderr)
+        call_command('purger_positions', stdout=self.stdout, stderr=self.stderr)
         self.stdout.write(self.style.SUCCESS('Deploiement pret.'))

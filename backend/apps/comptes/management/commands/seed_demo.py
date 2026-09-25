@@ -34,6 +34,7 @@ from apps.entretien import services as entretien
 from apps.fleet.models import Vehicule
 from apps.fleet.services import enregistrer_kilometrage
 from apps.maintenance.models import Incident
+from apps.suivi.models import PositionGPS
 
 MOT_DE_PASSE_PAR_DEFAUT = 'Transit-Demo-2026'
 ADMIN = ('a.tremblay@transitflow.ca', 'Alex Tremblay')
@@ -178,6 +179,7 @@ class Command(BaseCommand):
         )
         Arret.objects.create(trajet=en_cours, lieu='Orford', heure=(debut + timedelta(minutes=20)).strftime('%H:%M'),
                              note='Deux passagers descendus')
+        self._creer_trace_gps(en_cours, maintenant)
         Incident.objects.create(
             trajet=en_cours, chauffeur=diallo, type='technique', titre='Voyant moteur allume',
             description='Voyant moteur orange apres l arret d Orford, vehicule toujours roulant.',
@@ -247,3 +249,26 @@ class Command(BaseCommand):
         if incident and incident.trajet_id:
             bon(incident.trajet.plaque, 2, categorie='correctif', type='reparation', titre=incident.titre,
                 description=incident.description, incident=incident, priorite='urgente')
+
+    def _creer_trace_gps(self, trajet, maintenant):
+        """
+        Trace GPS du trajet en cours (Sherbrooke -> Magog par l autoroute 10),
+        un point par minute, le dernier il y a 20 s : le vehicule apparait
+        "en ligne" sur la carte en direct des le chargement de la demo.
+        """
+        jalons = [(45.4042, -71.8929), (45.3905, -71.9480), (45.3610, -72.0105), (45.3250, -72.0740),
+                  (45.2950, -72.1180), (45.2667, -72.1486)]
+        minutes = int((maintenant - trajet.debut).total_seconds() // 60)
+        total = 75  # duree prevue du trajet, en minutes
+        points = []
+        for m in range(minutes + 1):
+            avancement = min(m / total, 1) * (len(jalons) - 1)
+            i = min(int(avancement), len(jalons) - 2)
+            f = avancement - i
+            lat = jalons[i][0] + (jalons[i + 1][0] - jalons[i][0]) * f
+            lng = jalons[i][1] + (jalons[i + 1][1] - jalons[i][1]) * f
+            instant = maintenant - timedelta(seconds=20) - timedelta(minutes=minutes - m)
+            points.append(PositionGPS(trajet=trajet, chauffeur=trajet.chauffeur, plaque=trajet.plaque,
+                                      latitude=round(lat, 6), longitude=round(lng, 6), precision_m=8,
+                                      vitesse_kmh=0 if m in (20, 21) else 92, cap=240, horodatage=instant))
+        PositionGPS.objects.bulk_create(points)

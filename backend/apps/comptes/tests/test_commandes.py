@@ -4,6 +4,7 @@ Auteur : Jonathan K-N
 """
 
 import pytest
+from django.utils import timezone
 from django.core.management import CommandError, call_command
 
 from apps.comptes.models import Utilisateur
@@ -115,6 +116,10 @@ def test_seed_demo_entretien(settings):
     assert BonTravail.objects.filter(incident__isnull=False).count() == 1
     assert Vehicule.objects.get(plaque='QC-2287').statut == 'maintenance'
     assert all(v.releves.exists() for v in Vehicule.objects.all())
+    from apps.suivi.models import PositionGPS
+    en_cours = Trajet.objects.get(statut='en-cours')
+    assert en_cours.positions.count() > 30
+    assert (timezone.now() - en_cours.positions.last().horodatage).total_seconds() < 60
     call_command('seed_demo', '--reset')  # les bons (PROTECT) ne bloquent pas la remise a zero
     assert BonTravail.objects.filter(statut='en-cours').count() == 1
 

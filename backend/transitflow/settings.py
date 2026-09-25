@@ -112,6 +112,7 @@ INSTALLED_APPS = [
     'apps.dispatch',
     'apps.maintenance',
     'apps.entretien',
+    'apps.suivi',
     'apps.reporting',
 ]
 
@@ -196,6 +197,9 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['apps.comptes.permissions.EstConnecte'],
+    # Envoi des positions GPS (apps/suivi) : un telephone envoie un lot
+    # toutes les ~10 s ; au-dela de cette limite, la requete repond 429.
+    'DEFAULT_THROTTLE_RATES': {'positions': os.environ.get('TF_GPS_LIMITE', '30/min')},
 }
 
 SIMPLE_JWT = {
