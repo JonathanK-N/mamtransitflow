@@ -16,7 +16,7 @@ Ce que fait `railway.json` a chaque deploiement :
 
 1. **Build** : installation des dependances, puis `collectstatic` (fichiers
    CSS/JS de `/django-admin/`, servis par WhiteNoise).
-2. **Pre-deploiement** : `migrate` (tables a jour), puis
+2. **Pre-deploiement** (`manage.py preparer_deploiement`) : `migrate` (tables a jour), puis
    `bootstrap --depuis-env` (groupes de permission + premier
    administrateur s il n existe pas encore).
 3. **Demarrage** : `gunicorn` sur le port fourni par Railway.

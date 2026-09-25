@@ -53,3 +53,11 @@ def test_seed_demo_refuse_en_production(settings):
     settings.DEBUG = False
     with pytest.raises(CommandError):
         call_command('seed_demo')
+
+
+def test_preparer_deploiement(monkeypatch):
+    monkeypatch.setenv('TF_ADMIN_COURRIEL', 'admin@exemple.com')
+    monkeypatch.setenv('TF_ADMIN_MOT_DE_PASSE', 'Un-Mot-De-Passe-Solide')
+    call_command('preparer_deploiement')
+    call_command('preparer_deploiement')  # redeploiement : sans effet de bord
+    assert Utilisateur.objects.get().a_groupe('fleet.admin')
