@@ -10,7 +10,8 @@ const TF_CARTE = {
   // Centre par defaut quand aucune position n est connue : Sherbrooke.
   centre: [45.4042, -71.8929],
   zoom: 9,
-  tuiles: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  // Adresse sans sous-domaine a/b/c, comme le recommande OpenStreetMap.
+  tuiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 };
 
@@ -18,7 +19,13 @@ const TF_CARTE = {
 function tfCreerCarte(element, options) {
   const carte = L.map(element, Object.assign({ zoomControl: true, attributionControl: true }, options || {}))
     .setView(TF_CARTE.centre, TF_CARTE.zoom);
-  L.tileLayer(TF_CARTE.tuiles, { maxZoom: 19, attribution: TF_CARTE.attribution }).addTo(carte);
+  // Le serveur impose Referrer-Policy: same-origin, qui supprime l entete
+  // Referer vers les autres sites. Or OpenStreetMap refuse les tuiles sans
+  // Referer (image "Access blocked") : on envoie l origine du site, pour les
+  // seules tuiles, sans affaiblir la politique du reste de l application.
+  L.tileLayer(TF_CARTE.tuiles, {
+    maxZoom: 19, attribution: TF_CARTE.attribution, referrerPolicy: 'strict-origin-when-cross-origin'
+  }).addTo(carte);
   return carte;
 }
 
