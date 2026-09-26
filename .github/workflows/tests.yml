@@ -30,6 +30,7 @@ jobs:
       # Memes conditions qu en production : PostgreSQL et TF_DEBUG=0.
       TF_DATABASE_URL: postgresql://transitflow:transitflow@localhost:5432/transitflow
       TF_DEBUG: '0'
+      TF_LEGACY_ENABLED: '1'
       TF_SECRET_KEY: cle-de-test-uniquement-pour-l-integration-continue-0123456789
 
     defaults:
@@ -59,4 +60,4 @@ jobs:
         # Le client de test parle en HTTP : pas de redirection vers HTTPS ici.
         env:
           TF_SSL_REDIRECT: '0'
-        run: python -m pytest -q
+        run: python -m pytest --ignore=apps/erp -q

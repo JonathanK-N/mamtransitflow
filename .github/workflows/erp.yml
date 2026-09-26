@@ -1,0 +1,65 @@
+name: Recette ERP
+on:
+  push:
+    branches: [transitflow-erp, transitflow-tests]
+  pull_request:
+    branches: [erp, main, transitflow-erp]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: transitflow
+          POSTGRES_USER: transitflow
+          POSTGRES_PASSWORD: recette-local-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U transitflow"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://transitflow:recette-local-only@127.0.0.1:5432/transitflow
+      TF_SECRET_KEY: secret-uniquement-pour-la-recette-automatique
+      TF_DEBUG: '1'
+      TF_LEGACY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements-dev.txt
+      - run: npm install --global pnpm@11.25.0
+      - run: pnpm install --frozen-lockfile && pnpm run build
+        working-directory: frontend
+      - run: python backend/manage.py collectstatic --noinput
+      - run: python -m pytest apps/erp/tests -q
+        working-directory: backend
+      - run: python backend/manage.py migrate --noinput
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Serveur de recette
+        run: |
+          python backend/manage.py runserver 127.0.0.1:8000 --noreload > /tmp/transitflow-server.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl --fail http://127.0.0.1:8000/api/sante && exit 0
+            sleep 1
+          done
+          cat /tmp/transitflow-server.log
+          exit 1
+      - run: pnpm exec playwright test
+        working-directory: frontend
+      - name: Construction de l’image de production
+        run: docker build --tag transitflow-recette .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recette-navigateur
+          path: |
+            frontend/playwright-report
+            frontend/test-results
