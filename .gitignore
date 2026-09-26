@@ -10,3 +10,10 @@ __pycache__/
 backend/data/
 .env
 backend/staticfiles/
+backend/privatefiles/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+.venv/
+*.sqlite3
+*.zip

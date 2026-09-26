@@ -116,10 +116,12 @@ INSTALLED_APPS = [
     'apps.reporting',
     'apps.societe',
     'apps.paie',
+    'apps.erp',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'apps.erp.middleware.SecurityHeaders',
     # Sert les fichiers statiques de l admin Django (collectstatic) en production.
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -205,6 +207,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
+    'CHECK_REVOKE_TOKEN': True,
     # Jeton d acces court + jeton de rafraichissement plus long : le
     # front-end (assets/js/store.js) redemande un jeton d acces de facon
     # transparente quand il expire. A la deconnexion, le jeton de
@@ -231,6 +234,14 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Auteur : Jonathan Kakesa (JonathanK-N). Isolation des routes historiques.
+TF_LEGACY_ENABLED = os.environ.get('TF_LEGACY_ENABLED', '0') == '1'
+PASSWORD_RESET_TIMEOUT = 3600
+MEDIA_ROOT = Path(os.environ.get('TF_PRIVATE_STORAGE', str(BASE_DIR / 'privatefiles')))
+WHITENOISE_ROOT = RACINE_PROJET / 'frontend' / 'dist'
+DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
 # ---- Courriels (invitations, reinitialisation de mot de passe) -----------
 # Deux facons d envoyer, au choix :

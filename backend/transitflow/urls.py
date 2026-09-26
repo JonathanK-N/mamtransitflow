@@ -19,11 +19,19 @@ from django.urls import include, path, re_path
 from django.views.static import serve
 
 from .settings import RACINE_PROJET
+from django.conf import settings
+from django.http import FileResponse
+from django.db import connection
 
 
 def sante(request):
     """Petite route de verification pour confirmer que le serveur repond bien."""
-    return JsonResponse({'ok': True, 'service': 'transitflow-api'})
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+        return JsonResponse({'ok': True, 'service': 'transitflow-api'})
+    except Exception:
+        return JsonResponse({'ok': False, 'service': 'transitflow-api'}, status=503)
 
 
 def servir_front(request, path, document_root):
@@ -81,3 +89,19 @@ urlpatterns = [
     re_path(r'^admin/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'admin'}),
     re_path(r'^chauffeur/(?P<path>.*)$', servir_front, {'document_root': RACINE_PROJET / 'chauffeur'}),
 ]
+
+# Auteur : Jonathan Kakesa (JonathanK-N). Aucun accès aux API globales en SaaS.
+def portail(request):
+    fichier = RACINE_PROJET / 'frontend' / 'dist' / 'index.html'
+    if not fichier.exists():
+        return JsonResponse({'detail': 'Interface non compilée : exécutez npm ci puis npm run build dans frontend.'}, status=503)
+    response = FileResponse(fichier.open('rb'), content_type='text/html')
+    response['Cache-Control'] = 'no-cache'
+    return response
+
+if not settings.TF_LEGACY_ENABLED:
+    urlpatterns = [path('django-admin/', admin.site.urls), path('api/sante', sante),
+        path('api/v2/', include('apps.erp.urls')), path('', portail),
+        re_path(r'^app(?:/.*)?$', portail), path('connexion', portail), path('commencer', portail)]
+else:
+    urlpatterns.insert(0, path('api/v2/', include('apps.erp.urls')))
