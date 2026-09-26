@@ -5,7 +5,7 @@ import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-nex
 import PublicSite from './PublicSite.vue'
 import Workspace from './Workspace.vue'
 import PasswordRecovery from './PasswordRecovery.vue'
-import {api,refresh,setOrganization,organization} from './api'
+import {api,refresh,setOrganization,organization,setAccess} from './api'
 const screen=ref(location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':location.pathname.startsWith('/app')?'loading':'public')
 if(new URLSearchParams(location.search).has('reset'))screen.value='recovery'
 const session=ref<any>(null),error=ref(''),busy=ref(false)
@@ -31,12 +31,17 @@ async function submit(){
    if(invitationToken.value){sessionStorage.removeItem('transitflow.invitation');history.replaceState({},'','/commencer');invitationToken.value=''}
   }else data=await api('auth/login','POST',{email:form.value.email,password:form.value.password})
   await enter(data)
+  form.value.password=''
  }catch(e:any){error.value=e.message}finally{busy.value=false}
 }
-async function logout(){try{await api('auth/logout','POST')}finally{session.value=null;setOrganization('');go('login')}}
+async function logout(){try{await api('auth/logout','POST');session.value=null;setAccess('');setOrganization('');go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
 onMounted(async()=>{
  const invite=new URLSearchParams(location.search).get('invitation');if(invite)sessionStorage.setItem('transitflow.invitation',invite)
  window.addEventListener('session-expired',()=>{session.value=null;go('login');error.value='Votre session a expiré. Reconnectez-vous.'})
+ window.addEventListener('popstate',()=>{
+  if(location.pathname.startsWith('/app')){if(session.value)screen.value='workspace';else go('login')}
+  else screen.value=location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':'public'
+ })
  if(screen.value==='loading'){if(await refresh()){try{await enter(await api('auth/me'));return}catch{}}go('login')}
 })
 </script>
