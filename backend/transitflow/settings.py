@@ -239,7 +239,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 TF_LEGACY_ENABLED = os.environ.get('TF_LEGACY_ENABLED', '0') == '1'
 PASSWORD_RESET_TIMEOUT = 3600
 MEDIA_ROOT = Path(os.environ.get('TF_PRIVATE_STORAGE', str(BASE_DIR / 'privatefiles')))
-WHITENOISE_ROOT = RACINE_PROJET / 'frontend' / 'dist'
+WHITENOISE_ROOT = None if TF_LEGACY_ENABLED else RACINE_PROJET / 'frontend' / 'dist'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
