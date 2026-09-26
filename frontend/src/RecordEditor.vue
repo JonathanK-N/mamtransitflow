@@ -1,12 +1,13 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { X, Plus, Trash2, Save, LoaderCircle, Download, Printer } from 'lucide-vue-next'
 import { api,download,money } from './api'
 import MissionTracking from './MissionTracking.vue'
 const props=defineProps<{schema:any,record:any,currency:string}>()
 const emit=defineEmits(['close','saved'])
 const data=ref<Record<string,any>>({}),options=ref<Record<string,any[]>>({}),error=ref(''),saving=ref(false)
+const initializing=ref(true)
 const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly))
 const locked=computed(()=>!props.schema.writable||props.record&&['issued','paid','posted','approved','completed','active','cancelled','received','ordered','confirmed','boarded'].includes(props.record.status)||props.record&&['payments','movements','bookings'].includes(props.schema.key))
 const lineType=computed(()=>props.schema.key==='journal'?'journal':props.schema.key==='purchases'?'purchase':'invoice')
@@ -18,17 +19,21 @@ function addLine(){
 }
 function keydown(e:KeyboardEvent){if(e.key==='Escape')emit('close')}
 onMounted(async()=>{
+ const resources=new Set<string>()
  for(const f of fields.value){
   let value=props.record?.[f.name]??f.default??(f.type==='checkbox'?false:f.type==='json'?[]:'')
   if(f.type==='datetime-local'&&value){const d=new Date(value);value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
   data.value[f.name]=Array.isArray(value)?JSON.parse(JSON.stringify(value)):value
-  if(f.relation&&!locked.value)await loadOptions(f.relation)
+  if(f.relation&&!locked.value)resources.add(f.relation)
  }
  if(['invoices','purchases','journal'].includes(props.schema.key)&&!lines.value.length)addLine()
- if(props.schema.key==='journal'&&!locked.value)await loadOptions('accounts')
- if(props.schema.key==='purchases'&&!locked.value)await loadOptions('stock')
+ if(props.schema.key==='journal'&&!locked.value)resources.add('accounts')
+ if(props.schema.key==='purchases'&&!locked.value)resources.add('stock')
+ await Promise.all([...resources].map(resource=>loadOptions(resource)))
+ initializing.value=false
+ await nextTick()
  document.addEventListener('keydown',keydown)
- setTimeout(()=>document.querySelector<HTMLInputElement>('.editor input')?.focus(),50)
+ document.querySelector<HTMLInputElement>('.editor input')?.focus()
 })
 onUnmounted(()=>document.removeEventListener('keydown',keydown))
 async function save(){
@@ -54,7 +59,8 @@ function print(){window.print()}
 <template>
  <div class="modal-backdrop" @click.self="$emit('close')"><section class="editor" role="dialog" aria-modal="true" :aria-label="schema.label">
   <header class="editor-head"><div><span class="eyebrow">{{schema.label}}</span><h2>{{record?(record.label||'Détail'):'Nouvel enregistrement'}}</h2></div><button class="icon-btn" aria-label="Fermer" @click="$emit('close')"><X/></button></header>
-  <form @submit.prevent="save" class="editor-body">
+  <div v-if="initializing" class="editor-body" role="status"><LoaderCircle class="spin"/> Chargement de la fiche…</div>
+  <form v-else @submit.prevent="save" class="editor-body">
    <div v-if="error" class="error-box" role="alert">{{error}}</div>
    <div v-if="locked" class="info-box">Cet enregistrement est consultable. Son état ou vos permissions ne permettent pas de modifier ses valeurs.</div>
    <div class="form-grid">
