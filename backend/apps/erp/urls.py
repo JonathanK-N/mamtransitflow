@@ -4,8 +4,14 @@ from . import views as v, auth as a
 from . import applications as apps
 from .delivery import ReceiptView,DeliveryDocumentsView
 from .portal import PortalAdminView,PortalView
+from .field import FieldView,FieldContextView,NotificationsView
 
 urlpatterns=[
+    path('field/context',FieldContextView.as_view()),
+    path('field/reports',FieldView.as_view()),
+    path('field/reports/<uuid:pk>/attachments',FieldView.as_view()),
+    path('field/attachments/<uuid:pk>',FieldView.as_view()),
+    path('field/notifications',NotificationsView.as_view()),
     path('missions/<uuid:pk>/delivery-documents',DeliveryDocumentsView.as_view()),
     path('portal-access',PortalAdminView.as_view()),
     path('portal/<str:resource>/<uuid:pk>',PortalView.as_view()),

@@ -442,6 +442,31 @@ class Incident(TenantModel):
     def __str__(self):return self.title
 
 
+class FieldReport(TenantModel):
+    mission = models.ForeignKey(Mission, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    kind = models.CharField(max_length=20, choices=choices(('incident','Incident'),('request','Demande atelier'),('check','Contrôle avant départ'),('mileage','Relevé compteur')))
+    title = models.CharField(max_length=180)
+    description = models.TextField(blank=True)
+    mileage = models.PositiveIntegerField(null=True, blank=True)
+    checks = models.JSONField(default=dict, blank=True)
+    incident = models.ForeignKey(Incident, null=True, blank=True, on_delete=models.PROTECT)
+    maintenance = models.ForeignKey(Maintenance, null=True, blank=True, on_delete=models.PROTECT)
+
+
+class FieldAttachment(TenantModel):
+    report = models.ForeignKey(FieldReport, on_delete=models.PROTECT, related_name='attachments')
+    file = models.FileField(upload_to=private_path)
+    title = models.CharField(max_length=180)
+
+
+class NotificationRead(TenantModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    key = models.CharField(max_length=64)
+    class Meta(TenantModel.Meta):
+        constraints = [models.UniqueConstraint(fields=['organization','user','key'], name='erp_notification_read_unique')]
+
+
 class SupplierBill(TenantModel):
     reference = models.CharField('Numéro fournisseur',max_length=100)
     supplier = models.ForeignKey(Partner,verbose_name='Fournisseur',on_delete=models.PROTECT)

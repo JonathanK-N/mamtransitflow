@@ -100,6 +100,9 @@ def transition(org,actor,model,pk,action,data=None):
     if model in business.MODELS:return business.transition(org,actor,obj,action,data)
     if model is m.Mission:
         if action=='start' and old=='planned':
+            inspection=m.FieldReport.objects.filter(organization=org,mission=obj,kind='check').order_by('-created_at').first()
+            if inspection and not all(inspection.checks.values()):
+                raise ValidationError('Le contrôle avant départ signale des anomalies. Faites traiter la demande atelier puis enregistrez un nouveau contrôle conforme.')
             vehicle=m.Vehicle.objects.select_for_update().get(pk=obj.vehicle_id,organization=org)
             driver=m.Employee.objects.select_for_update().get(pk=obj.driver_id,organization=org)
             if vehicle.status!='available' or not driver.active or driver.job!='driver':
