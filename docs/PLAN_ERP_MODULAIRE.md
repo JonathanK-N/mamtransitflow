@@ -36,7 +36,11 @@ Les livraisons sont versionnées sur `transitflow-erp` et vérifiées sur
 - Livré et testé : animations discrètes et prise en compte des mouvements réduits.
 - Vérifié localement : restauration PostgreSQL avec comparaison des contenus.
 - En cours de préparation : paie et fiscalité guinéennes, puis Cameroun et Congo.
-- À réaliser : portail client, signature de livraison, imports, paie réglementaire,
-  reprise historique, charge et mise en production.
+- Intégré : portail client privé, invitations révocables, signature manuscrite de
+  livraison, justificatif PDF et pièces de livraison partagées explicitement.
+- À réaliser : imports, paie réglementaire, reprise historique et forte charge.
+- Déploiement Railway existant : accès de démonstration administrateur et chauffeur
+  vérifiés. Persistance des fichiers, sauvegardes et messagerie à confirmer sur
+  cet hébergement avant validation complète de son exploitation.
 
 Les détails et les limites sont consignés dans `RECETTE_MODULAIRE.md`.

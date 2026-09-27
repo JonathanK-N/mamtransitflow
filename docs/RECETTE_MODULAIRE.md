@@ -63,12 +63,28 @@ ce contrôle local.
 - Navigateur : création d’une application et de ses fiches, puis création,
   soumission et approbation d’un congé, avec persistance après rechargement.
 
-## Périmètre restant
+## Complément : portail et livraison
+
+La livraison suivante ajoute le portail client, les accès révocables, les pièces
+partagées explicitement et les justificatifs signés téléchargeables en PDF.
+Sa recette locale PostgreSQL compte **89 tests API réussis** ; les **6 parcours
+Chromium passent**, dont la signature par un chauffeur puis le téléchargement par
+le client. La compilation Vue/TypeScript et le contrôle des migrations passent.
+Le PDF et les captures du portail ont été inspectés visuellement.
+
+Les limites d’inscription ont été conservées : les compteurs de la seule base
+locale ont été réinitialisés avant la recette complète après plusieurs essais.
+Aucune limite du service public n’a été modifiée. Voir le
+[guide du portail et des livraisons](PORTAIL_ET_LIVRAISON.md).
+
+## Périmètre restant après ce complément
 
 La paie légale automatisée, les déclarations par pays, les soldes de congés,
-les remboursements partiels d’avances, les imports bancaires, le portail client,
-la signature de livraison et la reprise historique complète restent à intégrer.
-La recette de forte charge et le déploiement public ne sont pas réalisés.
+les remboursements partiels d’avances, les imports bancaires et la reprise
+historique complète restent à intégrer. La recette de forte charge reste à faire.
+Le site Railway est accessible et les comptes de démonstration administrateur et
+chauffeur ont été vérifiés ; la persistance des fichiers, les sauvegardes et la
+messagerie de cet hébergement restent à confirmer.
 Les connexions bancaires et Mobile Money restent en attente des API partenaires,
 conformément à la demande. Aucune transaction externe n’est exécutée.
 
