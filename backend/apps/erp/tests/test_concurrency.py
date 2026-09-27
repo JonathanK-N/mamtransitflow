@@ -4,7 +4,7 @@ from threading import Barrier
 from datetime import timedelta
 from decimal import Decimal
 import pytest
-from django.db import connection,close_old_connections
+from django.db import connection,connections,close_old_connections
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from apps.comptes.models import Utilisateur
@@ -22,7 +22,7 @@ def concurrent(call):
             call(index)
             return 'accepted'
         except ValidationError:return 'rejected'
-        finally:close_old_connections()
+        finally:connections.close_all()
     with ThreadPoolExecutor(max_workers=2) as pool:return list(pool.map(worker,[0,1]))
 
 
