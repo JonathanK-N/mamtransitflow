@@ -9,7 +9,7 @@ const emit=defineEmits(['close','saved'])
 const data=ref<Record<string,any>>({}),options=ref<Record<string,any[]>>({}),error=ref(''),saving=ref(false)
 const initializing=ref(true)
 const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly))
-const locked=computed(()=>!props.schema.writable||props.record&&['issued','paid','posted','approved','completed','active','cancelled','received','ordered','confirmed','boarded'].includes(props.record.status)||props.record&&['payments','movements','bookings'].includes(props.schema.key))
+const locked=computed(()=>!props.schema.writable||props.record&&['issued','paid','posted','approved','completed','active','cancelled','received','ordered','confirmed','boarded','paused','closed','reported','resolved','submitted','rejected','disbursed','settled','matched'].includes(props.record.status)||props.record&&['payments','supplier-payments','movements','bookings'].includes(props.schema.key))
 const lineType=computed(()=>props.schema.key==='journal'?'journal':props.schema.key==='purchases'?'purchase':'invoice')
 const lines=computed(()=>data.value.lines||[])
 async function loadOptions(resource:string,query='') {try{options.value[resource]=(await api(resource+'?page_size=100&q='+encodeURIComponent(query))).results}catch{options.value[resource]=[]}}
@@ -26,7 +26,7 @@ onMounted(async()=>{
   data.value[f.name]=Array.isArray(value)?JSON.parse(JSON.stringify(value)):value
   if(f.relation&&!locked.value)resources.add(f.relation)
  }
- if(['invoices','purchases','journal'].includes(props.schema.key)&&!lines.value.length)addLine()
+ if(['invoices','supplier-bills','purchases','journal'].includes(props.schema.key)&&!lines.value.length)addLine()
  if(props.schema.key==='journal'&&!locked.value)resources.add('accounts')
  if(props.schema.key==='purchases'&&!locked.value)resources.add('stock')
  await Promise.all([...resources].map(resource=>loadOptions(resource)))
@@ -86,7 +86,7 @@ function print(){window.print()}
      </label>
     </template>
    </div>
-   <div v-if="record&&schema.key==='invoices'" class="invoice-summary"><p>Total HT <strong>{{money(record.subtotal,currency)}}</strong></p><p>Taxes <strong>{{money(record.tax,currency)}}</strong></p><p>Total TTC <strong>{{money(record.total,currency)}}</strong></p><p>Réglé <strong>{{money(record.paid,currency)}}</strong></p></div>
+   <div v-if="record&&['invoices','supplier-bills'].includes(schema.key)" class="invoice-summary"><p>Total HT <strong>{{money(record.subtotal,currency)}}</strong></p><p>Taxes <strong>{{money(record.tax,currency)}}</strong></p><p>Total TTC <strong>{{money(record.total,currency)}}</strong></p><p>Réglé <strong>{{money(record.paid,currency)}}</strong></p></div>
    <MissionTracking v-if="record&&schema.key==='missions'&&['active','completed'].includes(record.status)" :mission="record" :can-track="schema.canTrack" :user-id="schema.userId"/>
    <footer class="editor-footer"><button type="button" class="secondary" @click="$emit('close')">Fermer</button><button v-if="record" type="button" class="secondary" @click="print"><Printer :size="16"/>Imprimer</button><button v-if="!locked" class="primary" :disabled="saving"><LoaderCircle v-if="saving" class="spin" :size="16"/><Save v-else :size="16"/>Enregistrer</button></footer>
   </form>
