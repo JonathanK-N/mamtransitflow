@@ -1,8 +1,14 @@
 """Auteur : Jonathan Kakesa (JonathanK-N)."""
 from django.urls import path
 from . import views as v, auth as a
+from . import applications as apps
 
 urlpatterns=[
+    path('applications',apps.ApplicationStoreView.as_view()),
+    path('applications/custom',apps.CustomApplicationView.as_view()),
+    path('applications/custom/<uuid:pk>',apps.CustomApplicationView.as_view()),
+    path('applications/custom/<uuid:app_id>/records',apps.CustomRecordsView.as_view()),
+    path('applications/custom/<uuid:app_id>/records/<uuid:pk>',apps.CustomRecordsView.as_view()),
     path('auth/csrf',a.CsrfView.as_view()),path('auth/register',a.RegisterView.as_view()),
     path('auth/login',a.LoginView.as_view()),path('auth/refresh',a.RefreshView.as_view()),
     path('auth/logout',a.LogoutView.as_view()),path('auth/me',a.MeView.as_view()),

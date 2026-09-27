@@ -21,17 +21,33 @@ from apps.comptes.models import Utilisateur
 from . import models as m, services, security
 from .serializers import RESOURCES, serializer_for, OrganizationSerializer
 
-LABELS={'partners':'Clients et fournisseurs','employees':'Personnel','vehicles':'Flotte','orders':'Commandes',
+LABELS={'leave':'Congés et absences','advances':'Avances du personnel','periods':'Périodes comptables','statements':'Rapprochement bancaire','contracts':'Contrats de transport','pricing':'Grilles tarifaires','subcontracts':'Sous-traitance','incidents':'Incidents et sinistres',
+    'supplier-bills':'Factures fournisseurs','supplier-payments':'Règlements fournisseurs',
+    'partners':'Clients et fournisseurs','employees':'Personnel','vehicles':'Flotte','orders':'Commandes',
     'routes':'Lignes et circuits','missions':'Missions','bookings':'Réservations','maintenance':'Entretien',
     'expenses':'Dépenses','invoices':'Facturation','payments':'Règlements','accounts':'Plan de comptes',
     'journal':'Comptabilité','stock':'Stocks et pièces','movements':'Mouvements de stock','purchases':'Achats',
     'documents':'Documents','audit':'Journal d’audit'}
-ACTIONS={'orders':{'draft':['confirm','cancel'],'confirmed':['cancel']},
+ACTIONS={'leave':{'draft':['submit','cancel'],'submitted':['approve','reject','cancel'],'approved':['cancel']},
+    'advances':{'draft':['approve','cancel'],'approved':['disburse','cancel'],'disbursed':['settle']},
+    'periods':{'draft':['close']},'statements':{'draft':['match'],'matched':['unmatch']},'contracts':{'draft':['activate','close'],'active':['generate','pause','close'],'paused':['activate','close']},
+    'subcontracts':{'draft':['approve','cancel'],'approved':['complete','cancel']},'incidents':{'draft':['report'],'reported':['resolve']},
+    'supplier-bills':{'draft':['post','cancel']},'orders':{'draft':['price','confirm','cancel'],'confirmed':['cancel']},
     'missions':{'planned':['start','cancel'],'active':['complete']},
     'maintenance':{'planned':['start','cancel'],'active':['complete','cancel']},
     'invoices':{'draft':['issue','cancel']},'journal':{'draft':['post']},
     'expenses':{'draft':['approve']},'bookings':{'confirmed':['board','cancel']},
     'purchases':{'draft':['order','cancel'],'ordered':['receive','cancel']}}
+ACTION_FIELDS={
+    'leave':{'reject':[{'name':'decision_note','label':'Motif du refus','type':'textarea','required':True}]},
+    'advances':{action:[{'name':'reference','label':'Référence du justificatif','type':'text','required':True},{'name':'date','label':'Date réelle du mouvement','type':'date','required':True}] for action in ('disburse','settle')},
+    'periods':{'close':[{'name':'closing_note','label':'Note de clôture (verrouillage définitif)','type':'textarea','required':True}]},
+    'statements':{'match':[{'name':'journal','label':'Écriture comptabilisée','type':'relation','resource':'journal','required':True},{'name':'note','label':'Note de rapprochement','type':'textarea','required':True}],
+        'unmatch':[{'name':'note','label':'Motif de dérapprochement','type':'textarea','required':True}]},
+    'orders':{'price':[{'name':'pricing_rule','label':'Grille tarifaire','type':'relation','resource':'pricing','required':True}]},
+    'subcontracts':{'complete':[{'name':'completion_note','label':'Bilan de prestation','type':'textarea','required':True}]},
+    'incidents':{'resolve':[{'name':'resolution','label':'Mesures prises et résolution','type':'textarea','required':True}]},
+}
 
 
 class Page(PageNumberPagination):
@@ -51,8 +67,14 @@ class ScopedView(APIView):
     def initial(self,request,*args,**kwargs):
         super().initial(request,*args,**kwargs)
         self.member=security.membership(request);self.org=self.member.organization
+        from .applications import active_keys
+        self.active_applications=active_keys(self.org)
     def context(self):return {'organization':self.org,'request':self.request}
+    def enabled(self,resource):
+        from .applications import resource_enabled
+        return resource_enabled(self.org,resource,self.active_applications)
     def ensure(self,resource,write=False):
+        if not self.enabled(resource):raise PermissionDenied('Cette application est désactivée pour votre entreprise.')
         if resource=='audit' and self.member.role not in ('owner','admin'):raise PermissionDenied('Journal réservé à l’administration.')
         if not security.allowed(self.member.role,resource,write):raise PermissionDenied('Votre rôle ne permet pas cette opération.')
     def queryset(self,resource):
@@ -74,6 +96,7 @@ class CatalogView(ScopedView):
     def get(self,request):
         result=[]
         for resource,model in RESOURCES.items():
+            if not self.enabled(resource):continue
             if not security.allowed(self.member.role,resource) or resource=='audit' and self.member.role not in ('owner','admin'):continue
             serializer=serializer_for(model)(context=self.context())
             fields=[]
@@ -106,7 +129,8 @@ class CatalogView(ScopedView):
                 'canAct':resource=='missions' and self.member.role=='driver',
                 'canTrack':resource=='missions' and self.member.role in ('owner','admin','operations','driver'),
                 'userId':request.user.pk,
-                'actions':ACTIONS.get(resource,{})})
+                'action_fields':ACTION_FIELDS.get(resource,{}),
+                'actions':{state:[action for action in actions if (action!='price' or self.enabled('pricing')) and not (resource=='periods' and action=='close' and self.member.role not in ('owner','admin'))] for state,actions in ACTIONS.get(resource,{}).items()}})
         return Response({'resources':result,'countries':m.COUNTRIES,'activities':m.ACTIVITIES,'roles':m.ROLES})
 
 
@@ -138,6 +162,9 @@ class ResourceView(ScopedView):
         m.Organization.objects.select_for_update().get(pk=self.org.pk)
         serializer=serializer_for(model)(data=request.data,context=self.context());serializer.is_valid(raise_exception=True)
         if model is m.Payment:obj=services.payment(self.org,request.user,serializer.validated_data)
+        elif model is m.SupplierPayment:
+            from .business import supplier_payment
+            obj=supplier_payment(self.org,request.user,serializer.validated_data)
         elif model is m.StockMovement:obj=services.stock_move(self.org,request.user,serializer.validated_data)
         elif model is m.Booking:obj=services.booking(self.org,request.user,serializer.validated_data)
         else:
@@ -153,7 +180,7 @@ class ResourceView(ScopedView):
         return Response(serializer.data)
     def delete(self,request,resource,pk):
         self.ensure(resource,True)
-        if resource in ('audit','payments','movements','bookings','journal','accounts'):raise PermissionDenied('Historique conservé ; suppression interdite.')
+        if resource in ('audit','payments','supplier-payments','movements','bookings','journal','accounts'):raise PermissionDenied('Historique conservé ; suppression interdite.')
         m.Organization.objects.select_for_update().get(pk=self.org.pk)
         obj=get_object_or_404(self.queryset(resource),pk=pk)
         if hasattr(obj,'status') and obj.status not in ('draft','planned','available','retired'):raise ValidationError('Cette fiche ne peut plus être supprimée.')
@@ -163,6 +190,8 @@ class ResourceView(ScopedView):
 
 class ActionView(ScopedView):
     def post(self,request,resource,pk,action):
+        if resource=='periods' and action=='close' and self.member.role not in ('owner','admin'):raise PermissionDenied('Clôture réservée à l’administration.')
+        if resource=='orders' and action=='price':self.ensure('pricing')
         if not (resource=='missions' and self.member.role=='driver' and action in ('start','complete')):
             self.ensure(resource,True)
         obj=get_object_or_404(self.queryset(resource),pk=pk)
@@ -184,10 +213,10 @@ class OrganizationView(ScopedView):
 class DashboardView(ScopedView):
     def get(self,request):
         today=timezone.localdate();org=self.org
-        missions=self.queryset('missions') if security.allowed(self.member.role,'missions') else m.Mission.objects.none()
-        vehicles=m.Vehicle.objects.filter(organization=org)
+        missions=self.queryset('missions') if self.enabled('missions') and security.allowed(self.member.role,'missions') else m.Mission.objects.none()
+        vehicles=m.Vehicle.objects.filter(organization=org) if self.enabled('vehicles') else m.Vehicle.objects.none()
         if self.member.role=='driver':vehicles=vehicles.filter(mission__driver__user=request.user).distinct()
-        financial=security.allowed(self.member.role,'invoices')
+        financial=self.enabled('invoices') and security.allowed(self.member.role,'invoices')
         inv=m.Invoice.objects.filter(organization=org,kind='invoice').exclude(status__in=['draft','cancelled'])
         balance=sum((x.total-x.paid for x in inv),Decimal(0)) if financial else None
         credits=m.Invoice.objects.filter(organization=org,kind='credit',status='issued').aggregate(s=Sum('total'))['s'] or 0
@@ -197,7 +226,7 @@ class DashboardView(ScopedView):
             for field,label in [('insurance_expiry','Assurance'),('inspection_expiry','Visite technique')]:
                 expiry=getattr(v,field)
                 if expiry and expiry<=today+timedelta(days=30):alerts.append({'label':f'{label} · {v.plate}','date':expiry,'resource':'vehicles','id':str(v.pk),'overdue':expiry<today})
-        if security.allowed(self.member.role,'stock'):
+        if self.enabled('stock') and security.allowed(self.member.role,'stock'):
             for item in m.StockItem.objects.filter(organization=org,quantity__lte=models.F('minimum'))[:10]:
                 alerts.append({'label':f'Stock bas · {item.name}','resource':'stock','id':str(item.pk)})
         return Response({'fleet':vehicles.count(),'active':missions.filter(status='active').count(),
@@ -225,11 +254,13 @@ class ReportsView(ScopedView):
         if end:orders=orders.filter(planned_date__lte=end)
         costs=dict(m.Expense.objects.filter(organization=self.org,status='approved',mission__order__isnull=False)
             .values('mission__order').annotate(total=Sum('amount')).values_list('mission__order','total'))
+        subcontract_costs=dict(m.Subcontract.objects.filter(organization=self.org,status='completed',mission__order__isnull=False)
+            .values('mission__order').annotate(total=Sum('agreed_amount')).values_list('mission__order','total'))
         for order in orders.iterator():
-            cost=costs.get(order.pk,0)
+            cost=costs.get(order.pk,0)+subcontract_costs.get(order.pk,0)
             missions.append({'reference':order.reference,'customer':order.customer.name,'revenue':order.amount,'cost':cost,'margin':order.amount-cost})
         return Response({'trial_balance':list(balances.values()),'profitability':missions,'currency':self.org.currency,
-            'note':'Rentabilité commerciale : prix convenu moins dépenses de mission validées, hors charges indirectes.'})
+            'note':'Rentabilité commerciale : prix convenu moins dépenses de mission validées et sous-traitances réalisées, hors charges indirectes.'})
 
 
 class ExportView(ScopedView):

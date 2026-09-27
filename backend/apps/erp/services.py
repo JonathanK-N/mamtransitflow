@@ -70,6 +70,8 @@ def journal_lines(org, lines):
 
 
 def auto_journal(org, actor, reference, date, description, lines):
+    from .management import ensure_open_date
+    ensure_open_date(org,date)
     entry=m.JournalEntry.objects.create(organization=org,reference=reference,date=date,
         description=description,lines=journal_lines(org,lines),status='posted')
     audit(org,actor,'post',entry)
@@ -89,13 +91,20 @@ def transition(org,actor,model,pk,action,data=None):
     # A consistent organization lock prevents opposing module lock orders.
     m.Organization.objects.select_for_update().get(pk=org.pk)
     obj=model.objects.select_for_update().get(pk=pk,organization=org)
-    old=obj.status
+    old=getattr(obj,'status',None)
+    from . import management
+    if model in (m.Invoice,m.JournalEntry,m.Expense,m.Purchase,m.SupplierBill) and action not in ('cancel','order'):
+        management.ensure_open_date(org,obj.date)
+    if model in management.MODELS:return management.transition(org,actor,obj,action,data)
+    from . import business
+    if model in business.MODELS:return business.transition(org,actor,obj,action,data)
     if model is m.Mission:
         if action=='start' and old=='planned':
             vehicle=m.Vehicle.objects.select_for_update().get(pk=obj.vehicle_id,organization=org)
             driver=m.Employee.objects.select_for_update().get(pk=obj.driver_id,organization=org)
             if vehicle.status!='available' or not driver.active or driver.job!='driver':
                 raise ValidationError('Le véhicule ou le chauffeur est indisponible.')
+            management.ensure_driver_available(org,driver,obj.departure,obj.arrival)
             if driver.license_expiry and driver.license_expiry < timezone.localdate():
                 raise ValidationError('Le permis du chauffeur est expiré.')
             if m.Mission.objects.filter(organization=org,status='active').filter(m.Q(vehicle=vehicle)|m.Q(driver=driver)).exists():
@@ -130,7 +139,13 @@ def transition(org,actor,model,pk,action,data=None):
         else: raise ValidationError('Transition atelier impossible.')
         vehicle.save(update_fields=['status','updated_at'])
     elif model is m.TransportOrder:
-        if action=='confirm' and old=='draft': obj.status='confirmed'
+        if action=='price' and old=='draft':
+            from django.shortcuts import get_object_or_404
+            rule=get_object_or_404(m.PricingRule,pk=data.get('pricing_rule'),organization=org,active=True)
+            if rule.activity!=obj.activity or rule.unit!=obj.unit or rule.origin.casefold()!=obj.origin.casefold() or rule.destination.casefold()!=obj.destination.casefold() or not rule.valid_from<=obj.planned_date<=rule.valid_until:
+                raise ValidationError('La grille ne correspond pas au trajet, à l’unité ou à la date de cette commande.')
+            obj.amount=max(rule.minimum,rounded(rule.unit_price*obj.quantity))
+        elif action=='confirm' and old=='draft': obj.status='confirmed'
         elif action=='cancel' and old in ('draft','confirmed'):
             if m.Mission.objects.filter(order=obj).exclude(status='cancelled').exists(): raise ValidationError('Des missions sont liées à cette commande.')
             obj.status='cancelled'
@@ -154,6 +169,7 @@ def transition(org,actor,model,pk,action,data=None):
         else: raise ValidationError('Seul un brouillon peut être émis ou annulé ; utilisez un avoir pour corriger une facture émise.')
     elif model is m.JournalEntry:
         if action!='post' or old!='draft': raise ValidationError('Cette écriture ne peut pas être comptabilisée.')
+        management.ensure_open_date(org,obj.date)
         obj.lines=journal_lines(org,obj.lines);obj.status='posted'
     elif model is m.Expense:
         if action!='approve' or old!='draft' or obj.amount<=0: raise ValidationError('Dépense non validable.')

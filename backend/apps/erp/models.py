@@ -338,3 +338,187 @@ class AuthLimit(models.Model):
     key = models.CharField(max_length=64, unique=True)
     count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField()
+
+
+class InstalledApplication(TenantModel):
+    key = models.SlugField(max_length=60)
+    enabled = models.BooleanField(default=True)
+    class Meta(TenantModel.Meta):
+        constraints = [models.UniqueConstraint(fields=['organization','key'],name='erp_installed_app_unique')]
+
+
+class CustomApplication(TenantModel):
+    name = models.CharField('Application',max_length=80)
+    slug = models.SlugField(max_length=80)
+    description = models.CharField('Description',max_length=500,blank=True)
+    icon = models.CharField(max_length=20,default='folder')
+    color = models.CharField(max_length=20,default='green')
+    fields = models.JSONField(default=list)
+    read_roles = models.JSONField(default=list)
+    write_roles = models.JSONField(default=list)
+    enabled = models.BooleanField(default=True)
+    class Meta(TenantModel.Meta):
+        constraints = [models.UniqueConstraint(fields=['organization','slug'],name='erp_custom_app_slug')]
+    def __str__(self):return self.name
+
+
+class CustomRecord(TenantModel):
+    application = models.ForeignKey(CustomApplication,on_delete=models.PROTECT,related_name='records')
+    title = models.CharField(max_length=200)
+    data = models.JSONField(default=dict)
+    revision = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL,null=True,on_delete=models.SET_NULL)
+    def __str__(self):return self.title
+
+
+class TransportContract(TenantModel):
+    reference = models.CharField('Référence',max_length=80)
+    customer = models.ForeignKey(Partner,verbose_name='Client',on_delete=models.PROTECT)
+    activity = models.CharField('Activité',max_length=20,choices=ACTIVITIES,default='freight')
+    origin = models.CharField('Départ',max_length=180)
+    destination = models.CharField('Destination',max_length=180)
+    description = models.TextField('Prestation et conditions',blank=True)
+    quantity = models.DecimalField('Quantité par prestation',max_digits=15,decimal_places=3,default=1,validators=[MinValueValidator(Decimal('.001'))])
+    unit = models.CharField('Unité',max_length=15,choices=[(u,u) for u in ['kg','t','L','m3','colis','voyageurs','mission']],default='mission')
+    amount = money('Prix HT par prestation')
+    start_date = models.DateField('Début du contrat')
+    end_date = models.DateField('Fin du contrat')
+    recurrence = models.CharField('Récurrence',max_length=12,choices=choices(('once','Ponctuelle'),('weekly','Hebdomadaire'),('monthly','Mensuelle')),default='monthly')
+    next_date = models.DateField('Prochaine prestation',null=True,blank=True)
+    status = models.CharField('Statut',max_length=15,choices=choices(('draft','Brouillon'),('active','Actif'),('paused','Suspendu'),('closed','Clôturé')),default='draft')
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['organization','reference'],name='erp_contract_reference')]
+    def __str__(self):return self.reference
+
+
+class PricingRule(TenantModel):
+    name = models.CharField('Grille tarifaire',max_length=120)
+    activity = models.CharField('Activité',max_length=20,choices=ACTIVITIES,default='freight')
+    origin = models.CharField('Départ',max_length=180)
+    destination = models.CharField('Destination',max_length=180)
+    unit = models.CharField('Unité',max_length=15,choices=[(u,u) for u in ['kg','t','L','m3','colis','voyageurs','mission']],default='t')
+    unit_price = money('Prix HT par unité')
+    minimum = money('Minimum de facturation HT')
+    valid_from = models.DateField('Valable à partir du')
+    valid_until = models.DateField('Valable jusqu’au')
+    active = models.BooleanField('Active',default=True)
+    def __str__(self):return self.name
+
+
+class Subcontract(TenantModel):
+    reference = models.CharField('Référence',max_length=80)
+    mission = models.ForeignKey(Mission,verbose_name='Mission',on_delete=models.PROTECT)
+    supplier = models.ForeignKey(Partner,verbose_name='Transporteur sous-traitant',on_delete=models.PROTECT)
+    agreed_amount = money('Montant HT convenu')
+    due_date = models.DateField('Échéance contractuelle')
+    conditions = models.TextField('Conditions et responsabilités',blank=True)
+    external_vehicle = models.CharField('Véhicule du prestataire',max_length=100,blank=True)
+    external_driver = models.CharField('Chauffeur du prestataire',max_length=150,blank=True)
+    completion_note = models.TextField('Bilan de prestation',blank=True)
+    status = models.CharField('Statut',max_length=15,choices=choices(('draft','Brouillon'),('approved','Approuvée'),('completed','Réalisée'),('cancelled','Annulée')),default='draft')
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['organization','reference'],name='erp_subcontract_reference')]
+    def __str__(self):return self.reference
+
+
+class Incident(TenantModel):
+    reference = models.CharField('Référence',max_length=80)
+    title = models.CharField('Incident',max_length=180)
+    mission = models.ForeignKey(Mission,verbose_name='Mission',null=True,blank=True,on_delete=models.PROTECT)
+    vehicle = models.ForeignKey(Vehicle,verbose_name='Véhicule',on_delete=models.PROTECT)
+    occurred_at = models.DateTimeField('Survenu le')
+    severity = models.CharField('Gravité',max_length=15,choices=choices(('minor','Mineure'),('major','Majeure'),('critical','Critique')),default='minor')
+    category = models.CharField('Nature',max_length=20,choices=choices(('breakdown','Panne'),('accident','Accident'),('cargo','Marchandise'),('delay','Retard'),('other','Autre')),default='other')
+    description = models.TextField('Faits constatés')
+    claim_reference = models.CharField('Dossier assurance',max_length=100,blank=True)
+    estimated_cost = money('Coût estimé')
+    resolution = models.TextField('Mesures prises et résolution',blank=True)
+    resolved_at = models.DateTimeField(null=True,blank=True)
+    status = models.CharField('Statut',max_length=15,choices=choices(('draft','Brouillon'),('reported','Signalé'),('resolved','Résolu')),default='draft')
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['organization','reference'],name='erp_incident_reference')]
+    def __str__(self):return self.title
+
+
+class SupplierBill(TenantModel):
+    reference = models.CharField('Numéro fournisseur',max_length=100)
+    supplier = models.ForeignKey(Partner,verbose_name='Fournisseur',on_delete=models.PROTECT)
+    purchase = models.ForeignKey(Purchase,verbose_name='Commande d’achat',null=True,blank=True,on_delete=models.PROTECT)
+    subcontract = models.ForeignKey(Subcontract,verbose_name='Sous-traitance',null=True,blank=True,on_delete=models.PROTECT)
+    date = models.DateField('Date')
+    due_date = models.DateField('Échéance')
+    lines = models.JSONField('Prestations facturées',default=list)
+    subtotal = money('Total HT')
+    tax = money('Taxes')
+    total = money('Total TTC')
+    paid = money('Réglé')
+    status = models.CharField('Statut',max_length=15,choices=choices(('draft','Brouillon'),('posted','Comptabilisée'),('paid','Soldée'),('cancelled','Annulée')),default='draft')
+    notes = models.TextField('Notes',blank=True)
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['organization','supplier','reference'],name='erp_supplier_bill_reference'),
+            models.UniqueConstraint(fields=['purchase'],condition=Q(purchase__isnull=False)&~Q(status='cancelled'),name='erp_one_bill_per_purchase'),
+            models.UniqueConstraint(fields=['subcontract'],condition=Q(subcontract__isnull=False)&~Q(status='cancelled'),name='erp_one_bill_per_subcontract')]
+    def __str__(self):return self.reference
+
+
+class SupplierPayment(TenantModel):
+    bill = models.ForeignKey(SupplierBill,verbose_name='Facture fournisseur',on_delete=models.PROTECT)
+    reference = models.CharField('Référence du règlement',max_length=100)
+    amount = money('Montant réglé')
+    date = models.DateField('Date du règlement')
+    method = models.CharField('Mode',max_length=20,choices=Payment._meta.get_field('method').choices,default='bank')
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['organization','reference'],name='erp_supplier_payment_reference')]
+    def __str__(self):return self.reference
+
+
+class LeaveRequest(TenantModel):
+    employee = models.ForeignKey(Employee, verbose_name='Salarié', on_delete=models.PROTECT)
+    start_date = models.DateField('Début')
+    end_date = models.DateField('Fin incluse')
+    kind = models.CharField('Nature', max_length=20, choices=choices(('annual','Congé annuel'),('unpaid','Sans solde'),('sick','Maladie'),('other','Autre')), default='annual')
+    reason = models.TextField('Motif', blank=True)
+    decision_note = models.TextField('Motif de décision', blank=True)
+    status = models.CharField('Statut', max_length=20, choices=choices(('draft','Brouillon'),('submitted','À approuver'),('approved','Approuvé'),('rejected','Refusé'),('cancelled','Annulé')), default='draft')
+    def __str__(self): return f'{self.employee} · {self.start_date}'
+
+
+class EmployeeAdvance(TenantModel):
+    reference = models.CharField('Référence', max_length=80)
+    employee = models.ForeignKey(Employee, verbose_name='Salarié', on_delete=models.PROTECT)
+    amount = money('Montant')
+    date = models.DateField('Date demandée')
+    reason = models.TextField('Motif')
+    payment_reference = models.CharField('Justificatif du décaissement', max_length=120, blank=True)
+    payment_date = models.DateField('Date du décaissement', null=True, blank=True)
+    settlement_reference = models.CharField('Justificatif du remboursement', max_length=120, blank=True)
+    settlement_date = models.DateField('Date du remboursement', null=True, blank=True)
+    status = models.CharField('Statut', max_length=20, choices=choices(('draft','Brouillon'),('approved','Approuvée'),('disbursed','Versée'),('settled','Remboursée'),('cancelled','Annulée')), default='draft')
+    class Meta(TenantModel.Meta):
+        constraints = [models.UniqueConstraint(fields=['organization','reference'], name='erp_advance_reference')]
+    def __str__(self): return self.reference
+
+
+class FiscalPeriod(TenantModel):
+    name = models.CharField('Période', max_length=100)
+    start_date = models.DateField('Début')
+    end_date = models.DateField('Fin incluse')
+    closing_note = models.TextField('Note de clôture', blank=True)
+    closed_at = models.DateTimeField('Clôturée le', null=True, blank=True)
+    status = models.CharField('Statut', max_length=20, choices=choices(('draft','Ouverte'),('closed','Clôturée')), default='draft')
+    def __str__(self): return self.name
+
+
+class BankStatementLine(TenantModel):
+    reference = models.CharField('Référence du relevé / opération', max_length=120)
+    account = models.ForeignKey(Account, verbose_name='Compte de trésorerie', on_delete=models.PROTECT)
+    date = models.DateField('Date de valeur')
+    description = models.CharField('Libellé bancaire', max_length=180)
+    amount = models.DecimalField('Montant (+ entrée / − sortie)', max_digits=18, decimal_places=2)
+    journal = models.ForeignKey(JournalEntry, verbose_name='Écriture rapprochée', null=True, blank=True, on_delete=models.PROTECT)
+    reconciliation_note = models.TextField('Note de rapprochement', blank=True)
+    status = models.CharField('Statut', max_length=20, choices=choices(('draft','À rapprocher'),('matched','Rapprochée')), default='draft')
+    class Meta(TenantModel.Meta):
+        constraints = [models.UniqueConstraint(fields=['organization','account','reference'], name='erp_statement_reference'),
+            models.UniqueConstraint(fields=['organization','account','journal'], condition=Q(status='matched'), name='erp_statement_match')]
+    def __str__(self): return self.reference

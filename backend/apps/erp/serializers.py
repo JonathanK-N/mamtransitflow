@@ -7,6 +7,9 @@ from apps.comptes.models import Utilisateur
 from . import models as m, services
 
 RESOURCES = {
+    'leave':m.LeaveRequest,'advances':m.EmployeeAdvance,'periods':m.FiscalPeriod,'statements':m.BankStatementLine,
+    'contracts':m.TransportContract,'pricing':m.PricingRule,'subcontracts':m.Subcontract,'incidents':m.Incident,
+    'supplier-bills':m.SupplierBill,'supplier-payments':m.SupplierPayment,
     'partners':m.Partner,'employees':m.Employee,'vehicles':m.Vehicle,'orders':m.TransportOrder,
     'routes':m.Route,'missions':m.Mission,'bookings':m.Booking,'maintenance':m.Maintenance,
     'expenses':m.Expense,'invoices':m.Invoice,'payments':m.Payment,'accounts':m.Account,
@@ -14,6 +17,10 @@ RESOURCES = {
     'documents':m.Document,'audit':m.AuditEvent,
 }
 PROTECTED = {
+    m.LeaveRequest:['status','decision_note'],m.EmployeeAdvance:['status','payment_reference','payment_date','settlement_reference','settlement_date'],
+    m.FiscalPeriod:['status','closing_note','closed_at'],m.BankStatementLine:['status','journal','reconciliation_note'],
+    m.TransportContract:['status'],m.Subcontract:['status','completion_note'],m.Incident:['status','resolution','resolved_at'],
+    m.SupplierBill:['status','subtotal','tax','total','paid'],
     m.Mission:['status','started_at','completed_at'],m.TransportOrder:['status'],m.Maintenance:['status'],
     m.Booking:['status','amount'],m.Expense:['status'],m.Invoice:['status','number','subtotal','tax','total','paid'],
     m.JournalEntry:['status'],m.Purchase:['status','total'],m.StockItem:['quantity'],
@@ -56,7 +63,7 @@ class ScopedSerializer(serializers.ModelSerializer):
         current=self.instance
         if current and hasattr(current,'status') and model not in (m.Vehicle,) and current.status not in ('draft','planned'):
             raise serializers.ValidationError('Ce document est verrouillé par son état ; utilisez les actions métier.')
-        if model in (m.Payment,m.StockMovement,m.Booking) and current:
+        if model in (m.Payment,m.StockMovement,m.Booking,m.SupplierPayment) and current:
             raise serializers.ValidationError('Enregistrement immuable ; utilisez une action de correction.')
         if model is m.Account and current and data.get('code',current.code)!=current.code:
             raise serializers.ValidationError('Le numéro de compte est permanent. Créez un autre compte.')
@@ -72,6 +79,10 @@ class ScopedSerializer(serializers.ModelSerializer):
         if current:
             for f in model._meta.fields:setattr(candidate,f.attname,getattr(current,f.attname))
         for k,v in data.items():setattr(candidate,k,v)
+        from .business import validate as validate_business
+        data=validate_business(model,candidate,data)
+        from .management import validate as validate_management
+        data=validate_management(model,candidate,data)
         if model is m.Mission:
             if candidate.arrival<=candidate.departure:raise serializers.ValidationError('L’arrivée doit suivre le départ.')
             if candidate.driver.job!='driver':raise serializers.ValidationError('Sélectionnez un chauffeur.')

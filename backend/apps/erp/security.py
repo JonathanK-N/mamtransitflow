@@ -4,9 +4,9 @@ from django.core.exceptions import ValidationError as DjangoValidation
 from rest_framework.exceptions import PermissionDenied,ValidationError
 from .models import Membership
 
-OPERATIONAL={'partners','employees','vehicles','orders','routes','missions','bookings','expenses','documents'}
-FINANCIAL={'partners','invoices','payments','accounts','journal','expenses','documents'}
-WORKSHOP={'vehicles','maintenance','partners','stock','movements','purchases','documents'}
+OPERATIONAL={'partners','employees','vehicles','orders','routes','missions','bookings','expenses','documents','contracts','pricing','subcontracts','incidents'}
+FINANCIAL={'partners','invoices','payments','accounts','journal','expenses','documents','contracts','pricing','supplier-bills','supplier-payments','periods','statements'}
+WORKSHOP={'vehicles','maintenance','partners','stock','movements','purchases','documents','incidents'}
 
 
 def set_scope(organization_id):
@@ -26,6 +26,8 @@ def membership(request):
 
 def allowed(role,resource,write=False):
     if role in ('owner','admin'):return True
+    if resource=='employees' and role=='finance':return not write
+    if resource in {'leave','advances'}:return role=='finance'
     if role=='viewer':return not write
     if role=='operations':return resource in OPERATIONAL
     if role=='finance':return resource in FINANCIAL
