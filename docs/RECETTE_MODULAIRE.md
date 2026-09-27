@@ -72,6 +72,10 @@ Chromium passent**, dont la signature par un chauffeur puis le téléchargement 
 le client. La compilation Vue/TypeScript et le contrôle des migrations passent.
 Le PDF et les captures du portail ont été inspectés visuellement.
 
+La révision `f233dc6a07cd8ae56f873bc7fe61683606d84bd3` a ensuite passé la
+[recette ERP, navigateur et Docker sous Linux](https://github.com/JonathanK-N/mamtransitflow/actions/runs/36337156280)
+et les [tests de compatibilité historique](https://github.com/JonathanK-N/mamtransitflow/actions/runs/36337156249).
+
 Les limites d’inscription ont été conservées : les compteurs de la seule base
 locale ont été réinitialisés avant la recette complète après plusieurs essais.
 Aucune limite du service public n’a été modifiée. Voir le
