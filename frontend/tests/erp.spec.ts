@@ -2,6 +2,7 @@
 import {test,expect} from '@playwright/test'
 
 test('Livraison signée par le chauffeur et justificatif dans le portail client',async({page,request})=>{
+ test.setTimeout(240000)
  const suffix=Date.now(),password='Livraison-Recette-934!'
  const register=async(email:string,invitation='',organization:any=undefined)=>{
   const response=await request.post('/api/v2/auth/register',{data:{name:'Contact recette',email,password,invitation,organization}})
@@ -26,6 +27,29 @@ test('Livraison signée par le chauffeur et justificatif dans le portail client'
  await page.getByLabel('Adresse courriel').fill(driverEmail)
  await page.getByLabel('Mot de passe',{exact:true}).fill(password)
  await page.getByRole('button',{name:'Se connecter',exact:true}).click()
+ await page.locator('.sidebar').getByRole('button',{name:'Terrain & notifications',exact:true}).click()
+ await page.getByRole('button',{name:'Nouvelle déclaration',exact:true}).click()
+ await page.getByRole('combobox',{name:'Mission',exact:true}).selectOption(trip.id)
+ await page.getByLabel('Objet',{exact:true}).fill('Pneu endommagé recette')
+ await page.getByLabel('Description et anomalies',{exact:true}).fill('Dégradation constatée après livraison.')
+ await page.getByRole('button',{name:'Enregistrer la déclaration',exact:true}).click()
+ const fieldCard=page.locator('.field-card').filter({hasText:'Pneu endommagé recette'})
+ await expect(fieldCard.getByRole('heading',{name:'Pneu endommagé recette'})).toBeVisible()
+ await fieldCard.locator('input[type=file]').setInputFiles({name:'constat.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\nconstat recette')})
+ await fieldCard.getByRole('button',{name:'Joindre le fichier',exact:true}).click()
+ await expect(fieldCard.getByRole('button',{name:'constat.pdf'})).toBeVisible()
+ const incidentResult=await request.get('/api/v2/incidents',{headers})
+ const incident=(await incidentResult.json()).results[0]
+ await post(`incidents/${incident.id}/actions/resolve`,{resolution:'Pneu remplacé par atelier.'})
+ await page.getByRole('button',{name:'Actualiser le suivi',exact:true}).click()
+ await expect(fieldCard.getByText('Pneu remplacé par atelier.',{exact:true})).toBeVisible()
+ await page.getByRole('button',{name:/Notifications/}).last().click()
+ await page.getByRole('button',{name:'Marquer comme lu',exact:true}).first().click()
+ await page.setViewportSize({width:390,height:844})
+ await expect(page.locator('.field-workspace')).toBeVisible()
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy()
+ await page.screenshot({path:'test-results/terrain-mobile.png',fullPage:true})
+ await page.setViewportSize({width:1280,height:720})
  await page.locator('.sidebar').getByRole('button',{name:'Missions',exact:true}).click()
  await page.getByRole('button',{name:'Justificatif signé',exact:true}).click()
  const dialog=page.getByRole('dialog')
