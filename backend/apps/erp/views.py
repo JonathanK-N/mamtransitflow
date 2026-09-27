@@ -2,6 +2,7 @@
 import csv
 import hashlib
 import secrets
+from collections.abc import Mapping
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -66,6 +67,8 @@ class ScopedView(APIView):
         return response
     def initial(self,request,*args,**kwargs):
         super().initial(request,*args,**kwargs)
+        if request.method in ('POST','PATCH','DELETE') and not isinstance(request.data,Mapping):
+            raise ValidationError('Le corps de la requête doit être un objet contenant les champs attendus.')
         self.member=security.membership(request);self.org=self.member.organization
         from .applications import active_keys
         self.active_applications=active_keys(self.org)

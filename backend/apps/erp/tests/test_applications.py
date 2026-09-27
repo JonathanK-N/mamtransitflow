@@ -6,6 +6,11 @@ from .test_workflows import env
 pytestmark=pytest.mark.django_db
 
 
+@pytest.mark.parametrize('payload',[[],{'key':[],'enabled':True},{'key':{},'enabled':True}])
+def test_malformed_catalog_requests_are_rejected_without_server_error(env,payload):
+    assert env['client'].post('/api/v2/applications',payload,format='json').status_code==400
+
+
 def custom(env,**extra):
     payload=dict(name='Contrôles de chargement',fields=[{'key':'title','label':'Référence','type':'text','required':True},
         {'key':'weight','label':'Poids','type':'number','required':False}],read_roles=['operations','viewer'],write_roles=['operations'])

@@ -109,7 +109,7 @@ class ApplicationStoreView(ScopedView):
         if self.member.role not in ('owner','admin'):raise PermissionDenied('Administration requise.')
         m.Organization.objects.select_for_update().get(pk=self.org.pk)
         key=request.data.get('key');enabled=request.data.get('enabled')
-        if key not in APPLICATIONS or type(enabled) is not bool:raise ValidationError('Application ou état invalide.')
+        if not isinstance(key,str) or key not in APPLICATIONS or type(enabled) is not bool:raise ValidationError('Application ou état invalide.')
         keys=active_keys(self.org)
         if not enabled:
             dependants=[v['name'] for k,v in APPLICATIONS.items() if k in keys and key in v['depends']]
