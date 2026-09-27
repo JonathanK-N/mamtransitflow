@@ -1,6 +1,65 @@
 // Auteur : Jonathan Kakesa (JonathanK-N).
 import {test,expect} from '@playwright/test'
 
+test('Livraison signée par le chauffeur et justificatif dans le portail client',async({page,request})=>{
+ const suffix=Date.now(),password='Livraison-Recette-934!'
+ const register=async(email:string,invitation='',organization:any=undefined)=>{
+  const response=await request.post('/api/v2/auth/register',{data:{name:'Contact recette',email,password,invitation,organization}})
+  expect(response.status()).toBe(201);return await response.json()
+ }
+ const admin=await register(`direction-livraison-${suffix}@example.test`,'',{name:'Transport livraison',country:'GN',currency:'GNF',timezone:'Africa/Conakry',activities:['freight']})
+ const headers={Authorization:'Bearer '+admin.access,'X-Organization':admin.organizations[0].id}
+ const post=async(path:string,data:any)=>{const response=await request.post('/api/v2/'+path,{headers,data});expect(response.ok(),await response.text()).toBeTruthy();return await response.json()}
+ const driverEmail=`chauffeur-livraison-${suffix}@example.test`
+ const invited=await post('team',{email:driverEmail,role:'driver'})
+ const driver=await register(driverEmail,new URL(invited.link).searchParams.get('invitation')!)
+ const employee=await post('employees',{name:'Chauffeur recette',job:'driver',user:driver.user.id})
+ const vehicle=await post('vehicles',{plate:'SIGN-'+suffix,name:'Camion',capacity:20,capacity_unit:'t'})
+ const customer=await post('partners',{name:'Client livraison'})
+ const order=await post('orders',{reference:'CMD-'+suffix,customer:customer.id,origin:'Conakry',destination:'Kindia',planned_date:'2026-09-27'})
+ await post(`orders/${order.id}/actions/confirm`,{})
+ const departure=new Date(Date.now()+3600000),arrival=new Date(Date.now()+18000000)
+ const trip=await post('missions',{reference:'LIV-'+suffix,order:order.id,vehicle:vehicle.id,driver:employee.id,origin:'Conakry',destination:'Kindia',departure:departure.toISOString(),arrival:arrival.toISOString()})
+ await post(`missions/${trip.id}/actions/start`,{})
+ await post(`missions/${trip.id}/actions/complete`,{loaded_quantity:10,delivered_quantity:10,delivery_note:'Colis livrés.'})
+ await page.goto('/connexion')
+ await page.getByLabel('Adresse courriel').fill(driverEmail)
+ await page.getByLabel('Mot de passe',{exact:true}).fill(password)
+ await page.getByRole('button',{name:'Se connecter',exact:true}).click()
+ await page.locator('.sidebar').getByRole('button',{name:'Missions',exact:true}).click()
+ await page.getByRole('button',{name:'Justificatif signé',exact:true}).click()
+ const dialog=page.getByRole('dialog')
+ await dialog.getByLabel('Nom du destinataire',{exact:true}).fill('Destinataire recette')
+ await dialog.getByLabel('Réserves du destinataire',{exact:true}).fill('Marchandise reçue sans écart.')
+ const box=await dialog.locator('.signature-pad').boundingBox();expect(box).not.toBeNull()
+ await page.mouse.move(box!.x+30,box!.y+box!.height*.65);await page.mouse.down()
+ await page.mouse.move(box!.x+90,box!.y+box!.height*.25,{steps:5})
+ await page.mouse.move(box!.x+160,box!.y+box!.height*.65,{steps:5});await page.mouse.up()
+ await dialog.getByRole('checkbox',{name:'Je confirme la réception',exact:false}).check()
+ await dialog.getByRole('button',{name:'Confirmer la signature',exact:true}).click()
+ await expect(dialog.getByText('Livraison signée',{exact:true})).toBeVisible()
+ const pdf=page.waitForEvent('download')
+ await dialog.getByRole('button',{name:'Télécharger le justificatif PDF',exact:true}).click()
+ expect(await (await pdf).failure()).toBeNull()
+ await page.screenshot({path:'test-results/livraison-signee.png',fullPage:true})
+ await dialog.getByRole('button',{name:'Fermer',exact:true}).click()
+ await page.getByTitle('Se déconnecter').click()
+ const email=`client-livraison-${suffix}@example.test`
+ const portal=await post('portal-access',{email,partner:customer.id})
+ await register(email,new URL(portal.link).searchParams.get('invitation')!)
+ await page.goto('/connexion');await page.getByLabel('Adresse courriel').fill(email)
+ await page.getByLabel('Mot de passe',{exact:true}).fill(password)
+ await page.getByRole('button',{name:'Se connecter',exact:true}).click()
+ await expect(page.locator('.client-portal')).toBeVisible()
+ await expect(page.getByText(order.reference,{exact:true})).toBeVisible()
+ await page.getByRole('button',{name:'Mes livraisons',exact:true}).click()
+ const proof=page.waitForEvent('download')
+ await page.getByRole('button',{name:'Livraison signée',exact:true}).click()
+ expect(await (await proof).failure()).toBeNull()
+ await page.screenshot({path:'test-results/portail-client.png',fullPage:true})
+ await page.reload();await expect(page.locator('.client-portal')).toBeVisible()
+})
+
 test('Accueil réel, inscription, flotte, session et sortie',async({page})=>{
  const errors:string[]=[]
  page.on('pageerror',e=>errors.push(e.message))
