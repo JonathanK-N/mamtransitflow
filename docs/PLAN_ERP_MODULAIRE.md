@@ -38,6 +38,9 @@ Les livraisons sont versionnées sur `transitflow-erp` et vérifiées sur
 - En cours de préparation : paie et fiscalité guinéennes, puis Cameroun et Congo.
 - Intégré : portail client privé, invitations révocables, signature manuscrite de
   livraison, justificatif PDF et pièces de livraison partagées explicitement.
+- Intégré : déclarations chauffeur reliées aux incidents et interventions atelier,
+  justificatifs privés, contrôles avant départ, relevés kilométriques et centre de
+  notifications avec lecture persistante. Voir `PARCOURS_CHAUFFEUR.md`.
 - À réaliser : imports, paie réglementaire, reprise historique et forte charge.
 - Déploiement Railway existant : accès de démonstration administrateur et chauffeur
   vérifiés. Persistance des fichiers, sauvegardes et messagerie à confirmer sur

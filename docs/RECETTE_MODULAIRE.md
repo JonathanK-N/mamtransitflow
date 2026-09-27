@@ -83,6 +83,34 @@ Aucune limite du service public n’a été modifiée. Voir le
 
 ## Périmètre restant après ce complément
 
+## Complément : parcours terrain du chauffeur
+
+Révision applicative `e700dc2b12ef8c3d8e763bc805bc22c91c4c671a` :
+**100 tests API ERP**, **250 tests historiques**, **6 parcours Chromium** et
+construction Docker réussis sur GitHub. Preuves :
+[recette ERP et Docker](https://github.com/JonathanK-N/mamtransitflow/actions/runs/36344500773)
+et [compatibilité historique](https://github.com/JonathanK-N/mamtransitflow/actions/runs/36344500813).
+
+Les onze nouveaux tests couvrent les déclarations chauffeur, leur rattachement
+aux incidents et entretiens, les contrôles non conformes bloquant le départ,
+les compteurs décroissants, les pièces privées, la désactivation d’Entretien et
+les notifications lues qui redeviennent nouvelles après changement de statut.
+Le parcours navigateur étendu vérifie la déclaration avec pièce jointe, la
+résolution côté atelier, son retour au chauffeur et le centre de notifications
+sur un écran de 390 pixels avant la signature de livraison. La capture mobile a
+été inspectée sans débordement.
+
+La validation locale a d’abord détecté un appel incorrect du validateur des
+pièces jointes ; la correction a été vérifiée par les onze tests terrain, puis
+par la suite complète en CI. Le sélecteur de mission du test navigateur a été
+rendu explicite par son rôle de liste déroulante.
+
+Voir [Parcours chauffeur](PARCOURS_CHAUFFEUR.md) pour les limites opérationnelles,
+notamment la portée des notifications dans l’application et les contrôles avant
+départ. Aucun envoi SMS, WhatsApp, courriel ou push en arrière-plan n’est déclaré.
+
+## Périmètre restant après les extensions terrain
+
 La paie légale automatisée, les déclarations par pays, les soldes de congés,
 les remboursements partiels d’avances, les imports bancaires et la reprise
 historique complète restent à intégrer. La recette de forte charge reste à faire.
