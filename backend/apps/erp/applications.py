@@ -12,6 +12,7 @@ from .views import ScopedView,Page
 
 
 APPLICATIONS={
+ 'customer-portal':dict(name='Portail client',category='Collaboration',description='Accès privé aux commandes, livraisons, factures émises et documents partagés.',icon='users',resources=[],depends=['dispatch','finance','documents'],default=True),
  'people':dict(name='Congés & avances',category='Gestion',description='Demandes de congés, indisponibilités et avances enregistrées du personnel.',icon='file',resources=['leave','advances'],depends=['finance'],default=True),
  'treasury':dict(name='Trésorerie & clôtures',category='Gestion',description='Relevés manuels, rapprochement des écritures et verrouillage des périodes.',icon='wallet',resources=['periods','statements'],depends=['finance'],default=True),
  'commercial':dict(name='Contrats & tarification',category='Gestion',description='Contrats récurrents, commandes par échéance et grilles tarifaires.',icon='file',resources=['contracts','pricing'],depends=['dispatch'],default=True),

@@ -20,7 +20,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.exceptions import TokenError,InvalidToken
 from apps.comptes.models import Utilisateur
-from .models import Organization,Membership,AuthLimit,TeamInvitation
+from .models import Organization,Membership,AuthLimit,TeamInvitation,PortalAccess
 from .serializers import OrganizationSerializer
 from .security import set_scope
 from .services import setup_accounts
@@ -41,8 +41,13 @@ def limit(request,scope,maximum=10):
 
 def session_data(user):
     memberships=Membership.objects.filter(user=user,active=True).select_related('organization')
+    organizations=[dict(OrganizationSerializer(x.organization).data,role=x.role) for x in memberships]
+    internal={x['id'] for x in organizations}
+    for access in PortalAccess.objects.filter(user=user,active=True).select_related('organization','partner'):
+        if str(access.organization_id) not in internal:
+            organizations.append(dict(OrganizationSerializer(access.organization).data,role='client',customer=access.partner.name))
     return {'user':{'id':user.pk,'name':user.nom,'email':user.courriel},
-        'organizations':[dict(OrganizationSerializer(x.organization).data,role=x.role) for x in memberships]}
+        'organizations':organizations}
 
 
 def token_response(request,user,status=200):
@@ -87,7 +92,8 @@ class RegisterView(APIView):
                 user=Utilisateur.objects.create_user(courriel=email,mot_de_passe=password,nom=name)
                 if invite:
                     org=invite.organization
-                    Membership.objects.create(organization=org,user=user,role=invite.role)
+                    from .security import grant_invitation
+                    grant_invitation(invite,user)
                     invite.used_at=timezone.now();invite.save(update_fields=['used_at'])
                 else:
                     org=org_serializer.save(slug=(slugify(data.get('name',''))[:60] or 'entreprise')+'-'+secrets.token_hex(4))

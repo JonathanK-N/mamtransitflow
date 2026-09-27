@@ -297,6 +297,7 @@ class Document(TenantModel):
     vehicle = models.ForeignKey(Vehicle, verbose_name='Véhicule', null=True, blank=True, on_delete=models.PROTECT)
     mission = models.ForeignKey(Mission, verbose_name='Mission', null=True, blank=True, on_delete=models.PROTECT)
     expiry = models.DateField('Expiration', null=True, blank=True)
+    shared_with_customer = models.BooleanField('Visible dans le portail client', default=False)
     file = models.FileField('Fichier', upload_to=private_path)
     def __str__(self): return self.title
 
@@ -321,7 +322,8 @@ class AuditEvent(TenantModel):
 
 class TeamInvitation(TenantModel):
     email = models.EmailField()
-    role = models.CharField(max_length=20, choices=ROLES)
+    role = models.CharField(max_length=20, choices=ROLES+[('client','Client externe')])
+    partner = models.ForeignKey(Partner, null=True, blank=True, on_delete=models.PROTECT)
     digest = models.CharField(max_length=64, unique=True)
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
@@ -522,3 +524,23 @@ class BankStatementLine(TenantModel):
         constraints = [models.UniqueConstraint(fields=['organization','account','reference'], name='erp_statement_reference'),
             models.UniqueConstraint(fields=['organization','account','journal'], condition=Q(status='matched'), name='erp_statement_match')]
     def __str__(self): return self.reference
+
+
+class DeliveryReceipt(TenantModel):
+    mission = models.OneToOneField(Mission, on_delete=models.PROTECT, related_name='receipt')
+    recipient_name = models.CharField(max_length=150)
+    reservations = models.TextField(blank=True)
+    signature = models.JSONField()
+    snapshot = models.JSONField()
+    digest = models.CharField(max_length=64)
+    signed_at = models.DateTimeField()
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    def __str__(self): return str(self.id)
+
+
+class PortalAccess(TenantModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    partner = models.ForeignKey(Partner, on_delete=models.PROTECT)
+    active = models.BooleanField(default=True)
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['organization','user'],name='erp_portal_user_unique')]

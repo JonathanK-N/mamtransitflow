@@ -34,3 +34,20 @@ def allowed(role,resource,write=False):
     if role=='workshop':return resource in WORKSHOP
     if role=='driver':return resource in {'missions','documents'} and not write
     return False
+
+
+def grant_invitation(invite,user):
+    from . import models as m
+    if m.Membership.objects.filter(organization=invite.organization,user=user).exists():
+        raise ValidationError('Ce compte dispose déjà d’un accès interne à cette entreprise.')
+    if invite.role=='client':
+        if not invite.partner_id or invite.partner.organization_id!=invite.organization_id or invite.partner.kind not in ('customer','both'):
+            raise ValidationError('Le client lié à cette invitation est invalide.')
+        access=m.PortalAccess.objects.filter(organization=invite.organization,user=user).first()
+        if access and access.active and access.partner_id!=invite.partner_id:
+            raise ValidationError('Révoquez l’ancien accès client avant de changer son rattachement.')
+        m.PortalAccess.objects.update_or_create(organization=invite.organization,user=user,defaults={'partner':invite.partner,'active':True})
+    else:
+        if m.PortalAccess.objects.filter(organization=invite.organization,user=user,active=True).exists():
+            raise ValidationError('Révoquez l’accès client avant de donner un accès interne.')
+        m.Membership.objects.create(organization=invite.organization,user=user,role=invite.role)

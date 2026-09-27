@@ -2,8 +2,16 @@
 from django.urls import path
 from . import views as v, auth as a
 from . import applications as apps
+from .delivery import ReceiptView,DeliveryDocumentsView
+from .portal import PortalAdminView,PortalView
 
 urlpatterns=[
+    path('missions/<uuid:pk>/delivery-documents',DeliveryDocumentsView.as_view()),
+    path('portal-access',PortalAdminView.as_view()),
+    path('portal/<str:resource>/<uuid:pk>',PortalView.as_view()),
+    path('portal/<str:resource>',PortalView.as_view()),
+    path('missions/<uuid:pk>/receipt',ReceiptView.as_view()),
+    path('missions/<uuid:pk>/receipt/pdf',ReceiptView.as_view(),{'pdf':True}),
     path('applications',apps.ApplicationStoreView.as_view()),
     path('applications/custom',apps.CustomApplicationView.as_view()),
     path('applications/custom/<uuid:pk>',apps.CustomApplicationView.as_view()),

@@ -83,6 +83,9 @@ class ScopedSerializer(serializers.ModelSerializer):
         data=validate_business(model,candidate,data)
         from .management import validate as validate_management
         data=validate_management(model,candidate,data)
+        if model is m.Document and candidate.shared_with_customer:
+            if candidate.category!='delivery' or not candidate.mission_id or not candidate.mission.order_id:
+                raise serializers.ValidationError('Seuls les documents de livraison liés à une commande client peuvent être partagés.')
         if model is m.Mission:
             if candidate.arrival<=candidate.departure:raise serializers.ValidationError('L’arrivée doit suivre le départ.')
             if candidate.driver.job!='driver':raise serializers.ValidationError('Sélectionnez un chauffeur.')

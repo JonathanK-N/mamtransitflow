@@ -134,7 +134,7 @@ class CatalogView(ScopedView):
                 'userId':request.user.pk,
                 'action_fields':ACTION_FIELDS.get(resource,{}),
                 'actions':{state:[action for action in actions if (action!='price' or self.enabled('pricing')) and not (resource=='periods' and action=='close' and self.member.role not in ('owner','admin'))] for state,actions in ACTIONS.get(resource,{}).items()}})
-        return Response({'resources':result,'countries':m.COUNTRIES,'activities':m.ACTIVITIES,'roles':m.ROLES})
+        return Response({'customer_portal':'customer-portal' in self.active_applications,'resources':result,'countries':m.COUNTRIES,'activities':m.ACTIVITIES,'roles':m.ROLES})
 
 
 class ResourceView(ScopedView):
@@ -335,9 +335,7 @@ class AcceptInvitationView(APIView):
         if invite.email.lower()!=request.user.courriel.lower():raise PermissionDenied('Connectez-vous avec le courriel invité.')
         if invite.used_at or invite.expires_at<timezone.now():raise ValidationError('Invitation expirée ou déjà utilisée.')
         security.set_scope(invite.organization_id)
-        existing=m.Membership.objects.filter(organization=invite.organization,user=request.user).first()
-        if existing:raise ValidationError('Vous êtes déjà membre de cette entreprise. Contactez son administrateur.')
-        m.Membership.objects.create(organization=invite.organization,user=request.user,role=invite.role)
+        security.grant_invitation(invite,request.user)
         invite.used_at=timezone.now();invite.save(update_fields=['used_at'])
         return Response({'organization':str(invite.organization_id)})
 

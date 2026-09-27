@@ -34,7 +34,7 @@ def test_disable_is_tenant_scoped_and_api_enforced(env):
 def test_dependencies_prevent_breakage_and_reinstall_automatically(env):
     client=env['client']
     assert client.post('/api/v2/applications',{'key':'fleet','enabled':False},format='json').status_code==400
-    for key in ('passengers','commercial','subcontracting','incidents','dispatch','workshop','fleet'):
+    for key in ('customer-portal','passengers','commercial','subcontracting','incidents','dispatch','workshop','fleet'):
         assert client.post('/api/v2/applications',{'key':key,'enabled':False},format='json').status_code==200
     assert client.get('/api/v2/vehicles').status_code==403
     assert client.post('/api/v2/applications',{'key':'passengers','enabled':True},format='json').status_code==200
