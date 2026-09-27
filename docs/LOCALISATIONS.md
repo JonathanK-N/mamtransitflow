@@ -37,3 +37,9 @@ barème. Chaque règle devra porter une date d’effet, une source, une assiette
 plafonds et un mode d’arrondi, avec tests sur des bulletins de référence. Les
 conventions applicables, les exonérations et les obligations déclaratives doivent
 être intégrées avant d’activer une paie réglementaire.
+
+Le 27 septembre, la page de cotisations CNSS a pu être consultée. La DGI annonce
+un précis fiscal 2026 sous forme de document Word ; son téléchargement a retourné
+HTTP 403 depuis l’environnement de vérification. Son contenu ne doit donc pas être
+considéré comme vérifié dans cette livraison. Le document doit être obtenu et
+confronté aux textes applicables avant l’implémentation des retenues fiscales.

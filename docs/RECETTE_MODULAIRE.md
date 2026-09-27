@@ -2,19 +2,33 @@
 
 Auteur : Jonathan Kakesa (JonathanK-N)
 
-Révision applicative : `853952e`. Branche de recette : `transitflow-tests`.
+Révision applicative : `5b64a2e8ab8fde996c2c8881c828a18a24e937b0`.
+Branche de recette : `transitflow-tests`.
 
-## Vérifications locales exécutées
+## Vérifications exécutées (local et intégration continue)
 
 | Vérification | Résultat |
 | --- | --- |
-| API ERP sur PostgreSQL, applications et nouveaux circuits | 70 tests réussis |
+| API ERP sur PostgreSQL, applications et nouveaux circuits | 73 tests réussis en CI ; 70 puis 9 tests ciblés en local |
 | Compatibilité avec les fonctionnalités historiques | 250 tests réussis |
 | Parcours réels Chromium | 5 scénarios réussis |
 | TypeScript et compilation Vue de production | Réussis |
 | Migrations Django et vérification système | Aucun changement manquant, aucune erreur |
 | Contrôle visuel du catalogue des applications | Capture inspectée, disposition lisible |
 | Sauvegarde PostgreSQL locale puis restauration isolée | 66 tables, 624 lignes ; empreintes de contenu identiques |
+| Requêtes concurrentes locales, deux entreprises | 120 requêtes, concurrence 8, aucune réponse inattendue |
+| Construction Docker Linux en CI | Réussie |
+
+Preuves : [Recette ERP et Docker](https://github.com/JonathanK-N/mamtransitflow/actions/runs/36301754458)
+et [Compatibilité historique](https://github.com/JonathanK-N/mamtransitflow/actions/runs/36301754485).
+Les captures et traces de la recette navigateur sont conservées dans les artefacts
+du workflow ERP.
+
+Le contrôle concurrent local a duré 15,13 secondes : médiane 908 ms, percentile 95
+à 1 706 ms, maximum 2 671 ms. Il porte sur des lectures de catalogue, tableau de
+bord et partenaires, et des refus d’accès interentreprises. Le serveur Django de
+développement et ce petit volume ne permettent pas d’en déduire une capacité de
+production ; une recette de charge sur l’hébergement cible reste nécessaire.
 
 La suite ERP a initialement signalé deux connexions de threads encore ouvertes à
 la suppression de la base de test. Le nettoyage ferme désormais explicitement
@@ -33,6 +47,7 @@ ce contrôle local.
   et résolution des dépendances sans suppression des données.
 - Studio : droits de lecture/écriture, validation des types, isolation des fiches,
   conflits de révision et conservation du schéma contenant déjà des données.
+- Refus des corps JSON et identifiants de module mal formés sans erreur serveur.
 - Contrats mensuels : conservation du jour d’ancrage et absence de doublons.
 - Tarifs : contrôle du trajet, de la période de validité et des unités.
 - Sous-traitance, incident résolu, facture fournisseur et règlement ; absence
