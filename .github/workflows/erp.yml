@@ -56,6 +56,16 @@ jobs:
         working-directory: frontend
       - name: Construction de l’image de production
         run: docker build --tag transitflow-recette .
+      - name: Stockage persistant et abandon des privileges
+        run: |
+          docker volume create transitflow-private-recette
+          docker run --rm -v transitflow-private-recette:/data transitflow-recette python -c "import os,pathlib; assert os.geteuid()==10001; assert os.getegid()!=0; assert os.getgroups()==[]; pathlib.Path('/data/privatefiles/persistence.txt').write_text('recette')"
+          docker run --rm -v transitflow-private-recette:/data transitflow-recette python -c "import os,pathlib; assert os.geteuid()==10001; assert pathlib.Path('/data/privatefiles/persistence.txt').read_text()=='recette'; assert pathlib.Path('/data/privatefiles').stat().st_mode & 0o777 == 0o700"
+          docker run --rm --user 10001 -v transitflow-private-recette:/data transitflow-recette python -c "import os; assert os.geteuid()==10001"
+          if docker run --rm -e TF_PRIVATE_STORAGE=/app transitflow-recette true; then
+            echo "Une destination non autorisee ne doit pas etre initialisee."
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

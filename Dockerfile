@@ -16,6 +16,7 @@ COPY backend/ ./backend/
 COPY --from=frontend /build/dist ./frontend/dist/
 RUN python backend/manage.py collectstatic --noinput && useradd --create-home --uid 10001 transitflow && mkdir -p /data/privatefiles && chown -R transitflow:transitflow /app /data
 ENV TF_PRIVATE_STORAGE=/data/privatefiles
-USER transitflow
+USER root
+ENTRYPOINT ["python", "/app/backend/storage_entrypoint.py"]
 EXPOSE 8000
 CMD ["sh", "-c", "python backend/manage.py migrate --noinput && gunicorn --chdir backend transitflow.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-2} --timeout 60 --access-logfile - --error-logfile -"]
