@@ -18,7 +18,7 @@ async function enter(data:any){
  session.value=data
  if(!data.organizations.some((x:any)=>x.id===organization))setOrganization(data.organizations[0]?.id||'')
  const invite=new URLSearchParams(location.search).get('invitation')||sessionStorage.getItem('transitflow.invitation')
- if(invite){try{const r=await api('invitation/accept','POST',{token:invite});setOrganization(r.organization);session.value=await api('auth/me');sessionStorage.removeItem('transitflow.invitation')}catch(e:any){error.value=e.message}}
+ if(invite){try{const r=await api('invitation/accept','POST',{token:invite});setOrganization(r.organization);session.value=await api('auth/me');sessionStorage.removeItem('transitflow.invitation');invitationToken.value=''}catch(e:any){error.value=e.message}}
  const hash=location.pathname.startsWith('/app')?location.hash:''
  screen.value='workspace';history.replaceState({},'','/app'+hash)
 }

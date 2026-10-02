@@ -46,4 +46,8 @@ test('Invitation : premier mot de passe, compte existant et invitation non réut
  expect(updated.members.find((m:any)=>m.email===existingEmail)?.role).toBe('operations')
  expect(await page.evaluate(()=>sessionStorage.getItem('transitflow.organization'))).toBe(org)
  expect(await page.evaluate(()=>sessionStorage.getItem('transitflow.invitation'))).toBeNull()
+ await page.getByTitle('Se déconnecter').click()
+ await expect(page).toHaveURL(/\/connexion$/)
+ await page.reload()
+ await expect(page.getByRole('heading',{name:'Heureux de vous retrouver.'})).toBeVisible()
 })
