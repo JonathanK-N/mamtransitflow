@@ -3,6 +3,8 @@
 Jonathan Kakesa Nayaba, CPI_CEO Cognito Inc. — développeur principal et auteur du Projet TransitFlow ERP.
 
 Service statique autonome du projet Railway TransitFlow, branche `transitflow-schema`.
+Adresse publique : https://transitflow-schema-production.up.railway.app/
+Projet Railway : https://railway.com/project/44495210-7664-4319-a3bd-7818a6810499
 Le schéma décrit les migrations de `transitflow-erp` à la révision `b51ce1638be67af030f961a42f07ba74e6baf348` (migration ERP 0013).
 Il ne contient aucun enregistrement métier ni identifiant de démonstration.
 
