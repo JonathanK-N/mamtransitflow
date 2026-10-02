@@ -52,8 +52,15 @@ jobs:
           done
           cat /tmp/transitflow-server.log
           exit 1
-      - run: pnpm exec playwright test
+      - run: pnpm exec playwright test erp.spec.ts
         working-directory: frontend
+      - name: Isoler les compteurs de la recette invitations
+        run: python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+      - name: Recette invitations dans le navigateur
+        run: pnpm exec playwright test invitation.spec.ts --output=test-results-invitation
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-invitation
       - name: Construction de l’image de production
         run: docker build --tag transitflow-recette .
       - name: Stockage persistant et abandon des privileges
@@ -73,3 +80,5 @@ jobs:
           path: |
             frontend/playwright-report
             frontend/test-results
+            frontend/playwright-report-invitation
+            frontend/test-results-invitation
