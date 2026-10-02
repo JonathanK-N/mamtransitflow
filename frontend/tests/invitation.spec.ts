@@ -1,0 +1,49 @@
+// Auteur : Jonathan Kakesa Nayaba, CPI_CEO Cognito Inc.
+import {test,expect} from '@playwright/test'
+
+test('Invitation : premier mot de passe, compte existant et invitation non réutilisable',async({page,request})=>{
+ const suffix=Date.now(),password='Invitation-Recette-593!'
+ const ownerResponse=await request.post('/api/v2/auth/register',{data:{name:'Direction recette',email:`direction-invite-${suffix}@example.test`,password,organization:{name:`Invitation recette ${suffix}`,country:'GN',currency:'GNF',timezone:'Africa/Conakry',activities:['freight']}}})
+ expect(ownerResponse.status()).toBe(201)
+ const owner=await ownerResponse.json(),org=owner.organizations[0].id
+ const headers={Authorization:'Bearer '+owner.access,'X-Organization':org}
+ const email=`nouveau-invite-${suffix}@example.test`
+ const invitation=await request.post('/api/v2/team',{headers,data:{email,role:'driver'}})
+ expect(invitation.status()).toBe(201)
+ const link=new URL((await invitation.json()).link)
+ // Existing links use /app. Keep the same token on this test server.
+ const path='/app'+link.search
+ await page.goto(path)
+ await expect(page.getByRole('heading',{name:'Rejoignez votre entreprise.'})).toBeVisible()
+ await expect(page.getByLabel('Nom de l’entreprise')).toHaveCount(0)
+ await expect(page.getByLabel('Mot de passe',{exact:true})).toHaveAttribute('autocomplete','new-password')
+ await page.reload()
+ await page.getByLabel('Votre nom complet').fill('Chauffeur invité')
+ await page.getByLabel('Adresse courriel').fill(email)
+ await page.getByLabel('Mot de passe',{exact:true}).fill(password)
+ await page.getByRole('button',{name:'Rejoindre mon entreprise',exact:true}).click()
+ await expect(page.locator('.workspace')).toBeVisible()
+ const members=await (await request.get('/api/v2/team',{headers})).json()
+ expect(members.members.find((m:any)=>m.email===email)?.role).toBe('driver')
+ await page.getByTitle('Se déconnecter').click()
+ // A fresh invitation into the same company must not be accepted twice.
+ const reused=await request.post('/api/v2/auth/register',{data:{name:'Réutilisation',email,password,invitation:link.searchParams.get('invitation')}})
+ expect(reused.status()).toBe(400)
+ const existingEmail=`existant-invite-${suffix}@example.test`
+ const existingResponse=await request.post('/api/v2/auth/register',{data:{name:'Compte existant',email:existingEmail,password,organization:{name:`Autre société ${suffix}`,country:'CM',currency:'XAF',timezone:'Africa/Douala',activities:['freight']}}})
+ expect(existingResponse.status()).toBe(201)
+ const secondInvite=await request.post('/api/v2/team',{headers,data:{email:existingEmail,role:'operations'}})
+ expect(secondInvite.status()).toBe(201)
+ await page.goto('/app'+new URL((await secondInvite.json()).link).search)
+ await page.getByRole('button',{name:'Se connecter',exact:true}).click()
+ await expect(page.getByRole('heading',{name:'Acceptez votre invitation.'})).toBeVisible()
+ await expect(page.getByLabel('Mot de passe',{exact:true})).toHaveAttribute('autocomplete','current-password')
+ await page.getByLabel('Adresse courriel').fill(existingEmail)
+ await page.getByLabel('Mot de passe',{exact:true}).fill(password)
+ await page.getByRole('button',{name:'Se connecter',exact:true}).click()
+ await expect(page.locator('.workspace')).toBeVisible()
+ const updated=await (await request.get('/api/v2/team',{headers})).json()
+ expect(updated.members.find((m:any)=>m.email===existingEmail)?.role).toBe('operations')
+ expect(await page.evaluate(()=>sessionStorage.getItem('transitflow.organization'))).toBe(org)
+ expect(await page.evaluate(()=>sessionStorage.getItem('transitflow.invitation'))).toBeNull()
+})
