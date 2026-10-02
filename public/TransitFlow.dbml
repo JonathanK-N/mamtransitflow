@@ -1,0 +1,1251 @@
+// Auteur : Jonathan Kakesa Nayaba, CPI_CEO Cognito Inc.
+// Migration ERP : 0013_field_tenant_integrity ; revision : b51ce1638be67af030f961a42f07ba74e6baf348
+// on_delete Django documente en note, pas converti implicitement en SQL.
+
+Table auth_group {
+  id integer [pk, not null]
+  name varchar(150) [not null, unique]
+}
+
+Table auth_group_permissions {
+  id bigint [pk, not null]
+  group_id integer [not null]
+  permission_id integer [not null]
+  indexes {
+    (group_id, permission_id) [unique, name: 'unique_together']
+  }
+}
+
+Table auth_permission {
+  id integer [pk, not null]
+  name varchar(255) [not null]
+  content_type_id integer [not null]
+  codename varchar(100) [not null]
+  indexes {
+    (content_type_id, codename) [unique, name: 'unique_together']
+  }
+}
+
+Table comptes_invitation {
+  id bigint [pk, not null]
+  type varchar(20) [not null]
+  courriel varchar(254) [not null]
+  empreinte varchar(64) [not null, unique]
+  expire_le "timestamp with time zone" [not null]
+  utilisee_le "timestamp with time zone" [null]
+  revoquee boolean [not null]
+  courriel_envoye boolean [not null]
+  cree_le "timestamp with time zone" [not null]
+  chauffeur_id bigint [null]
+  cree_par_id bigint [null]
+  utilisateur_id bigint [null]
+}
+
+Table comptes_utilisateur {
+  id bigint [pk, not null]
+  password varchar(128) [not null]
+  last_login "timestamp with time zone" [null]
+  is_superuser boolean [not null]
+  courriel varchar(254) [not null, unique]
+  nom varchar(150) [not null]
+  is_active boolean [not null]
+  is_staff boolean [not null]
+  cree_le "timestamp with time zone" [not null]
+  chauffeur_id bigint [null, unique]
+}
+
+Table comptes_utilisateur_groups {
+  id bigint [pk, not null]
+  utilisateur_id bigint [not null]
+  group_id integer [not null]
+  indexes {
+    (utilisateur_id, group_id) [unique, name: 'unique_together']
+  }
+}
+
+Table comptes_utilisateur_user_permissions {
+  id bigint [pk, not null]
+  utilisateur_id bigint [not null]
+  permission_id integer [not null]
+  indexes {
+    (utilisateur_id, permission_id) [unique, name: 'unique_together']
+  }
+}
+
+Table dispatch_arret {
+  id bigint [pk, not null]
+  lieu varchar(150) [not null]
+  heure varchar(5) [not null]
+  note varchar(255) [not null]
+  trajet_id bigint [not null]
+}
+
+Table dispatch_trajet {
+  id bigint [pk, not null]
+  plaque varchar(20) [not null]
+  depart varchar(150) [not null]
+  depart_adresse varchar(255) [null]
+  arrivee varchar(150) [not null]
+  debut "timestamp with time zone" [not null]
+  fin_prevue "timestamp with time zone" [not null]
+  fin "timestamp with time zone" [null]
+  statut varchar(20) [not null]
+  chauffeur_id bigint [not null]
+}
+
+Table django_admin_log {
+  id integer [pk, not null]
+  action_time "timestamp with time zone" [not null]
+  object_id text [null]
+  object_repr varchar(200) [not null]
+  action_flag smallint [not null]
+  change_message text [not null]
+  content_type_id integer [null]
+  user_id bigint [not null]
+}
+
+Table django_content_type {
+  id integer [pk, not null]
+  app_label varchar(100) [not null]
+  model varchar(100) [not null]
+  indexes {
+    (app_label, model) [unique, name: 'unique_together']
+  }
+}
+
+Table django_migrations {
+  id bigint [pk, not null]
+  app varchar(255) [not null]
+  name varchar(255) [not null]
+  applied "timestamp with time zone" [not null]
+}
+
+Table django_session {
+  session_key varchar(40) [pk, not null]
+  session_data text [not null]
+  expire_date "timestamp with time zone" [not null]
+}
+
+Table drivers_chauffeur {
+  id bigint [pk, not null]
+  prenom varchar(100) [not null]
+  nom varchar(100) [not null]
+  age smallint [not null]
+  telephone varchar(30) [not null]
+  courriel varchar(254) [not null]
+  adresse varchar(255) [not null]
+  permis_numero varchar(50) [not null]
+  permis_expiration date [not null]
+  statut varchar(20) [not null]
+  cree_le "timestamp with time zone" [not null]
+  plaque_habituelle varchar(20) [null]
+}
+
+Table entretien_bontravail {
+  id bigint [pk, not null]
+  categorie varchar(20) [not null]
+  type varchar(20) [not null]
+  titre varchar(150) [not null]
+  description text [not null]
+  priorite varchar(20) [not null]
+  statut varchar(20) [not null]
+  date_prevue date [not null]
+  debut "timestamp with time zone" [null]
+  fin "timestamp with time zone" [null]
+  kilometrage integer [null]
+  fournisseur varchar(150) [not null]
+  cout_pieces "numeric(10, 2)" [not null]
+  cout_main_oeuvre "numeric(10, 2)" [not null]
+  notes_cloture text [not null]
+  cree_le "timestamp with time zone" [not null]
+  modifie_le "timestamp with time zone" [not null]
+  cree_par_id bigint [null]
+  incident_id bigint [null, unique]
+  vehicule_id bigint [not null]
+  plan_id bigint [null]
+  indexes {
+    (statut, date_prevue) [name: 'entretien_b_statut_e71a1c_idx']
+    (vehicule, statut) [name: 'entretien_b_vehicul_aebd8c_idx']
+  }
+}
+
+Table entretien_planentretien {
+  id bigint [pk, not null]
+  type varchar(20) [not null]
+  libelle varchar(150) [not null]
+  intervalle_km integer [null]
+  intervalle_jours integer [null]
+  dernier_km integer [not null]
+  derniere_date date [not null]
+  actif boolean [not null]
+  cree_le "timestamp with time zone" [not null]
+  vehicule_id bigint [not null]
+}
+
+Table erp_account {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  code varchar(20) [not null]
+  name varchar(150) [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, code) [unique, name: 'erp_account_code']
+    (organization_id,id) [unique, name: 'erp_account_tenant_identity']
+  }
+}
+
+Table erp_auditevent {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  action varchar(40) [not null]
+  resource varchar(80) [not null]
+  object_id varchar(80) [not null]
+  detail jsonb [not null]
+  actor_id bigint [null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_auditevent_tenant_identity']
+  }
+}
+
+Table erp_authlimit {
+  id bigint [pk, not null]
+  key varchar(64) [not null, unique]
+  count integer [not null]
+  expires_at "timestamp with time zone" [not null]
+}
+
+Table erp_bankstatementline {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(120) [not null]
+  date date [not null]
+  description varchar(180) [not null]
+  amount "numeric(18, 2)" [not null]
+  reconciliation_note text [not null]
+  status varchar(20) [not null]
+  account_id uuid [not null]
+  journal_id uuid [null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, account_id, reference) [unique, name: 'erp_statement_reference']
+    (organization_id, account_id, journal_id) [unique, name: 'erp_statement_match']
+    (organization_id,id) [unique, name: 'erp_bankstatementline_tenant_identity']
+  }
+}
+
+Table erp_booking {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  passenger varchar(150) [not null]
+  phone varchar(40) [not null]
+  seats smallint [not null]
+  amount "numeric(18, 2)" [not null]
+  status varchar(20) [not null]
+  mission_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_booking_tenant_identity']
+  }
+}
+
+Table erp_customapplication {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  name varchar(80) [not null]
+  slug varchar(80) [not null]
+  description varchar(500) [not null]
+  icon varchar(20) [not null]
+  color varchar(20) [not null]
+  fields jsonb [not null]
+  read_roles jsonb [not null]
+  write_roles jsonb [not null]
+  enabled boolean [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, slug) [unique, name: 'erp_custom_app_slug']
+    (organization_id,id) [unique, name: 'erp_customapplication_tenant_identity']
+  }
+}
+
+Table erp_customrecord {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  title varchar(200) [not null]
+  data jsonb [not null]
+  revision integer [not null]
+  application_id uuid [not null]
+  created_by_id bigint [null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_customrecord_tenant_identity']
+  }
+}
+
+Table erp_deliveryreceipt {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  recipient_name varchar(150) [not null]
+  reservations text [not null]
+  signature jsonb [not null]
+  snapshot jsonb [not null]
+  digest varchar(64) [not null]
+  signed_at "timestamp with time zone" [not null]
+  mission_id uuid [not null, unique]
+  organization_id uuid [not null]
+  recorded_by_id bigint [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_deliveryreceipt_tenant_identity']
+  }
+}
+
+Table erp_document {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  title varchar(180) [not null]
+  category varchar(20) [not null]
+  expiry date [null]
+  file varchar(100) [not null]
+  mission_id uuid [null]
+  organization_id uuid [not null]
+  vehicle_id uuid [null]
+  shared_with_customer boolean [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_document_tenant_identity']
+  }
+}
+
+Table erp_employee {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  name varchar(150) [not null]
+  job varchar(20) [not null]
+  phone varchar(40) [not null]
+  email varchar(254) [not null]
+  license_number varchar(80) [not null]
+  license_expiry date [null]
+  active boolean [not null]
+  notes text [not null]
+  user_id bigint [null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_employee_tenant_identity']
+  }
+}
+
+Table erp_employeeadvance {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  amount "numeric(18, 2)" [not null]
+  date date [not null]
+  reason text [not null]
+  payment_reference varchar(120) [not null]
+  payment_date date [null]
+  settlement_reference varchar(120) [not null]
+  settlement_date date [null]
+  status varchar(20) [not null]
+  employee_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_advance_reference']
+    (organization_id,id) [unique, name: 'erp_employeeadvance_tenant_identity']
+  }
+}
+
+Table erp_expense {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  title varchar(180) [not null]
+  category varchar(20) [not null]
+  amount "numeric(18, 2)" [not null]
+  date date [not null]
+  status varchar(20) [not null]
+  notes text [not null]
+  mission_id uuid [null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_expense_tenant_identity']
+  }
+}
+
+Table erp_fieldattachment {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  file varchar(100) [not null]
+  title varchar(180) [not null]
+  organization_id uuid [not null]
+  report_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_fieldattachment_tenant_identity']
+  }
+}
+
+Table erp_fieldreport {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  kind varchar(20) [not null]
+  title varchar(180) [not null]
+  description text [not null]
+  mileage integer [null]
+  checks jsonb [not null]
+  actor_id bigint [not null]
+  incident_id uuid [null]
+  maintenance_id uuid [null]
+  mission_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_fieldreport_tenant_identity']
+  }
+}
+
+Table erp_fiscalperiod {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  name varchar(100) [not null]
+  start_date date [not null]
+  end_date date [not null]
+  closing_note text [not null]
+  closed_at "timestamp with time zone" [null]
+  status varchar(20) [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_fiscalperiod_tenant_identity']
+  }
+}
+
+Table erp_incident {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  title varchar(180) [not null]
+  occurred_at "timestamp with time zone" [not null]
+  severity varchar(15) [not null]
+  category varchar(20) [not null]
+  description text [not null]
+  claim_reference varchar(100) [not null]
+  estimated_cost "numeric(18, 2)" [not null]
+  resolution text [not null]
+  resolved_at "timestamp with time zone" [null]
+  status varchar(15) [not null]
+  mission_id uuid [null]
+  organization_id uuid [not null]
+  vehicle_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_incident_reference']
+    (organization_id,id) [unique, name: 'erp_incident_tenant_identity']
+  }
+}
+
+Table erp_installedapplication {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  key varchar(60) [not null]
+  enabled boolean [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, key) [unique, name: 'erp_installed_app_unique']
+    (organization_id,id) [unique, name: 'erp_installedapplication_tenant_identity']
+  }
+}
+
+Table erp_invoice {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  number varchar(80) [not null]
+  kind varchar(15) [not null]
+  date date [not null]
+  due_date date [not null]
+  lines jsonb [not null]
+  subtotal "numeric(18, 2)" [not null]
+  tax "numeric(18, 2)" [not null]
+  total "numeric(18, 2)" [not null]
+  paid "numeric(18, 2)" [not null]
+  status varchar(20) [not null]
+  notes text [not null]
+  original_id uuid [null]
+  organization_id uuid [not null]
+  customer_id uuid [not null]
+  order_id uuid [null]
+  indexes {
+    (organization_id, number) [unique, name: 'erp_invoice_number']
+    (organization_id,id) [unique, name: 'erp_invoice_tenant_identity']
+  }
+}
+
+Table erp_journalentry {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(100) [not null]
+  date date [not null]
+  description varchar(180) [not null]
+  lines jsonb [not null]
+  status varchar(12) [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_journal_reference']
+    (organization_id,id) [unique, name: 'erp_journalentry_tenant_identity']
+  }
+}
+
+Table erp_leaverequest {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  start_date date [not null]
+  end_date date [not null]
+  kind varchar(20) [not null]
+  reason text [not null]
+  decision_note text [not null]
+  status varchar(20) [not null]
+  employee_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_leaverequest_tenant_identity']
+  }
+}
+
+Table erp_maintenance {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  title varchar(180) [not null]
+  due_date date [null]
+  due_mileage integer [null]
+  cost "numeric(18, 2)" [not null]
+  status varchar(20) [not null]
+  notes text [not null]
+  organization_id uuid [not null]
+  supplier_id uuid [null]
+  vehicle_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_maintenance_tenant_identity']
+  }
+}
+
+Table erp_membership {
+  id bigint [pk, not null]
+  role varchar(20) [not null]
+  active boolean [not null]
+  created_at "timestamp with time zone" [not null]
+  user_id bigint [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, user_id) [unique, name: 'erp_membership_unique']
+  }
+}
+
+Table erp_mission {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  origin varchar(180) [not null]
+  destination varchar(180) [not null]
+  departure "timestamp with time zone" [not null]
+  arrival "timestamp with time zone" [not null]
+  started_at "timestamp with time zone" [null]
+  completed_at "timestamp with time zone" [null]
+  status varchar(20) [not null]
+  loaded_quantity "numeric(15, 3)" [not null]
+  delivered_quantity "numeric(15, 3)" [not null]
+  delivery_note text [not null]
+  notes text [not null]
+  driver_id uuid [not null]
+  organization_id uuid [not null]
+  route_id uuid [null]
+  order_id uuid [null]
+  vehicle_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_mission_reference']
+    (vehicle_id) [unique, name: 'erp_one_active_vehicle']
+    (driver_id) [unique, name: 'erp_one_active_driver']
+    (organization_id,id) [unique, name: 'erp_mission_tenant_identity']
+  }
+}
+
+Table erp_notificationread {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  key varchar(64) [not null]
+  organization_id uuid [not null]
+  user_id bigint [not null]
+  indexes {
+    (organization_id, user_id, key) [unique, name: 'erp_notification_read_unique']
+    (organization_id,id) [unique, name: 'erp_notificationread_tenant_identity']
+  }
+}
+
+Table erp_organization {
+  id uuid [pk, not null]
+  name varchar(150) [not null]
+  slug varchar(80) [not null, unique]
+  country varchar(2) [not null]
+  currency varchar(3) [not null]
+  timezone varchar(60) [not null]
+  activities jsonb [not null]
+  address text [not null]
+  phone varchar(40) [not null]
+  email varchar(254) [not null]
+  registration varchar(100) [not null]
+  tax_number varchar(100) [not null]
+  created_at "timestamp with time zone" [not null]
+}
+
+Table erp_partner {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  name varchar(150) [not null]
+  kind varchar(15) [not null]
+  email varchar(254) [not null]
+  phone varchar(40) [not null]
+  address text [not null]
+  tax_number varchar(100) [not null]
+  payment_days smallint [not null]
+  notes text [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_partner_tenant_identity']
+  }
+}
+
+Table erp_payment {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  amount "numeric(18, 2)" [not null]
+  date date [not null]
+  method varchar(20) [not null]
+  reference varchar(120) [not null]
+  invoice_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_payment_reference']
+    (organization_id,id) [unique, name: 'erp_payment_tenant_identity']
+  }
+}
+
+Table erp_portalaccess {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  active boolean [not null]
+  organization_id uuid [not null]
+  partner_id uuid [not null]
+  user_id bigint [not null]
+  indexes {
+    (organization_id, user_id) [unique, name: 'erp_portal_user_unique']
+    (organization_id,id) [unique, name: 'erp_portalaccess_tenant_identity']
+  }
+}
+
+Table erp_position {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  timestamp "timestamp with time zone" [not null]
+  latitude "numeric(9, 6)" [not null]
+  longitude "numeric(9, 6)" [not null]
+  mission_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (mission_id, timestamp) [unique, name: 'erp_position_once']
+    (organization_id,id) [unique, name: 'erp_position_tenant_identity']
+    (organization, mission, timestamp) [name: 'erp_positio_organiz_fc9f88_idx']
+  }
+}
+
+Table erp_pricingrule {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  name varchar(120) [not null]
+  activity varchar(20) [not null]
+  origin varchar(180) [not null]
+  destination varchar(180) [not null]
+  unit varchar(15) [not null]
+  unit_price "numeric(18, 2)" [not null]
+  minimum "numeric(18, 2)" [not null]
+  valid_from date [not null]
+  valid_until date [not null]
+  active boolean [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_pricingrule_tenant_identity']
+  }
+}
+
+Table erp_purchase {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  date date [not null]
+  lines jsonb [not null]
+  total "numeric(18, 2)" [not null]
+  status varchar(20) [not null]
+  organization_id uuid [not null]
+  supplier_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_purchase_reference']
+    (organization_id,id) [unique, name: 'erp_purchase_tenant_identity']
+  }
+}
+
+Table erp_route {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  name varchar(150) [not null]
+  origin varchar(180) [not null]
+  destination varchar(180) [not null]
+  activity varchar(20) [not null]
+  fare "numeric(18, 2)" [not null]
+  stops text [not null]
+  active boolean [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_route_tenant_identity']
+  }
+}
+
+Table erp_sequence {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  key varchar(30) [not null]
+  value integer [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, key) [unique, name: 'erp_sequence_key']
+    (organization_id,id) [unique, name: 'erp_sequence_tenant_identity']
+  }
+}
+
+Table erp_stockitem {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  code varchar(80) [not null]
+  name varchar(150) [not null]
+  unit varchar(20) [not null]
+  quantity "numeric(15, 3)" [not null]
+  minimum "numeric(15, 3)" [not null]
+  unit_cost "numeric(18, 2)" [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, code) [unique, name: 'erp_stock_code']
+    (organization_id,id) [unique, name: 'erp_stockitem_tenant_identity']
+  }
+}
+
+Table erp_stockmovement {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  quantity "numeric(15, 3)" [not null]
+  reason varchar(180) [not null]
+  reference varchar(100) [not null]
+  item_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_stock_movement_reference']
+    (organization_id,id) [unique, name: 'erp_stockmovement_tenant_identity']
+  }
+}
+
+Table erp_subcontract {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  agreed_amount "numeric(18, 2)" [not null]
+  due_date date [not null]
+  conditions text [not null]
+  external_vehicle varchar(100) [not null]
+  external_driver varchar(150) [not null]
+  completion_note text [not null]
+  status varchar(15) [not null]
+  mission_id uuid [not null]
+  organization_id uuid [not null]
+  supplier_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_subcontract_reference']
+    (organization_id,id) [unique, name: 'erp_subcontract_tenant_identity']
+  }
+}
+
+Table erp_supplierbill {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(100) [not null]
+  date date [not null]
+  due_date date [not null]
+  lines jsonb [not null]
+  subtotal "numeric(18, 2)" [not null]
+  tax "numeric(18, 2)" [not null]
+  total "numeric(18, 2)" [not null]
+  paid "numeric(18, 2)" [not null]
+  status varchar(15) [not null]
+  notes text [not null]
+  organization_id uuid [not null]
+  purchase_id uuid [null]
+  subcontract_id uuid [null]
+  supplier_id uuid [not null]
+  indexes {
+    (organization_id, supplier_id, reference) [unique, name: 'erp_supplier_bill_reference']
+    (purchase_id) [unique, name: 'erp_one_bill_per_purchase']
+    (subcontract_id) [unique, name: 'erp_one_bill_per_subcontract']
+    (organization_id,id) [unique, name: 'erp_supplierbill_tenant_identity']
+  }
+}
+
+Table erp_supplierpayment {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(100) [not null]
+  amount "numeric(18, 2)" [not null]
+  date date [not null]
+  method varchar(20) [not null]
+  bill_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_supplier_payment_reference']
+    (organization_id,id) [unique, name: 'erp_supplierpayment_tenant_identity']
+  }
+}
+
+Table erp_teaminvitation {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  email varchar(254) [not null]
+  role varchar(20) [not null]
+  digest varchar(64) [not null, unique]
+  expires_at "timestamp with time zone" [not null]
+  used_at "timestamp with time zone" [null]
+  organization_id uuid [not null]
+  partner_id uuid [null]
+  indexes {
+    (organization_id,id) [unique, name: 'erp_teaminvitation_tenant_identity']
+  }
+}
+
+Table erp_transportcontract {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  activity varchar(20) [not null]
+  origin varchar(180) [not null]
+  destination varchar(180) [not null]
+  description text [not null]
+  quantity "numeric(15, 3)" [not null]
+  unit varchar(15) [not null]
+  amount "numeric(18, 2)" [not null]
+  start_date date [not null]
+  end_date date [not null]
+  recurrence varchar(12) [not null]
+  next_date date [null]
+  status varchar(15) [not null]
+  customer_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_contract_reference']
+    (organization_id,id) [unique, name: 'erp_transportcontract_tenant_identity']
+  }
+}
+
+Table erp_transportorder {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  reference varchar(80) [not null]
+  activity varchar(20) [not null]
+  origin varchar(180) [not null]
+  destination varchar(180) [not null]
+  product varchar(180) [not null]
+  quantity "numeric(15, 3)" [not null]
+  unit varchar(15) [not null]
+  amount "numeric(18, 2)" [not null]
+  planned_date date [not null]
+  status varchar(20) [not null]
+  notes text [not null]
+  customer_id uuid [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, reference) [unique, name: 'erp_order_reference']
+    (organization_id,id) [unique, name: 'erp_transportorder_tenant_identity']
+  }
+}
+
+Table erp_vehicle {
+  id uuid [pk, not null]
+  created_at "timestamp with time zone" [not null]
+  updated_at "timestamp with time zone" [not null]
+  plate varchar(40) [not null]
+  name varchar(120) [not null]
+  kind varchar(20) [not null]
+  status varchar(20) [not null]
+  capacity "numeric(12, 3)" [not null]
+  capacity_unit varchar(10) [not null]
+  seats smallint [not null]
+  mileage integer [not null]
+  insurance_expiry date [null]
+  inspection_expiry date [null]
+  compartments jsonb [not null]
+  organization_id uuid [not null]
+  indexes {
+    (organization_id, plate) [unique, name: 'erp_vehicle_plate_tenant']
+    (organization_id,id) [unique, name: 'erp_vehicle_tenant_identity']
+  }
+}
+
+Table fleet_relevekilometrage {
+  id bigint [pk, not null]
+  kilometrage integer [not null]
+  source varchar(20) [not null]
+  note varchar(255) [not null]
+  releve_le "timestamp with time zone" [not null]
+  auteur_id bigint [null]
+  vehicule_id bigint [not null]
+  indexes {
+    (vehicule, releve_le) [name: 'fleet_relev_vehicul_cf8899_idx']
+  }
+}
+
+Table fleet_vehicule {
+  id bigint [pk, not null]
+  plaque varchar(20) [not null, unique]
+  modele varchar(100) [not null]
+  annee smallint [null]
+  kilometrage integer [not null]
+  mise_en_service date [null]
+  numero_serie varchar(17) [not null]
+  statut varchar(20) [not null]
+}
+
+Table maintenance_incident {
+  id bigint [pk, not null]
+  type varchar(20) [not null]
+  titre varchar(150) [not null]
+  description text [not null]
+  lieu varchar(150) [not null]
+  date date [not null]
+  heure varchar(5) [not null]
+  statut varchar(20) [not null]
+  chauffeur_id bigint [not null]
+  trajet_id bigint [null]
+}
+
+Table paie_bulletinpaie {
+  id bigint [pk, not null]
+  mode varchar(10) [not null]
+  nombre_trajets integer [not null]
+  heures_regulieres "numeric(7, 2)" [not null]
+  heures_sup "numeric(7, 2)" [not null]
+  brut "numeric(10, 2)" [not null]
+  brut_imposable "numeric(10, 2)" [not null]
+  retenues "numeric(10, 2)" [not null]
+  net "numeric(10, 2)" [not null]
+  cotisations_employeur "numeric(10, 2)" [not null]
+  chauffeur_id bigint [not null]
+  periode_id bigint [not null]
+  indexes {
+    (periode_id, chauffeur_id) [unique, name: 'un_bulletin_par_periode']
+  }
+}
+
+Table paie_lignebulletin {
+  id bigint [pk, not null]
+  genre varchar(10) [not null]
+  code varchar(20) [not null]
+  libelle varchar(150) [not null]
+  quantite "numeric(9, 2)" [null]
+  taux "numeric(10, 3)" [null]
+  montant "numeric(10, 2)" [not null]
+  imposable boolean [not null]
+  manuelle boolean [not null]
+  ordre smallint [not null]
+  bulletin_id bigint [not null]
+}
+
+Table paie_parametrespaie {
+  id bigint [pk, not null]
+  frequence varchar(20) [not null]
+  seuil_heures_sup "numeric(5, 2)" [not null]
+  majoration_heures_sup "numeric(4, 2)" [not null]
+  taux_vacances "numeric(5, 2)" [not null]
+}
+
+Table paie_periodepaie {
+  id bigint [pk, not null]
+  debut date [not null]
+  fin date [not null]
+  date_paiement date [not null]
+  statut varchar(10) [not null]
+  calculee_le "timestamp with time zone" [null]
+  cree_le "timestamp with time zone" [not null]
+}
+
+Table paie_profilpaie {
+  id bigint [pk, not null]
+  mode varchar(10) [not null]
+  taux_horaire "numeric(8, 2)" [not null]
+  taux_trajet "numeric(8, 2)" [not null]
+  salaire_periode "numeric(10, 2)" [not null]
+  actif boolean [not null]
+  chauffeur_id bigint [not null, unique]
+}
+
+Table paie_retenue {
+  id bigint [pk, not null]
+  code varchar(20) [not null, unique]
+  libelle varchar(120) [not null]
+  taux_salarie "numeric(6, 3)" [not null]
+  taux_employeur "numeric(6, 3)" [not null]
+  plancher_annuel "numeric(10, 2)" [not null]
+  plafond_annuel "numeric(10, 2)" [null]
+  exemption_annuelle "numeric(10, 2)" [not null]
+  note varchar(255) [not null]
+  actif boolean [not null]
+  ordre smallint [not null]
+}
+
+Table societe_entreprise {
+  id bigint [pk, not null]
+  nom varchar(150) [not null]
+  courriel varchar(254) [not null]
+  telephone varchar(30) [not null]
+  adresse varchar(255) [not null]
+  ville varchar(100) [not null]
+  province varchar(50) [not null]
+  code_postal varchar(10) [not null]
+  neq varchar(20) [not null]
+  module_entretien boolean [not null]
+  module_suivi boolean [not null]
+  module_paie boolean [not null]
+  portail_trajets boolean [not null]
+  portail_incidents boolean [not null]
+  portail_vehicule boolean [not null]
+  portail_paie boolean [not null]
+  portail_profil boolean [not null]
+  modifie_le "timestamp with time zone" [not null]
+}
+
+Table suivi_positiongps {
+  id bigint [pk, not null]
+  plaque varchar(20) [not null]
+  latitude "numeric(9, 6)" [not null]
+  longitude "numeric(9, 6)" [not null]
+  precision_m "double precision" [null]
+  vitesse_kmh "double precision" [null]
+  cap "double precision" [null]
+  horodatage "timestamp with time zone" [not null]
+  recu_le "timestamp with time zone" [not null]
+  chauffeur_id bigint [not null]
+  trajet_id bigint [not null]
+  indexes {
+    (trajet_id, horodatage) [unique, name: 'position_unique_par_instant']
+    (trajet, horodatage) [name: 'suivi_posit_trajet__1989b5_idx']
+    (horodatage) [name: 'suivi_posit_horodat_884e67_idx']
+  }
+}
+
+Table token_blacklist_blacklistedtoken {
+  id bigint [pk, not null]
+  blacklisted_at "timestamp with time zone" [not null]
+  token_id bigint [not null, unique]
+}
+
+Table token_blacklist_outstandingtoken {
+  id bigint [pk, not null]
+  token text [not null]
+  created_at "timestamp with time zone" [null]
+  expires_at "timestamp with time zone" [not null]
+  user_id bigint [null]
+  jti varchar(255) [not null, unique]
+}
+
+Ref: auth_group_permissions.group_id > auth_group.id
+Ref: auth_group_permissions.permission_id > auth_permission.id
+Ref: auth_permission.content_type_id > django_content_type.id
+Ref: comptes_invitation.chauffeur_id > drivers_chauffeur.id
+Ref: comptes_invitation.cree_par_id > comptes_utilisateur.id
+Ref: comptes_invitation.utilisateur_id > comptes_utilisateur.id
+Ref: comptes_utilisateur.chauffeur_id - drivers_chauffeur.id
+Ref: comptes_utilisateur_groups.utilisateur_id > comptes_utilisateur.id
+Ref: comptes_utilisateur_groups.group_id > auth_group.id
+Ref: comptes_utilisateur_user_permissions.utilisateur_id > comptes_utilisateur.id
+Ref: comptes_utilisateur_user_permissions.permission_id > auth_permission.id
+Ref: dispatch_arret.trajet_id > dispatch_trajet.id
+Ref: dispatch_trajet.chauffeur_id > drivers_chauffeur.id
+Ref: django_admin_log.content_type_id > django_content_type.id
+Ref: django_admin_log.user_id > comptes_utilisateur.id
+Ref: drivers_chauffeur.plaque_habituelle > fleet_vehicule.plaque
+Ref: entretien_bontravail.cree_par_id > comptes_utilisateur.id
+Ref: entretien_bontravail.incident_id - maintenance_incident.id
+Ref: entretien_bontravail.vehicule_id > fleet_vehicule.id
+Ref: entretien_bontravail.plan_id > entretien_planentretien.id
+Ref: entretien_planentretien.vehicule_id > fleet_vehicule.id
+Ref: erp_account.organization_id > erp_organization.id
+Ref: erp_auditevent.actor_id > comptes_utilisateur.id
+Ref: erp_auditevent.organization_id > erp_organization.id
+Ref: erp_bankstatementline.account_id > erp_account.id
+Ref: erp_bankstatementline.journal_id > erp_journalentry.id
+Ref: erp_bankstatementline.organization_id > erp_organization.id
+Ref: erp_booking.mission_id > erp_mission.id
+Ref: erp_booking.organization_id > erp_organization.id
+Ref: erp_customapplication.organization_id > erp_organization.id
+Ref: erp_customrecord.application_id > erp_customapplication.id
+Ref: erp_customrecord.created_by_id > comptes_utilisateur.id
+Ref: erp_customrecord.organization_id > erp_organization.id
+Ref: erp_deliveryreceipt.mission_id - erp_mission.id
+Ref: erp_deliveryreceipt.organization_id > erp_organization.id
+Ref: erp_deliveryreceipt.recorded_by_id > comptes_utilisateur.id
+Ref: erp_document.mission_id > erp_mission.id
+Ref: erp_document.organization_id > erp_organization.id
+Ref: erp_document.vehicle_id > erp_vehicle.id
+Ref: erp_employee.user_id > comptes_utilisateur.id
+Ref: erp_employee.organization_id > erp_organization.id
+Ref: erp_employeeadvance.employee_id > erp_employee.id
+Ref: erp_employeeadvance.organization_id > erp_organization.id
+Ref: erp_expense.mission_id > erp_mission.id
+Ref: erp_expense.organization_id > erp_organization.id
+Ref: erp_fieldattachment.organization_id > erp_organization.id
+Ref: erp_fieldattachment.report_id > erp_fieldreport.id
+Ref: erp_fieldreport.actor_id > comptes_utilisateur.id
+Ref: erp_fieldreport.incident_id > erp_incident.id
+Ref: erp_fieldreport.maintenance_id > erp_maintenance.id
+Ref: erp_fieldreport.mission_id > erp_mission.id
+Ref: erp_fieldreport.organization_id > erp_organization.id
+Ref: erp_fiscalperiod.organization_id > erp_organization.id
+Ref: erp_incident.mission_id > erp_mission.id
+Ref: erp_incident.organization_id > erp_organization.id
+Ref: erp_incident.vehicle_id > erp_vehicle.id
+Ref: erp_installedapplication.organization_id > erp_organization.id
+Ref: erp_invoice.original_id > erp_invoice.id
+Ref: erp_invoice.organization_id > erp_organization.id
+Ref: erp_invoice.customer_id > erp_partner.id
+Ref: erp_invoice.order_id > erp_transportorder.id
+Ref: erp_journalentry.organization_id > erp_organization.id
+Ref: erp_leaverequest.employee_id > erp_employee.id
+Ref: erp_leaverequest.organization_id > erp_organization.id
+Ref: erp_maintenance.organization_id > erp_organization.id
+Ref: erp_maintenance.supplier_id > erp_partner.id
+Ref: erp_maintenance.vehicle_id > erp_vehicle.id
+Ref: erp_membership.user_id > comptes_utilisateur.id
+Ref: erp_membership.organization_id > erp_organization.id
+Ref: erp_mission.driver_id > erp_employee.id
+Ref: erp_mission.organization_id > erp_organization.id
+Ref: erp_mission.route_id > erp_route.id
+Ref: erp_mission.order_id > erp_transportorder.id
+Ref: erp_mission.vehicle_id > erp_vehicle.id
+Ref: erp_notificationread.organization_id > erp_organization.id
+Ref: erp_notificationread.user_id > comptes_utilisateur.id
+Ref: erp_partner.organization_id > erp_organization.id
+Ref: erp_payment.invoice_id > erp_invoice.id
+Ref: erp_payment.organization_id > erp_organization.id
+Ref: erp_portalaccess.organization_id > erp_organization.id
+Ref: erp_portalaccess.partner_id > erp_partner.id
+Ref: erp_portalaccess.user_id > comptes_utilisateur.id
+Ref: erp_position.mission_id > erp_mission.id
+Ref: erp_position.organization_id > erp_organization.id
+Ref: erp_pricingrule.organization_id > erp_organization.id
+Ref: erp_purchase.organization_id > erp_organization.id
+Ref: erp_purchase.supplier_id > erp_partner.id
+Ref: erp_route.organization_id > erp_organization.id
+Ref: erp_sequence.organization_id > erp_organization.id
+Ref: erp_stockitem.organization_id > erp_organization.id
+Ref: erp_stockmovement.item_id > erp_stockitem.id
+Ref: erp_stockmovement.organization_id > erp_organization.id
+Ref: erp_subcontract.mission_id > erp_mission.id
+Ref: erp_subcontract.organization_id > erp_organization.id
+Ref: erp_subcontract.supplier_id > erp_partner.id
+Ref: erp_supplierbill.organization_id > erp_organization.id
+Ref: erp_supplierbill.purchase_id > erp_purchase.id
+Ref: erp_supplierbill.subcontract_id > erp_subcontract.id
+Ref: erp_supplierbill.supplier_id > erp_partner.id
+Ref: erp_supplierpayment.bill_id > erp_supplierbill.id
+Ref: erp_supplierpayment.organization_id > erp_organization.id
+Ref: erp_teaminvitation.organization_id > erp_organization.id
+Ref: erp_teaminvitation.partner_id > erp_partner.id
+Ref: erp_transportcontract.customer_id > erp_partner.id
+Ref: erp_transportcontract.organization_id > erp_organization.id
+Ref: erp_transportorder.customer_id > erp_partner.id
+Ref: erp_transportorder.organization_id > erp_organization.id
+Ref: erp_vehicle.organization_id > erp_organization.id
+Ref: fleet_relevekilometrage.auteur_id > comptes_utilisateur.id
+Ref: fleet_relevekilometrage.vehicule_id > fleet_vehicule.id
+Ref: maintenance_incident.chauffeur_id > drivers_chauffeur.id
+Ref: maintenance_incident.trajet_id > dispatch_trajet.id
+Ref: paie_bulletinpaie.chauffeur_id > drivers_chauffeur.id
+Ref: paie_bulletinpaie.periode_id > paie_periodepaie.id
+Ref: paie_lignebulletin.bulletin_id > paie_bulletinpaie.id
+Ref: paie_profilpaie.chauffeur_id - drivers_chauffeur.id
+Ref: suivi_positiongps.chauffeur_id > drivers_chauffeur.id
+Ref: suivi_positiongps.trajet_id > dispatch_trajet.id
+Ref: token_blacklist_blacklistedtoken.token_id - token_blacklist_outstandingtoken.id
+Ref: token_blacklist_outstandingtoken.user_id > comptes_utilisateur.id
+Ref erp_tenant_fk_1d0f7aa53000c71c: erp_bankstatementline.(organization_id,account_id) > erp_account.(organization_id,id)
+Ref erp_tenant_fk_48f644f95a385d9e: erp_bankstatementline.(organization_id,journal_id) > erp_journalentry.(organization_id,id)
+Ref erp_tenant_fk_fca7eba1531c7a29: erp_booking.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_9cfaaaafae441909: erp_customrecord.(organization_id,application_id) > erp_customapplication.(organization_id,id)
+Ref erp_tenant_fk_e4534ded5bbb6a4c: erp_deliveryreceipt.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_ea458c8551219df4: erp_document.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_bf0d6f4425966793: erp_document.(organization_id,vehicle_id) > erp_vehicle.(organization_id,id)
+Ref erp_tenant_fk_201b8bd20008cffa: erp_employeeadvance.(organization_id,employee_id) > erp_employee.(organization_id,id)
+Ref erp_tenant_fk_abb0d26b18a88738: erp_expense.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_a11c2f39af4e70d8: erp_fieldattachment.(organization_id,report_id) > erp_fieldreport.(organization_id,id)
+Ref erp_tenant_fk_85b5f06063f1f40b: erp_fieldreport.(organization_id,incident_id) > erp_incident.(organization_id,id)
+Ref erp_tenant_fk_09de38a3804ea131: erp_fieldreport.(organization_id,maintenance_id) > erp_maintenance.(organization_id,id)
+Ref erp_tenant_fk_ffe1c3f04207be35: erp_fieldreport.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_fbc1d5fdd3443194: erp_incident.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_c5cd16d5246cec5b: erp_incident.(organization_id,vehicle_id) > erp_vehicle.(organization_id,id)
+Ref erp_tenant_fk_12e93d0b80df764c: erp_invoice.(organization_id,original_id) > erp_invoice.(organization_id,id)
+Ref erp_tenant_fk_5884fc3d0f15d093: erp_invoice.(organization_id,customer_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_26c0d12d19e40f7c: erp_invoice.(organization_id,order_id) > erp_transportorder.(organization_id,id)
+Ref erp_tenant_fk_06828a0749cb2c79: erp_leaverequest.(organization_id,employee_id) > erp_employee.(organization_id,id)
+Ref erp_tenant_fk_405b540608cffe80: erp_maintenance.(organization_id,supplier_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_0b5dae13f848188e: erp_maintenance.(organization_id,vehicle_id) > erp_vehicle.(organization_id,id)
+Ref erp_tenant_fk_322736a5fe69fb11: erp_mission.(organization_id,driver_id) > erp_employee.(organization_id,id)
+Ref erp_tenant_fk_009eae43021b6621: erp_mission.(organization_id,route_id) > erp_route.(organization_id,id)
+Ref erp_tenant_fk_9cff329ce3a8731c: erp_mission.(organization_id,order_id) > erp_transportorder.(organization_id,id)
+Ref erp_tenant_fk_22abcf4c6a7a22f0: erp_mission.(organization_id,vehicle_id) > erp_vehicle.(organization_id,id)
+Ref erp_tenant_fk_e3d2b764f5dd1545: erp_payment.(organization_id,invoice_id) > erp_invoice.(organization_id,id)
+Ref erp_portal_partner_tenant: erp_portalaccess.(organization_id,partner_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_b9998ab15391d4e3: erp_position.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_304f1c2d4b51fa44: erp_purchase.(organization_id,supplier_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_27cba4b13acfbed0: erp_stockmovement.(organization_id,item_id) > erp_stockitem.(organization_id,id)
+Ref erp_tenant_fk_0fc81a0c78c6904d: erp_subcontract.(organization_id,mission_id) > erp_mission.(organization_id,id)
+Ref erp_tenant_fk_d1c6cc719c4aaa9c: erp_subcontract.(organization_id,supplier_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_32fb2abfc36c8fe5: erp_supplierbill.(organization_id,purchase_id) > erp_purchase.(organization_id,id)
+Ref erp_tenant_fk_d82524310add43c3: erp_supplierbill.(organization_id,subcontract_id) > erp_subcontract.(organization_id,id)
+Ref erp_tenant_fk_7c95bda4f1dcf454: erp_supplierbill.(organization_id,supplier_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_369d860d9b66c2b5: erp_supplierpayment.(organization_id,bill_id) > erp_supplierbill.(organization_id,id)
+Ref erp_invite_partner_tenant: erp_teaminvitation.(organization_id,partner_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_48c4eba959094d8a: erp_transportcontract.(organization_id,customer_id) > erp_partner.(organization_id,id)
+Ref erp_tenant_fk_05d87333f194a650: erp_transportorder.(organization_id,customer_id) > erp_partner.(organization_id,id)
+// Les contraintes CHECK et details Django sont documentes dans schema.json et le dictionnaire interactif.
