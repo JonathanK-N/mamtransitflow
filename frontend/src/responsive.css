@@ -1,4 +1,9 @@
 .mobile-bottom-nav,.mobile-records{display:none}
+:root{--muted:#596d60}
+.back,.auth-safe,.auth-switch{color:var(--muted)}
+.auth-safe,.auth-switch{font-size:13px}.auth-switch .text-btn,.auth-form-wrap>.muted{font-size:14px}
+input::placeholder,textarea::placeholder{color:#596d60}
+img.brand-mark{object-fit:contain;background:white;padding:0;width:36px;height:36px;border-radius:50%;letter-spacing:normal}
 .drawer-close{position:absolute;top:8px;right:8px}
 .pwa-status{position:sticky;top:0;z-index:20}
 .connection-state,.pwa-update{margin:0;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));background:#fff3d9;color:#594014;font-size:14px;line-height:1.5}
@@ -16,6 +21,7 @@
 }
 @media(max-width:600px){
  body{font-size:15px}
+ label{font-size:14px}.auth-safe,.auth-switch{font-size:14px}
  input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px;min-height:44px;max-width:100%}
  button.primary,button.secondary,.icon-btn,.text-btn,.action-button,.record-link,.sidebar nav button{min-height:44px}
  .icon-btn{min-width:44px}.text-btn,.record-link{font-size:14px}.primary,.secondary,.action-button{font-size:14px}
