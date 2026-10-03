@@ -22,7 +22,7 @@ async function enter(data:any){
  const invite=new URLSearchParams(location.search).get('invitation')||sessionStorage.getItem('transitflow.invitation')
  if(invite){try{const r=await api('invitation/accept','POST',{token:invite});setOrganization(r.organization);session.value=await api('auth/me');sessionStorage.removeItem('transitflow.invitation');invitationToken.value=''}catch(e:any){error.value=e.message}}
  const hash=location.pathname.startsWith('/app')?location.hash:''
- screen.value='workspace';history.replaceState({},'','/app'+hash)
+ screen.value=session.value.organizations.length?'workspace':'removed';if(!session.value.organizations.length)error.value='Vous ne disposez plus d’un accès actif à une entreprise.';history.replaceState({},'','/app'+hash)
 }
 async function submit(){
  busy.value=true;error.value=''

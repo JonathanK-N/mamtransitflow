@@ -44,5 +44,10 @@ test('Personnel contacte puis retire un compte TEST connecté sans perdre son au
   await navigate(pa,'Messages');await pa.locator('.conversation-item').filter({hasText:'ancien collaborateur'}).click();await expect(pa.locator('.message-stream')).toContainText('Contact Personnel '+stamp)
   for(const page of [pa,pb])expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
   await pa.screenshot({path:'test-results/personnel-history-'+info.project.name+'.png'})
+  const remaining=(await (await request.get('/api/v2/employees',{headers:otherHeaders})).json()).results.find((x:any)=>x.user===peer.user.id)
+  expect((await request.post('/api/v2/employees/'+remaining.id+'/remove',{headers:otherHeaders,data:{}})).status()).toBe(200)
+  await expect(pb.getByRole('alert')).toContainText('Votre accès à cette entreprise a été retiré.')
+  await pb.reload();await expect(pb.getByRole('alert')).toContainText('Vous ne disposez plus d’un accès actif à une entreprise.')
+  expect((await (await request.get('/api/v2/auth/me',{headers:{Authorization:'Bearer '+peer.access}})).json()).user.id).toBe(peer.user.id)
  }finally{await a.close();await b.close()}
 })
