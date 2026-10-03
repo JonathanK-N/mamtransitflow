@@ -32,7 +32,7 @@ def business_notification(sender,instance,created,**kwargs):
         title={m.Incident:'Nouvel incident' if created else 'Incident actualisé',m.Maintenance:'Intervention atelier',m.Document:'Document important'}[sender]
         body=instance.title
         members=[member for member in members if security.allowed(member.role,module)
-            and (member.role!='driver' or sender is m.Document and instance.mission_id and instance.mission.driver.user_id==member.user_id and instance.category!='finance')]
+            and (member.role!='driver' or sender is m.Document and instance.mission_id and instance.mission.driver_id and instance.mission.driver.user_id==member.user_id and instance.category!='finance')]
     context={'module':module,'id':str(instance.pk),'legacy_identity':str(instance.pk),'legacy_version':str(instance.updated_at)}
     for member in members:
         notify(org,member.user_id,f'{module}:{instance.pk}:{instance.updated_at.isoformat()}',category,title,body,context)

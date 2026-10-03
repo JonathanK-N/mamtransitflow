@@ -172,3 +172,13 @@ def test_websocket_security_rejections(pair,attack):
         assert (await ws.receive_output())['code']==4403
         await ws.disconnect()
     async_to_sync(run)()
+
+
+def test_realtime_failure_keeps_message_and_notification_recoverable(pair):
+    from unittest.mock import patch
+    identity=conversation(pair)
+    with patch('apps.erp.realtime.get_channel_layer',side_effect=RuntimeError('Unavailable')):
+        response=send(pair,identity)
+    assert response.status_code==201
+    assert pair['bc'].get(BASE+f'conversations/{identity}/messages').data['results'][0]['id']==response.data['id']
+    assert pair['bc'].get('/api/v2/notifications').data['unread']==1

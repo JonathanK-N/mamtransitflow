@@ -15,7 +15,10 @@ def group(organization,user):return f'org.{organization}.user.{user}'
 
 
 def publish(organization,users,event='changed',conversation=None):
-    layer=get_channel_layer()
+    try:layer=get_channel_layer()
+    except Exception:
+        logger.warning('Diffusion temps réel indisponible ; événement conservé en base.')
+        return
     if not layer:return
     for user in users:
         try:
