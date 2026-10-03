@@ -37,9 +37,17 @@ async function submit(){
   form.value.password=''
  }catch(e:any){error.value=e.message}finally{busy.value=false}
 }
+let checkingAccess=false
+async function revoked(){
+ if(checkingAccess||!session.value)return
+ checkingAccess=true;stopActivity();await setPushAccount(null)
+ const old=organization;screen.value='loading'
+ try{const fresh=await api('auth/me');session.value=fresh;setOrganization(fresh.organizations.find((x:any)=>x.id!==old)?.id||'');history.replaceState({},'','/app');screen.value=fresh.organizations.length?'workspace':'removed';error.value='Votre accès à cette entreprise a été retiré.'}catch{screen.value='removed';error.value='Votre accès à cette entreprise a été retiré.'}finally{checkingAccess=false}
+}
 async function logout(){try{await disableDevicePush();await api('auth/logout','POST');stopActivity();session.value=null;clearSession();form.value.password='';go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
 onMounted(async()=>{
  const invite=new URLSearchParams(location.search).get('invitation');if(invite)sessionStorage.setItem('transitflow.invitation',invite)
+ window.addEventListener('organization-revoked',revoked)
  window.addEventListener('session-expired',()=>{stopActivity();setPushAccount(null);session.value=null;clearSession();form.value.password='';go('login');error.value='Votre session a expiré. Reconnectez-vous.'})
  window.addEventListener('popstate',()=>{
   if(location.pathname.startsWith('/app')){if(session.value)screen.value='workspace';else go('login')}
@@ -51,7 +59,8 @@ onMounted(async()=>{
 <template>
  <PwaStatus/>
  <PublicSite v-if="screen==='public'" @login="go('login')" @register="go('register')"/>
- <Workspace v-else-if="screen==='workspace'&&session" :session="session" @logout="logout"/>
+ <div v-else-if="screen==='removed'" class="loading-screen"><p role="alert">{{error}}</p><button class="secondary" @click="logout">Se déconnecter</button></div>
+ <Workspace v-else-if="screen==='workspace'&&session" :key="organization" :session="session" @logout="logout"/>
  <PasswordRecovery v-else-if="screen==='recovery'" @login="go('login')"/>
  <div v-else-if="screen==='loading'" class="loading-screen"><LoaderCircle class="spin"/> Ouverture de votre espace…</div>
  <main v-else class="auth-layout">

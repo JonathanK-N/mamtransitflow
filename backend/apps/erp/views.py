@@ -70,6 +70,9 @@ class ScopedView(APIView):
         if request.method in ('POST','PATCH','DELETE') and not isinstance(request.data,Mapping):
             raise ValidationError('Le corps de la requête doit être un objet contenant les champs attendus.')
         self.member=security.membership(request);self.org=self.member.organization
+        if request.method in ('POST','PATCH','DELETE'):
+            m.Organization.objects.select_for_update().get(pk=self.org.pk)
+            self.member=security.membership(request)
         from .applications import active_keys
         self.active_applications=active_keys(self.org)
     def context(self):return {'organization':self.org,'request':self.request}
@@ -183,7 +186,7 @@ class ResourceView(ScopedView):
         return Response(serializer.data)
     def delete(self,request,resource,pk):
         self.ensure(resource,True)
-        if resource in ('audit','payments','supplier-payments','movements','bookings','journal','accounts'):raise PermissionDenied('Historique conservé ; suppression interdite.')
+        if resource in ('employees','audit','payments','supplier-payments','movements','bookings','journal','accounts'):raise PermissionDenied('Historique conservé ; suppression interdite.')
         m.Organization.objects.select_for_update().get(pk=self.org.pk)
         obj=get_object_or_404(self.queryset(resource),pk=pk)
         if hasattr(obj,'status') and obj.status not in ('draft','planned','available','retired'):raise ValidationError('Cette fiche ne peut plus être supprimée.')
@@ -305,6 +308,7 @@ class TeamView(ScopedView):
         email=serializers.EmailField().run_validation(request.data.get('email')).lower()
         role=request.data.get('role','viewer')
         if role not in dict(m.ROLES) or role=='owner':raise ValidationError('Rôle invalide.')
+        if role=='admin' and self.member.role!='owner':raise PermissionDenied('Seul un propriétaire invite un administrateur.')
         token=secrets.token_urlsafe(32)
         m.TeamInvitation.objects.filter(organization=self.org,email=email,used_at__isnull=True).update(expires_at=timezone.now())
         invite=m.TeamInvitation.objects.create(organization=self.org,email=email,role=role,
@@ -322,6 +326,14 @@ class TeamView(ScopedView):
         if (member.role=='owner' or role=='owner') and self.member.role!='owner':raise PermissionDenied('Seul un propriétaire gère les propriétaires.')
         if member.role=='owner' and (role!='owner' or not active) and m.Membership.objects.filter(organization=self.org,role='owner',active=True).count()<=1:
             raise ValidationError('Conservez au moins un propriétaire actif.')
+        if self.member.role!='owner' and (member.role=='admin' or role=='admin'):raise PermissionDenied('Seul un propriétaire gère les administrateurs.')
+        if member.user_id==request.user.pk and not active:raise ValidationError('Vous ne pouvez pas retirer votre propre accès.')
+        if member.active and not active:
+            from .personnel import remove_employee
+            employee=m.Employee.objects.filter(organization=self.org,user=member.user).first()
+            if employee is None:raise ValidationError('Rattachez une fiche Personnel pour retirer cet accès.')
+            remove_employee(self.org,self.member,employee)
+        elif not member.active and active:raise ValidationError('Envoyez une nouvelle invitation pour rétablir cet accès.')
         member.role=role;member.active=active;member.save();services.audit(self.org,request.user,'membership',member,role=role,active=active)
         return Response({'ok':True})
 

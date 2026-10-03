@@ -1,7 +1,7 @@
 name: Recette ERP
 on:
   push:
-    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime]
+    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime, personnel-actions]
   pull_request:
     branches: [erp, main, transitflow-erp]
 permissions:
@@ -81,6 +81,12 @@ jobs:
             python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
             PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-messaging-$project pnpm --dir frontend exec playwright test messaging.spec.ts --project=$project --output=test-results-messaging-$project || exit 1
           done
+      - name: Personnel contact et retrait sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-personnel-$project pnpm --dir frontend exec playwright test personnel.spec.ts --project=$project --output=test-results-personnel-$project || exit 1
+          done
       - name: Audit Lighthouse mobile
         working-directory: frontend
         run: |
@@ -111,5 +117,7 @@ jobs:
             frontend/test-results-responsive
             frontend/playwright-report-messaging-*
             frontend/test-results-messaging-*
+            frontend/playwright-report-personnel-*
+            frontend/test-results-personnel-*
             frontend/lighthouse-mobile.report.json
             frontend/lighthouse-mobile.report.html

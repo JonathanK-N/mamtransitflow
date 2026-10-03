@@ -9,7 +9,11 @@ from .messaging import MessagingView, CollaboratorsView, MessagesView, MessageRe
 from .notifications import GlobalNotificationsView, PreferencesView
 from .push import PushSubscriptionsView
 
+from .personnel_actions import EmployeeActionView
+
 urlpatterns=[
+    path('employees/<uuid:pk>/contact',EmployeeActionView.as_view(http_method_names=['post','options']),{'action':'contact'}),
+    path('employees/<uuid:pk>/remove',EmployeeActionView.as_view(http_method_names=['post','options']),{'action':'remove'}),
     path('messaging/collaborators',CollaboratorsView.as_view()),
     path('messaging/conversations',MessagingView.as_view(http_method_names=['get','post','head','options'])),
     path('messaging/conversations/<uuid:pk>',MessagingView.as_view(http_method_names=['get','patch','head','options'])),

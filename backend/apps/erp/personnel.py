@@ -62,3 +62,37 @@ def reconcile_personnel(*, organization_id=None, dry_run=True):
                     continue
                 counts[outcome]+=1
     return counts
+
+
+@transaction.atomic
+def remove_employee(organization, actor, employee):
+    from django.utils import timezone
+    from rest_framework.exceptions import PermissionDenied
+    from . import services
+    from .realtime import publish
+    m.Organization.objects.select_for_update().get(pk=organization.pk)
+    actor=m.Membership.objects.get(pk=actor.pk,organization=organization,active=True)
+    if actor.role not in ('owner','admin'):raise PermissionDenied('Administration requise.')
+    employee=m.Employee.objects.select_for_update().get(pk=employee.pk,organization=organization)
+    member=m.Membership.objects.select_for_update().filter(organization=organization,user_id=employee.user_id).first() if employee.user_id else None
+    if member:
+        if member.role=='owner' and member.active and m.Membership.objects.filter(organization=organization,active=True,role='owner').count()<=1:
+            raise ValidationError('Conservez au moins un propriétaire actif.')
+        if member.user_id==actor.user_id:raise ValidationError('Vous ne pouvez pas vous retirer depuis Personnel.')
+        if member.role in ('owner','admin') and actor.role!='owner':raise PermissionDenied('Seul un propriétaire peut retirer un administrateur ou un propriétaire.')
+    employees=m.Employee.objects.filter(organization=organization)
+    employees=employees.filter(user_id=employee.user_id) if employee.user_id else employees.filter(pk=employee.pk)
+    if m.Mission.objects.filter(organization=organization,driver__in=employees,status__in=['planned','active']).exists():
+        raise ValidationError('Réaffectez ou annulez les missions planifiées et en cours avant de retirer cette personne.')
+    employees.update(active=False,updated_at=timezone.now())
+    if member:
+        member.active=False;member.save(update_fields=['active'])
+        m.ConversationParticipant.objects.filter(organization=organization,membership=member).update(active=False)
+        m.GlobalNotification.objects.filter(organization=organization,user_id=member.user_id).update(push_pending=False)
+        m.PushSubscription.objects.filter(organization=organization,user_id=member.user_id).delete()
+        m.TeamInvitation.objects.filter(organization=organization,email__iexact=member.user.courriel,used_at__isnull=True).update(expires_at=timezone.now())
+        transaction.on_commit(lambda:publish(organization.pk,[member.user_id],'access_revoked'))
+        from .messaging import changed
+        for conversation in m.Conversation.objects.filter(organization=organization,participants__membership=member):changed(conversation)
+    services.audit(organization,actor.user,'employee-remove',employee,membership=member.pk if member else None)
+    return employee

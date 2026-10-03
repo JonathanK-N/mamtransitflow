@@ -41,7 +41,7 @@ def grant_invitation(invite,user):
     from . import models as m
     set_scope(invite.organization_id)
     m.Organization.objects.select_for_update().get(pk=invite.organization_id)
-    if m.Membership.objects.filter(organization=invite.organization,user=user).exists():
+    if m.Membership.objects.filter(organization=invite.organization,user=user,active=True).exists():
         raise ValidationError('Ce compte dispose déjà d’un accès interne à cette entreprise.')
     if invite.role=='client':
         if not invite.partner_id or invite.partner.organization_id!=invite.organization_id or invite.partner.kind not in ('customer','both'):
@@ -56,5 +56,7 @@ def grant_invitation(invite,user):
         if m.PortalAccess.objects.filter(organization=invite.organization,user=user,active=True).exists():
             raise ValidationError('Révoquez l’accès client avant de donner un accès interne.')
         from .personnel import sync_employee
+        returning=m.Membership.objects.filter(organization=invite.organization,user=user,active=False).exists()
         sync_employee(invite.organization,user,invite.role)
-        m.Membership.objects.create(organization=invite.organization,user=user,role=invite.role)
+        if returning:m.Employee.objects.filter(organization=invite.organization,user=user).update(active=True)
+        m.Membership.objects.update_or_create(organization=invite.organization,user=user,defaults={'role':invite.role,'active':True})

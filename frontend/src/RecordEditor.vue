@@ -4,11 +4,12 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { X, Plus, Trash2, Save, LoaderCircle, Download, Printer } from 'lucide-vue-next'
 import { api,download,money } from './api'
 import MissionTracking from './MissionTracking.vue'
-const props=defineProps<{schema:any,record:any,currency:string}>()
-const emit=defineEmits(['close','saved'])
+import PersonnelActions from './PersonnelActions.vue'
+const props=defineProps<{schema:any,record:any,currency:string,admin?:boolean}>()
+const emit=defineEmits(['close','saved','contact'])
 const data=ref<Record<string,any>>({}),options=ref<Record<string,any[]>>({}),error=ref(''),saving=ref(false)
 const initializing=ref(true)
-const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly))
+const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly&&!(props.schema.key==='employees'&&props.record&&f.name==='active')))
 const locked=computed(()=>!props.schema.writable||props.record&&['issued','paid','posted','approved','completed','active','cancelled','received','ordered','confirmed','boarded','paused','closed','reported','resolved','submitted','rejected','disbursed','settled','matched'].includes(props.record.status)||props.record&&['payments','supplier-payments','movements','bookings'].includes(props.schema.key))
 const lineType=computed(()=>props.schema.key==='journal'?'journal':props.schema.key==='purchases'?'purchase':'invoice')
 const lines=computed(()=>data.value.lines||[])
@@ -63,6 +64,7 @@ function print(){window.print()}
   <form v-else @submit.prevent="save" class="editor-body">
    <div v-if="error" class="error-box" role="alert">{{error}}</div>
    <div v-if="locked" class="info-box">Cet enregistrement est consultable. Son état ou vos permissions ne permettent pas de modifier ses valeurs.</div>
+   <PersonnelActions v-if="record&&schema.key==='employees'&&record.active" :employee="record" :writable="schema.writable" :admin="!!admin" profile @contact="emit('contact',$event)"/>
    <div class="form-grid">
     <template v-for="f in fields" :key="f.name">
      <div v-if="f.name==='lines'" class="span-2 line-editor"><div class="line-heading"><h3>{{lineType==='journal'?'Écritures':lineType==='purchase'?'Articles commandés':'Prestations'}}</h3><button v-if="!locked" type="button" class="secondary small" @click="addLine"><Plus :size="15"/>Ajouter une ligne</button></div>

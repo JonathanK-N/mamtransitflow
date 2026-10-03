@@ -47,6 +47,7 @@ export async function api(path:string,method='GET',body?:any,retry=true):Promise
   }
   if(response.status===204)return null
   const data=await response.json().catch(()=>({detail:'Réponse serveur illisible.'}))
+  if(response.status===403&&data.detail==='Entreprise inaccessible.')window.dispatchEvent(new Event('organization-revoked'))
   if(!response.ok)throw new Error(message(data))
   if(data.access)access=data.access
   if(data.csrf)csrf=data.csrf

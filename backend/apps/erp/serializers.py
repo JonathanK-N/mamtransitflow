@@ -73,8 +73,10 @@ class ScopedSerializer(serializers.ModelSerializer):
             if status!=current.status and (m.Mission.objects.filter(vehicle=current,status='active').exists() or m.Maintenance.objects.filter(vehicle=current,status='active').exists()):
                 raise serializers.ValidationError('Le véhicule a une mission ou une intervention en cours.')
             if data.get('mileage',current.mileage)<current.mileage:raise serializers.ValidationError('Le compteur ne peut pas reculer.')
-        if model is m.Employee and current and data.get('active') is False and m.Mission.objects.filter(driver=current,status='active').exists():
-            raise serializers.ValidationError('Ce chauffeur a une mission en cours.')
+        if model is m.Employee and current and 'active' in data and data['active']!=current.active:
+            raise serializers.ValidationError('Utilisez Retirer de l’entreprise ou une nouvelle invitation pour modifier cet accès.')
+        if model is m.Employee and 'user' in data and self.context['request'].user.membership_set.filter(organization=org,active=True,role__in=['owner','admin']).exists() is False:
+            raise serializers.ValidationError('Rattachement de compte réservé à l’administration.')
         candidate=model(organization=org)
         if current:
             for f in model._meta.fields:setattr(candidate,f.attname,getattr(current,f.attname))
@@ -88,6 +90,7 @@ class ScopedSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError('Seuls les documents de livraison liés à une commande client peuvent être partagés.')
         if model is m.Mission:
             if candidate.arrival<=candidate.departure:raise serializers.ValidationError('L’arrivée doit suivre le départ.')
+            if not candidate.driver.active:raise serializers.ValidationError('Ce chauffeur a quitté l’entreprise.')
             if candidate.driver.job!='driver':raise serializers.ValidationError('Sélectionnez un chauffeur.')
             if candidate.order_id and candidate.order.status not in ('confirmed',):raise serializers.ValidationError('Confirmez la commande avant sa mission.')
             if candidate.order_id and candidate.route_id:raise serializers.ValidationError('Choisissez une commande ou une ligne voyageurs.')

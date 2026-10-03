@@ -40,6 +40,25 @@ def changed(conversation, event='changed'):
     transaction.on_commit(lambda: publish(conversation.organization_id, members, event, str(conversation.pk)))
 
 
+def direct_conversation(member, colleague, actor):
+    m.Organization.objects.select_for_update().get(pk=member.organization_id)
+    ids={member.pk,colleague.pk}
+    if len(ids)!=2 or colleague.organization_id!=member.organization_id:
+        raise ValidationError('Sélectionnez un autre collaborateur de cette entreprise.')
+    members=list(m.Membership.objects.filter(organization_id=member.organization_id,pk__in=ids,active=True,user__is_active=True))
+    if len(members)!=2:raise ValidationError('Collaborateur inaccessible.')
+    key=':'.join(map(str,sorted(ids)))
+    row=m.Conversation.objects.filter(organization_id=member.organization_id,kind='direct',direct_key=key).first()
+    if row:
+        row.participants.filter(membership__in=members,active=False).update(active=True,last_read_sequence=row.last_sequence)
+        return row,False
+    row=m.Conversation.objects.create(organization_id=member.organization_id,kind='direct',direct_key=key,creator=actor)
+    for person in members:m.ConversationParticipant.objects.create(organization_id=member.organization_id,conversation=row,membership=person)
+    services.audit(member.organization,actor,'conversation-create',row,kind='direct')
+    changed(row)
+    return row,True
+
+
 class ConversationInput(serializers.Serializer):
     kind = serializers.ChoiceField(choices=['direct', 'group', 'mission'])
     title = serializers.CharField(max_length=150, required=False, default='', allow_blank=True)
@@ -57,14 +76,14 @@ class MessagingView(ScopedView):
     def summary(self, row):
         participants = list(row.participants.all() if 'participants' in getattr(row,'_prefetched_objects_cache',{}) else row.participants.select_related('membership__user'))
         own = next(p for p in participants if p.membership_id == self.member.pk)
-        others = [p.membership.user.nom for p in participants if p.active and p.membership.active and p.membership_id != self.member.pk]
+        others = [p.membership.user.nom+(' — ancien collaborateur' if not p.membership.active else '') for p in participants if p.membership_id != self.member.pk]
         return dict(id=str(row.pk), kind=row.kind, title=row.title or ', '.join(others) or 'Conversation',
             active=row.active, unread=max(0, row.last_sequence-own.last_read_sequence),
             last_message=getattr(row, 'preview', '') or '', last_message_at=row.last_message_at,
             sequence=row.last_sequence, mission=str(row.mission_id) if row.mission_id else None,
             mission_reference=row.mission.reference if row.mission_id else '',
             can_manage=row.creator_id == self.request.user.pk or self.member.role in ('owner', 'admin'),
-            participants=[dict(id=p.membership_id, name=p.membership.user.nom, role=p.membership.role,
+            participants=[dict(id=p.membership_id, name=p.membership.user.nom+(' — ancien collaborateur' if not p.membership.active else ''), role=p.membership.role,
                 active=p.active and p.membership.active, read_sequence=p.last_read_sequence) for p in participants])
 
     def get(self, request, pk=None):
@@ -102,6 +121,9 @@ class MessagingView(ScopedView):
         if mission and any(not mission_allowed(member,mission) for member in members):raise ValidationError('Accès à la mission requis pour chaque participant.')
         if data['kind']=='direct' and len(ids)!=2:raise ValidationError('Sélectionnez exactement un autre collaborateur.')
         if data['kind']=='group' and (len(ids)<2 or not data['title'].strip()):raise ValidationError('Titre et au moins deux participants requis.')
+        if data['kind']=='direct':
+            row,created=direct_conversation(self.member,next(x for x in members if x.pk!=self.member.pk),request.user)
+            return Response(self.summary(row),status=201 if created else 200)
         key=':'.join(map(str,sorted(ids))) if data['kind']=='direct' else ''
         existing=m.Conversation.objects.filter(organization=self.org,kind=data['kind'])
         if data['kind']=='direct':existing=existing.filter(direct_key=key)
@@ -154,7 +176,7 @@ class CollaboratorsView(ScopedView):
 class MessagesView(MessagingView):
     def payload(self,row,participants):
         return dict(id=str(row.pk),sequence=row.sequence,body=row.body,created_at=row.created_at,
-            sender=row.sender.user.nom,sender_id=row.sender_id,own=row.sender_id==self.member.pk,
+            sender=row.sender.user.nom+(' — ancien collaborateur' if not row.sender.active else ''),sender_id=row.sender_id,own=row.sender_id==self.member.pk,
             readers=[p.membership.user.nom for p in participants if p.active and p.membership.active and p.membership_id!=row.sender_id and p.last_read_sequence>=row.sequence],
             attachments=[dict(id=str(a.pk),name=a.name,mime=a.mime,size=a.size) for a in row.attachments.all()])
 

@@ -91,6 +91,8 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
             active=True,membership__active=True).exclude(membership_id=self.member_id).values_list('membership__user_id',flat=True))
 
     async def activity(self,event):
+        if event.get('event')=='access_revoked':
+            await self.send_json({'type':'access_revoked'});await self.close(code=4403);return
         try:await self.authorize(self.token,self.organization,event.get('conversation'))
         except Exception:
             if event.get('conversation'):return
