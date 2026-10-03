@@ -178,7 +178,8 @@ def _envoyer_resend(destinataire, sujet, texte, html):
         'https://api.resend.com/emails', method='POST',
         data=json.dumps({'from': settings.TF_EMAIL_EXPEDITEUR, 'to': [destinataire], 'subject': sujet,
                          'text': texte, 'html': html}).encode(),
-        headers={'Authorization': 'Bearer ' + settings.TF_RESEND_CLE, 'Content-Type': 'application/json'})
+        headers={'Authorization': 'Bearer ' + settings.TF_RESEND_CLE,
+                 'Content-Type': 'application/json', 'User-Agent': 'TransitFlow/1.0'})
     with urllib.request.urlopen(requete, timeout=15) as reponse:
         if reponse.status >= 300:
             raise RuntimeError(f'Resend a repondu {reponse.status}')
