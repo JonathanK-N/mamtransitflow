@@ -151,14 +151,13 @@ class PasswordRequestView(APIView):
         from django.contrib.auth.tokens import default_token_generator
         from django.utils.http import urlsafe_base64_encode
         from django.utils.encoding import force_bytes
-        from apps.comptes.invitations import envoyer
+        from .password_email import send_password_reset
         user=Utilisateur.objects.filter(courriel__iexact=str(request.data.get('email','')).strip(),is_active=True).first()
         if user:
             token=default_token_generator.make_token(user)
             uid=urlsafe_base64_encode(force_bytes(user.pk))
             url=request.build_absolute_uri('/connexion')+f'?reset={uid}:{token}'
-            envoyer(user.courriel,'TransitFlow — nouveau mot de passe',
-                f'Pour choisir un nouveau mot de passe : {url}\nCe lien est personnel. Ignorez ce message si vous n’avez pas fait cette demande.','')
+            send_password_reset(request,user,url)
         return Response({'detail':'Si un compte correspond à ce courriel, un lien de réinitialisation lui sera envoyé.'})
 
 
