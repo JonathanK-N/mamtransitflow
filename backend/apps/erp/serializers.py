@@ -75,7 +75,7 @@ class ScopedSerializer(serializers.ModelSerializer):
             if data.get('mileage',current.mileage)<current.mileage:raise serializers.ValidationError('Le compteur ne peut pas reculer.')
         if model is m.Employee and current and 'active' in data and data['active']!=current.active:
             raise serializers.ValidationError('Utilisez Retirer de l’entreprise ou une nouvelle invitation pour modifier cet accès.')
-        if model is m.Employee and 'user' in data and self.context['request'].user.membership_set.filter(organization=org,active=True,role__in=['owner','admin']).exists() is False:
+        if model is m.Employee and 'user' in data and (not current or data['user']!=current.user) and self.context['request'].user.membership_set.filter(organization=org,active=True,role__in=['owner','admin']).exists() is False:
             raise serializers.ValidationError('Rattachement de compte réservé à l’administration.')
         candidate=model(organization=org)
         if current:

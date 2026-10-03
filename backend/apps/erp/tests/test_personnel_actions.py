@@ -49,7 +49,7 @@ def test_preserve_user_other_tenant_history(pair,employee):
     assert not employee.active and not pair['bm'].active and other.active and pair['b'].is_active
     assert m.Message.objects.count()==1 and m.Conversation.objects.count()==1
     assert m.Mission.objects.get(pk=history['id']).driver_id==employee.pk
-    assert m.AuditLog.objects.filter(action='employee-remove',organization=pair['org'],actor=pair['user']).exists()
+    assert m.AuditEvent.objects.filter(action='employee-remove',organization=pair['org'],actor=pair['user']).exists()
     assert 'ancien collaborateur' in pair['client'].get('/api/v2/messaging/conversations/'+identity).data['title']
     pair['bc'].credentials(HTTP_X_ORGANIZATION=str(pair['other'].pk))
     assert pair['bc'].get('/api/v2/messaging/conversations').status_code==200
@@ -121,3 +121,44 @@ def test_live_websocket_revoked_and_cannot_reauthenticate(pair,employee):
             assert (await again.receive_output())['code']==4403
             await again.disconnect()
         async_to_sync(scenario)()
+
+
+def test_remove_unlinked_employee_without_creating_user(pair):
+    row=m.Employee.objects.create(organization=pair['org'],name='Personnel sans compte')
+    before=Utilisateur.objects.count();assert action(pair,row).status_code==200
+    row.refresh_from_db();assert not row.active and Utilisateur.objects.count()==before
+
+
+def test_pending_push_and_unused_invitation_revoked_only_in_target_org(pair,employee):
+    pending=m.GlobalNotification.objects.create(organization=pair['org'],user=pair['b'],key='pending',category='messages',title='Nouveau message',push_pending=True)
+    other=m.GlobalNotification.objects.create(organization=pair['other'],user=pair['b'],key='pending',category='messages',title='Nouveau message',push_pending=True)
+    invite=m.TeamInvitation.objects.create(organization=pair['org'],email=pair['b'].courriel,role='driver',digest='b'*64,expires_at=timezone.now()+timezone.timedelta(days=1))
+    assert action(pair,employee).status_code==200
+    pending.refresh_from_db();other.refresh_from_db();invite.refresh_from_db()
+    assert not pending.push_pending and other.push_pending and invite.expires_at<=timezone.now()
+
+
+def test_cannot_plan_a_new_mission_with_departed_driver(pair,employee):
+    assert action(pair,employee).status_code==200
+    with pytest.raises(AssertionError,match='quitté'):
+        mission(pair|{'driver':employee})
+
+
+def test_concurrent_contact_creates_one_pair(pair,employee):
+    from django.db import connection, transaction
+    from .test_concurrency import concurrent
+    from apps.erp.messaging import direct_conversation
+    if connection.vendor!='postgresql':pytest.skip('Verrouillage vérifié sur PostgreSQL uniquement')
+    def create(index):
+        with transaction.atomic():direct_conversation(pair['member'],pair['bm'],pair['user'])
+    assert concurrent(create)==['accepted','accepted']
+    assert m.Conversation.objects.count()==1 and m.ConversationParticipant.objects.count()==2
+
+
+def test_reinvited_contact_reuses_pair_and_restores_only_direct_participation(pair,employee):
+    from apps.erp.security import grant_invitation
+    identity=conversation(pair);assert action(pair,employee).status_code==200
+    invite=m.TeamInvitation.objects.create(organization=pair['org'],email=pair['b'].courriel,role='driver',digest='c'*64,expires_at=timezone.now()+timezone.timedelta(days=1))
+    grant_invitation(invite,pair['b'])
+    r=action(pair,employee,'contact');assert r.status_code==200 and r.data['id']==identity
+    assert pair['bc'].get('/api/v2/messaging/conversations/'+identity).status_code==200
