@@ -47,12 +47,14 @@ test('Session, modules autorisés, cartes mobiles, formulaire et déconnexion',a
  const driverEmail='driver-'+email
  const driver=await create('employees',{name:'Chauffeur mobile',email:driverEmail,job:'driver',phone:'+224600000000'})
  const vehicle=await create('vehicles',{plate:'MOB-'+Date.now(),name:'Camion mobile',capacity:20,capacity_unit:'t'})
+ await create('maintenance',{title:'Entretien mobile',vehicle:vehicle.id,due_date:new Date(Date.now()+86400000).toISOString().slice(0,10),cost:'100'})
+ await create('incidents',{reference:'INC-'+Date.now(),title:'Incident mobile',vehicle:vehicle.id,occurred_at:new Date().toISOString(),description:'Constat de recette',estimated_cost:'0'})
  await create('missions',{reference:'MOBILE-'+Date.now(),vehicle:vehicle.id,driver:driver.id,origin:'Conakry',destination:'Kindia',departure:new Date(Date.now()+3600000).toISOString(),arrival:new Date(Date.now()+18000000).toISOString()})
  await page.goto('/connexion');await page.getByLabel('Adresse courriel').fill(email);await page.getByLabel('Mot de passe',{exact:true}).fill(password);await page.getByRole('button',{name:'Se connecter',exact:true}).click()
  await expect(page.locator('.workspace')).toBeVisible();await page.reload();await expect(page.locator('.workspace')).toBeVisible()
  const mobile=(page.viewportSize()?.width||1280)<=600
  async function nav(name:string){if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Menu',exact:true}).click();await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();await expect(page.locator('.loading-panel')).toHaveCount(0);await fits(page)}
- for(const name of ['Personnel','Missions','Flotte','Entretien','Incidents','Facturation','Paramètres','Applications','Terrain & notifications'])await nav(name)
+ for(const name of ['Personnel','Missions','Flotte','Entretien','Incidents','Facturation','Paramètres','Applications','Terrain & notifications']){await nav(name);if(mobile&&['Personnel','Missions','Flotte','Entretien','Incidents'].includes(name))await expect(page.locator('.mobile-records')).toBeVisible()}
  await nav('Personnel');await expect(page.locator(mobile?'.mobile-records':'.resource-panel table').getByText('Chauffeur mobile',{exact:true})).toBeVisible()
  await page.locator(mobile?'.mobile-records':'.resource-panel table').getByRole('button',{name:'Chauffeur mobile',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();await fits(page)
  await page.getByRole('dialog').locator('.editor-head').getByRole('button',{name:'Fermer',exact:true}).click()
@@ -65,7 +67,10 @@ test('Session, modules autorisés, cartes mobiles, formulaire et déconnexion',a
  expect(await page.evaluate(()=>localStorage.getItem('transitflow.positions.test'))).toBeNull()
  await page.getByLabel('Adresse courriel').fill(driverEmail);await page.getByLabel('Mot de passe',{exact:true}).fill(password);await page.getByRole('button',{name:'Se connecter',exact:true}).click()
  await expect(page.locator('.workspace')).toBeVisible()
+ if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Menu',exact:true}).click()
  await expect(page.locator('.sidebar').getByRole('button',{name:'Personnel',exact:true})).toHaveCount(0)
+ await expect(page.locator('.sidebar').getByRole('button',{name:'Missions',exact:true})).toBeVisible()
+ if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Fermer le menu',exact:true}).click()
  if(mobile){await expect(page.getByRole('navigation',{name:'Navigation mobile'}).getByRole('button',{name:'Terrain',exact:true})).toBeVisible();await page.getByRole('navigation',{name:'Navigation mobile'}).getByRole('button',{name:'Terrain',exact:true}).click()}else await nav('Terrain & notifications')
  await page.getByRole('button',{name:'Nouvelle déclaration',exact:true}).click()
  await page.getByRole('combobox',{name:'Mission',exact:true}).selectOption({index:1})
