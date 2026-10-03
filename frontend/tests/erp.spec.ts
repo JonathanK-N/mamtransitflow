@@ -55,6 +55,7 @@ test('Livraison signée par le chauffeur et justificatif dans le portail client'
  const dialog=page.getByRole('dialog')
  await dialog.getByLabel('Nom du destinataire',{exact:true}).fill('Destinataire recette')
  await dialog.getByLabel('Réserves du destinataire',{exact:true}).fill('Marchandise reçue sans écart.')
+ await dialog.locator('.signature-pad').scrollIntoViewIfNeeded()
  const box=await dialog.locator('.signature-pad').boundingBox();expect(box).not.toBeNull()
  await page.mouse.move(box!.x+30,box!.y+box!.height*.65);await page.mouse.down()
  await page.mouse.move(box!.x+90,box!.y+box!.height*.25,{steps:5})

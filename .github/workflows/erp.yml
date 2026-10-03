@@ -64,7 +64,7 @@ jobs:
       - name: Isoler les compteurs de la recette multi-appareils
         run: python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
       - name: Recette PWA et responsive multi-appareils
-        run: pnpm exec playwright test responsive.spec.ts --output=test-results-responsive
+        run: pnpm exec playwright test responsive.spec.ts pwa-update.spec.ts --output=test-results-responsive
         working-directory: frontend
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-responsive

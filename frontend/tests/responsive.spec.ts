@@ -44,7 +44,7 @@ test('Session, modules autorisés, cartes mobiles, formulaire et déconnexion',a
  for(const name of ['Personnel','Missions','Flotte','Entretien','Incidents','Facturation','Paramètres','Applications','Terrain & notifications'])await nav(name)
  await nav('Personnel');await expect(page.locator(mobile?'.mobile-records':'.resource-panel table').getByText('Chauffeur mobile',{exact:true})).toBeVisible()
  await page.locator(mobile?'.mobile-records':'.resource-panel table').getByRole('button',{name:'Chauffeur mobile',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();await fits(page)
- await page.getByRole('button',{name:'Fermer',exact:true}).click()
+ await page.getByRole('dialog').locator('.editor-head').getByRole('button',{name:'Fermer',exact:true}).click()
  const invitation=await create('team',{email:driverEmail,role:'driver'})
  const joined=await request.post('/api/v2/auth/register',{data:{name:'Chauffeur mobile',email:driverEmail,password,invitation:new URL(invitation.link).searchParams.get('invitation')}})
  expect(joined.status()).toBe(201)
