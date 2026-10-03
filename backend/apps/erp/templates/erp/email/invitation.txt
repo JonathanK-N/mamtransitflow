@@ -1,0 +1,18 @@
+{% autoescape off %}{{ greeting }}
+
+{{ company_name }} vous invite à rejoindre {% if is_client %}son portail client{% else %}son espace de travail{% endif %} sur TransitFlow en tant que {{ role_name }}.
+
+TransitFlow est la plateforme utilisée par {{ company_name }} pour centraliser et simplifier la gestion de ses opérations de transport.
+
+Pour accepter cette invitation et accéder à votre espace, ouvrez ce lien :
+{{ link }}
+
+Cette invitation est personnelle et associée à l’adresse {{ recipient_email }}.
+Elle expire le {{ expires_at }} ({{ expiration_zone }}).
+
+Si vous ne vous attendiez pas à recevoir cette invitation, vous pouvez simplement ignorer ce message.
+
+Cordialement,
+L’équipe {{ company_name }}
+via TransitFlow
+{% endautoescape %}

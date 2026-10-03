@@ -310,9 +310,9 @@ class TeamView(ScopedView):
         invite=m.TeamInvitation.objects.create(organization=self.org,email=email,role=role,
             digest=hashlib.sha256(token.encode()).hexdigest(),expires_at=timezone.now()+timedelta(days=7))
         services.audit(self.org,request.user,'invite',invite)
-        from apps.comptes.invitations import envoyer
+        from .invitation_email import send_invitation
         link=request.build_absolute_uri('/app')+'?invitation='+token
-        sent=envoyer(email,f'Invitation à {self.org.name}',f'Rejoignez votre entreprise sur TransitFlow : {link}', '')
+        sent=send_invitation(request,invite,link)
         return Response({'link':link,'sent':sent},status=201)
     def patch(self,request):
         self.check();m.Organization.objects.select_for_update().get(pk=self.org.pk)

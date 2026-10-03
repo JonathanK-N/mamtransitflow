@@ -39,8 +39,8 @@ class PortalAdminView(ScopedView):
             digest=hashlib.sha256(token.encode()).hexdigest(),expires_at=timezone.now()+timedelta(days=7))
         services.audit(self.org,request.user,'portal-invite',invite,partner=str(partner.pk))
         link=request.build_absolute_uri('/app')+'?invitation='+token
-        from apps.comptes.invitations import envoyer
-        sent=envoyer(email,f'Votre portail client - {self.org.name}',f'Accédez à vos commandes, livraisons et factures : {link}','')
+        from .invitation_email import send_invitation
+        sent=send_invitation(request,invite,link)
         return Response({'link':link,'sent':sent},status=201)
     def patch(self,request):
         self.check();m.Organization.objects.select_for_update().get(pk=self.org.pk)
