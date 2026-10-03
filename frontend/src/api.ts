@@ -9,6 +9,7 @@ let renewing: Promise<boolean> | null = null
 export let organization = sessionStorage.getItem('transitflow.organization') || ''
 export function setOrganization(id:string) { organization=id;sessionStorage.setItem('transitflow.organization',id) }
 export function setAccess(token:string) { access=token }
+export function realtimeToken(){return access}
 export function clearSession() {
   access='';csrf='';setOrganization('')
   sessionStorage.removeItem('transitflow.invitation')

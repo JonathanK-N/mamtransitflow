@@ -1,5 +1,6 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
+import {subscribeActivity} from './activity'
 import {ref,onMounted,onUnmounted} from 'vue'
 import {Bell,ClipboardCheck,Plus,Download,RefreshCw} from 'lucide-vue-next'
 import {api,download} from './api'
@@ -20,8 +21,9 @@ async function save(){busy.value=true;error.value='';try{const data={...form.val
 async function mark(row:any){try{await api('field/notifications','POST',{key:row.key});await load()}catch(e:any){error.value=e.message}}
 async function attach(row:any){busy.value=true;error.value='';try{const data=new FormData();data.append('file',files.value[row.id]);data.append('title',titles.value[row.id]||files.value[row.id].name);await api(`field/reports/${row.id}/attachments`,'POST',data);delete files.value[row.id];await load();notice.value='Pièce jointe enregistrée.'}catch(e:any){error.value=e.message}finally{busy.value=false}}
 async function getFile(item:any){try{await download('field/attachments/'+item.id,item.title)}catch(e:any){error.value=e.message}}
-onMounted(()=>{load();timer=setInterval(()=>{if(!document.hidden&&!formOpen.value&&!busy.value)load()},60000)})
-onUnmounted(()=>clearInterval(timer))
+let unsubscribeActivity:()=>void=()=>{}
+onMounted(()=>{unsubscribeActivity=subscribeActivity(event=>{if(event.type!=='typing')load()});load();timer=setInterval(()=>{if(!document.hidden&&!formOpen.value&&!busy.value)load()},60000)})
+onUnmounted(()=>{unsubscribeActivity();clearInterval(timer)})
 </script>
 <template>
  <section class="field-workspace"><div class="field-toolbar"><div><h2>Terrain et suivi véhicule</h2><p>Déclarez les événements, contrôlez votre véhicule et suivez leur traitement.</p></div><button v-if="role!=='workshop'" class="primary" @click="create"><Plus :size="17"/>Nouvelle déclaration</button></div>

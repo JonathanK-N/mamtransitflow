@@ -117,7 +117,7 @@ class NotificationsView(FieldView):
         if self.member.role=='driver':vehicles=vehicles.filter(mission__in=trips.filter(status__in=['planned','active'])).distinct()
         def add(identity,version,title,body,severity='info'):
             key=hashlib.sha256(f'{identity}:{version}'.encode()).hexdigest()
-            items.append(dict(key=key,title=title,body=body,severity=severity))
+            items.append(dict(key=key,title=title,body=body,severity=severity,identity=str(identity),version=str(version)))
         for x in trips.filter(status__in=['planned','active']).select_related('vehicle').order_by('departure'):
             add(x.pk,x.updated_at,f'Mission {x.reference}',f'{x.origin} → {x.destination} · {x.vehicle.plate} · {x.get_status_display()}')
         if self.enabled('maintenance'):
@@ -144,4 +144,7 @@ class NotificationsView(FieldView):
         key=serializers.CharField(max_length=64).run_validation(request.data.get('key'))
         if key not in {x['key'] for x in self.notifications()}:raise ValidationError('Notification inaccessible ou actualisée.')
         m.NotificationRead.objects.get_or_create(organization=self.org,user=request.user,key=key)
+        from django.db import transaction
+        from .realtime import publish
+        transaction.on_commit(lambda:publish(self.org.pk,[request.user.pk],'notification'))
         return Response({'ok':True})

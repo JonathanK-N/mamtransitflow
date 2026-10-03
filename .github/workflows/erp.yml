@@ -1,7 +1,7 @@
 name: Recette ERP
 on:
   push:
-    branches: [transitflow-erp, transitflow-tests, pwa-mobile]
+    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime]
   pull_request:
     branches: [erp, main, transitflow-erp]
 permissions:
@@ -10,6 +10,12 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     services:
+      redis:
+        image: redis:8.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
       postgres:
         image: postgres:16
         env:
@@ -25,6 +31,7 @@ jobs:
       TF_SECRET_KEY: secret-uniquement-pour-la-recette-automatique
       TF_DEBUG: '1'
       TF_LEGACY_ENABLED: '0'
+      TF_REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +52,7 @@ jobs:
         working-directory: frontend
       - name: Serveur de recette
         run: |
-          python backend/manage.py runserver 127.0.0.1:8000 --noreload > /tmp/transitflow-server.log 2>&1 &
+          python -m uvicorn transitflow.asgi:application --app-dir backend --host 127.0.0.1 --port 8000 --workers 2 > /tmp/transitflow-server.log 2>&1 &
           for attempt in $(seq 1 30); do
             curl --fail http://127.0.0.1:8000/api/sante && exit 0
             sleep 1
@@ -68,6 +75,12 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-responsive
+      - name: Messagerie entre deux utilisateurs sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-messaging-$project pnpm --dir frontend exec playwright test messaging.spec.ts --project=$project --output=test-results-messaging-$project || exit 1
+          done
       - name: Audit Lighthouse mobile
         working-directory: frontend
         run: |
@@ -96,5 +109,7 @@ jobs:
             frontend/test-results-invitation
             frontend/playwright-report-responsive
             frontend/test-results-responsive
+            frontend/playwright-report-messaging-*
+            frontend/test-results-messaging-*
             frontend/lighthouse-mobile.report.json
             frontend/lighthouse-mobile.report.html

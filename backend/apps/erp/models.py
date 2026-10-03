@@ -569,3 +569,5 @@ class PortalAccess(TenantModel):
     active = models.BooleanField(default=True)
     class Meta(TenantModel.Meta):
         constraints=[models.UniqueConstraint(fields=['organization','user'],name='erp_portal_user_unique')]
+
+from .chat_models import Conversation, ConversationParticipant, Message, MessageAttachment, GlobalNotification, NotificationPreference, PushSubscription

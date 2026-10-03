@@ -5,8 +5,20 @@ from . import applications as apps
 from .delivery import ReceiptView,DeliveryDocumentsView
 from .portal import PortalAdminView,PortalView
 from .field import FieldView,FieldContextView,NotificationsView
+from .messaging import MessagingView, CollaboratorsView, MessagesView, MessageReadView, MessageAttachmentView
+from .notifications import GlobalNotificationsView, PreferencesView
+from .push import PushSubscriptionsView
 
 urlpatterns=[
+    path('messaging/collaborators',CollaboratorsView.as_view()),
+    path('messaging/conversations',MessagingView.as_view()),
+    path('messaging/conversations/<uuid:pk>',MessagingView.as_view()),
+    path('messaging/conversations/<uuid:pk>/messages',MessagesView.as_view()),
+    path('messaging/conversations/<uuid:pk>/read',MessageReadView.as_view()),
+    path('messaging/attachments/<uuid:pk>',MessageAttachmentView.as_view()),
+    path('notifications',GlobalNotificationsView.as_view()),
+    path('notifications/preferences',PreferencesView.as_view()),
+    path('notifications/subscriptions',PushSubscriptionsView.as_view()),
     path('field/context',FieldContextView.as_view()),
     path('field/reports',FieldView.as_view()),
     path('field/reports/<uuid:pk>/attachments',FieldView.as_view()),

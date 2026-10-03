@@ -1,4 +1,7 @@
 .mobile-bottom-nav,.mobile-records{display:none}
+.unread-badge{display:inline-block;background:#126b56;color:white;border-radius:12px;padding:2px 6px;font-size:11px;line-height:1.4;margin-left:5px;min-width:18px;text-align:center}
+.topbar .icon-btn{position:relative}.topbar .unread-badge{position:absolute;right:-3px;top:2px}
+.mobile-bottom-nav button{position:relative}.mobile-bottom-nav .unread-badge{position:absolute;top:2px;left:calc(50% + 6px);margin:0}
 :root{--muted:#596d60}
 .back,.auth-safe,.auth-switch{color:var(--muted)}
 .auth-safe,.auth-switch{font-size:13px}.auth-switch .text-btn,.auth-form-wrap>.muted{font-size:14px}

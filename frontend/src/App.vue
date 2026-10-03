@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { onMounted, ref, defineAsyncComponent } from 'vue'
 import PwaStatus from './PwaStatus.vue'
+import {disableDevicePush,setPushAccount,stopActivity} from './activity'
 import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-next'
 import PublicSite from './PublicSite.vue'
 const Workspace=defineAsyncComponent(()=>import('./Workspace.vue'))
@@ -36,10 +37,10 @@ async function submit(){
   form.value.password=''
  }catch(e:any){error.value=e.message}finally{busy.value=false}
 }
-async function logout(){try{await api('auth/logout','POST');session.value=null;clearSession();form.value.password='';go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
+async function logout(){try{await disableDevicePush();await api('auth/logout','POST');stopActivity();session.value=null;clearSession();form.value.password='';go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
 onMounted(async()=>{
  const invite=new URLSearchParams(location.search).get('invitation');if(invite)sessionStorage.setItem('transitflow.invitation',invite)
- window.addEventListener('session-expired',()=>{session.value=null;clearSession();form.value.password='';go('login');error.value='Votre session a expiré. Reconnectez-vous.'})
+ window.addEventListener('session-expired',()=>{stopActivity();setPushAccount(null);session.value=null;clearSession();form.value.password='';go('login');error.value='Votre session a expiré. Reconnectez-vous.'})
  window.addEventListener('popstate',()=>{
   if(location.pathname.startsWith('/app')){if(session.value)screen.value='workspace';else go('login')}
   else screen.value=location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':'public'

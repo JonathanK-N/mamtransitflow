@@ -1,0 +1,25 @@
+<script setup lang="ts">
+import {ref,onMounted,onUnmounted} from 'vue'
+import {api,organization} from './api'
+import {subscribeActivity,updateCounts,setPushAccount,disableDevicePush} from './activity'
+const props=defineProps<{user:number}>(),emit=defineEmits(['open'])
+const rows=ref<any[]>([]),page=ref(1),more=ref(false),prefs=ref<any>(null),error=ref(''),busy=ref(false)
+let unsubscribe:()=>void=()=>{},alive=true
+async function load(){try{const result=await api('notifications?page='+page.value);if(alive){rows.value=result.results;more.value=!!result.next}}catch(e:any){error.value=e.message}}
+async function read(row:any){try{await api('notifications','POST',{key:row.key});row.read=true;await updateCounts()}catch(e:any){error.value=e.message}}
+async function open(row:any){await read(row);emit('open',row.context)}
+async function save(){try{prefs.value=await api('notifications/preferences','PATCH',prefs.value)}catch(e:any){error.value=e.message}}
+async function enable(){busy.value=true;error.value=''
+ try{if(!('Notification'in window)||!('PushManager'in window))throw new Error('Ce navigateur ne propose pas les notifications push. Sur iPhone/iPad, installez TransitFlow sur l’écran d’accueil puis ouvrez l’application.')
+  if(!prefs.value.vapid_public_key)throw new Error('Les notifications push ne sont pas encore configurées sur le serveur.')
+  const permission=await Notification.requestPermission();if(permission!=='granted')throw new Error('Permission non accordée. Vous pouvez la modifier dans les réglages du navigateur.')
+  const registration=await navigator.serviceWorker.ready;let subscription=await registration.pushManager.getSubscription()
+  if(!subscription){const key=prefs.value.vapid_public_key;const binary=atob(key.replace(/-/g,'+').replace(/_/g,'/'));const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes})}
+  await api('notifications/subscriptions','POST',subscription.toJSON());prefs.value.push=true;await save();await setPushAccount(props.user,organization)
+ }catch(e:any){error.value=e.message}finally{busy.value=false}}
+async function disable(){busy.value=true;try{await disableDevicePush();prefs.value.push=false;await save()}catch(e:any){error.value=e.message}finally{busy.value=false}}
+onMounted(async()=>{unsubscribe=subscribeActivity(e=>{if(e.type!=='typing')load()});await load();try{prefs.value=await api('notifications/preferences')}catch(e:any){error.value=e.message}})
+onUnmounted(()=>{alive=false;unsubscribe()})
+</script>
+<template><section class="notification-center"><p v-if="error" class="error-box" role="alert">{{error}}</p><details class="panel notification-preferences"><summary>Préférences de notification</summary><template v-if="prefs"><label v-for="[key,title] in [['messages','Messages'],['missions','Missions'],['operations','Opérations et alertes'],['preview','Afficher le contenu dans les notifications push']]" :key="key"><input v-model="prefs[key]" type="checkbox" @change="save"/>{{title}}</label><p>Recevez les messages et événements importants quand TransitFlow est fermé. Le contenu reste masqué par défaut.</p><button v-if="!prefs.push" class="primary" :disabled="busy" @click="enable">Activer les notifications</button><button v-else class="secondary" :disabled="busy" @click="disable">Désactiver les notifications push</button></template></details><p v-if="!rows.length" class="panel empty-state">Aucune notification.</p><article v-for="row in rows" :key="row.id" class="panel notification-card" :class="{'is-read':row.read}"><header><h2>{{row.title}}</h2><span>{{row.read?'Lu':'Non lu'}}</span></header><p>{{row.body}}</p><time v-if="row.created_at">{{new Date(row.created_at).toLocaleString('fr-FR')}}</time><footer><button class="secondary" @click="open(row)">Ouvrir</button><button v-if="!row.read" class="text-btn" @click="read(row)">Marquer comme lu</button></footer></article><footer class="table-pagination"><button class="secondary" :disabled="page===1" @click="page--;load()">Précédent</button><span>{{page}}</span><button class="secondary" :disabled="!more" @click="page++;load()">Suivant</button></footer></section></template>
+<style scoped>.notification-center{display:grid;gap:16px}.notification-preferences,.notification-card{padding:20px}.notification-preferences summary{cursor:pointer;min-height:44px;font-weight:600}.notification-preferences label{display:flex;align-items:center;gap:12px;min-height:44px}.notification-preferences p{line-height:1.6;margin:14px 0}.notification-card header,.notification-card footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.notification-card h2{font-size:18px}.notification-card p{margin:14px 0;line-height:1.6;overflow-wrap:anywhere}.notification-card time{font-size:13px;color:#52665b}.notification-card footer{margin-top:16px;justify-content:flex-start}.notification-card.is-read{background:#f5f8f5}.notification-card header span{font-size:13px}</style>

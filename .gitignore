@@ -18,3 +18,4 @@ frontend/playwright-report/
 *.sqlite3
 *.zip
 frontend/test-results-*/
+frontend/playwright-report-*/

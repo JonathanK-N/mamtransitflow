@@ -235,6 +235,14 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+ASGI_APPLICATION = 'transitflow.asgi.application'
+TF_REDIS_URL = os.environ.get('TF_REDIS_URL', '')
+CHANNEL_LAYERS = {'default': {'BACKEND': 'channels_redis.core.RedisChannelLayer',
+    'CONFIG': {'hosts': [TF_REDIS_URL], 'expiry': 60, 'group_expiry': 300, 'capacity': 200}}} if TF_REDIS_URL else {
+    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}} if DEBUG else {}
+TF_VAPID_PUBLIC_KEY = os.environ.get('TF_VAPID_PUBLIC_KEY', '')
+TF_VAPID_PRIVATE_KEY = os.environ.get('TF_VAPID_PRIVATE_KEY', '')
+TF_VAPID_SUBJECT = os.environ.get('TF_VAPID_SUBJECT', 'mailto:contact@mjtransitflow.com')
 
 # Auteur : Jonathan Kakesa (JonathanK-N). Isolation des routes historiques.
 TF_LEGACY_ENABLED = os.environ.get('TF_LEGACY_ENABLED', '0') == '1'
