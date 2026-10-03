@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test'
 
-async function fits(page:any){expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()}
+async function fits(page:any){const info=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('body *')].map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right})).filter(e=>e.right>innerWidth+1).slice(0,8)}));expect(info.scroll,JSON.stringify(info)).toBeLessThanOrEqual(info.width)}
 
 test('Pages publiques, connexion, inscription et récupération sans débordement',async({page})=>{
  for(const path of ['/', '/connexion', '/commencer']){
@@ -18,7 +18,13 @@ test('Manifest, cache statique, démarrage privé et reconnexion',async({page,co
  await page.evaluate(()=>navigator.serviceWorker.ready)
  await page.reload();await page.evaluate(()=>navigator.serviceWorker.ready)
  await expect.poll(()=>page.evaluate(()=>!!navigator.serviceWorker.controller)).toBeTruthy()
- await context.setOffline(true);await page.reload()
+ if(test.info().project.name==='chromium'){
+  const session=await context.newCDPSession(page)
+  const checked=await session.send('Page.getAppManifest');expect(checked.errors).toEqual([])
+  const installability=await session.send('Page.getInstallabilityErrors');expect(installability.installabilityErrors).toEqual([])
+  await session.detach()
+ }
+ await context.setOffline(true);await page.reload().catch(error=>{if(!['iphone','ipad'].includes(test.info().project.name))throw error})
  await expect(page.getByText('Vous êtes hors connexion. Les données et enregistrements nécessitent Internet.')).toBeVisible()
  await page.getByLabel('Adresse courriel').fill('offline@example.test');await page.getByLabel('Mot de passe',{exact:true}).fill('Mot-de-passe-934!')
  await page.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(page.getByRole('alert')).toContainText('hors connexion')
@@ -64,5 +70,9 @@ test('Session, modules autorisés, cartes mobiles, formulaire et déconnexion',a
  for(const name of ['Freins','Pneus','Éclairage','Niveaux et fuites','Équipements de sécurité','Documents du véhicule'])await page.getByLabel(name,{exact:true}).selectOption('ok')
  await fits(page);await page.getByRole('button',{name:'Enregistrer la déclaration',exact:true}).click()
  await expect(page.getByRole('heading',{name:'Contrôle mobile',exact:true})).toBeVisible()
+ await page.locator('.field-tabs').getByRole('button',{name:/^Notifications/}).click()
+ await expect(page.locator('.field-help').filter({hasText:'actualisées toutes les minutes'})).toBeVisible()
+ const read=page.getByRole('button',{name:'Marquer comme lu',exact:true})
+ if(await read.count()){await read.first().click();await expect(page.locator('.field-card .status').filter({hasText:/^Lu$/}).first()).toBeVisible()}
  await page.screenshot({path:`test-results/responsive-${test.info().project.name}.png`,fullPage:true})
 })

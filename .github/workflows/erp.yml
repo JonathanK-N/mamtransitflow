@@ -68,6 +68,11 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-responsive
+      - name: Audit Lighthouse mobile
+        working-directory: frontend
+        run: |
+          export CHROME_PATH=$(node -e "process.stdout.write(require('@playwright/test').chromium.executablePath())")
+          pnpm --config.enable-global-virtual-store=false dlx lighthouse@13.5.0 http://127.0.0.1:8000/connexion --chrome-flags="--headless --no-sandbox" --only-categories=performance,accessibility,best-practices --output=json --output=html --output-path=lighthouse-mobile --quiet
       - name: Construction de l’image de production
         run: docker build --tag transitflow-recette .
       - name: Stockage persistant et abandon des privileges
@@ -91,3 +96,5 @@ jobs:
             frontend/test-results-invitation
             frontend/playwright-report-responsive
             frontend/test-results-responsive
+            frontend/lighthouse-mobile.report.json
+            frontend/lighthouse-mobile.report.html

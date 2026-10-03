@@ -46,7 +46,9 @@
  .portal-body{padding-bottom:calc(24px + env(safe-area-inset-bottom))!important}
  .field-tabs button{flex-shrink:1}.field-form,.field-card{min-width:0}.field-upload label{min-width:0;width:100%}
  .panel,.stat-card,.dashboard-grid>*{min-width:0}.table-wrap{max-width:100%}.table-pagination{font-size:13px}
+ .app-categories{flex-wrap:wrap}.app-categories button{min-height:44px}.application-card footer{flex-wrap:wrap}.application-card{min-width:0}
  .topbar .breadcrumb{min-width:0;overflow:hidden}.topbar-right{gap:4px}.region{display:none}
  .workspace-footer{flex-wrap:wrap;gap:12px;font-size:12px}.invitation-link span{overflow-wrap:anywhere}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media(max-width:360px){.public-nav{flex-wrap:wrap!important;gap:8px!important;position:relative}.public-nav .nav-actions{width:100%;justify-content:flex-end}.public-nav .public-links{top:100%}.topbar .breadcrumb{font-size:12px}.page-heading h1{overflow-wrap:anywhere}.page-heading .count-label{font-size:14px}}
