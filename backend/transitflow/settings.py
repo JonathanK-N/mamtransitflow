@@ -171,7 +171,7 @@ if _url_bd:
     # Accepte aussi la forme SQLAlchemy 'postgresql+psycopg://' des anciennes
     # versions du fichier .env.example.
     _url_bd = _url_bd.replace('postgresql+psycopg://', 'postgresql://', 1)
-    DATABASES = {'default': dj_database_url.parse(_url_bd, conn_max_age=600, conn_health_checks=True)}
+    DATABASES = {'default': dj_database_url.parse(_url_bd, conn_max_age=0, conn_health_checks=True)}
 else:
     _dossier_sqlite = BASE_DIR / 'data'
     _dossier_sqlite.mkdir(exist_ok=True)
