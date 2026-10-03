@@ -5,12 +5,12 @@ let socket:WebSocket|null=null,timer:ReturnType<typeof setTimeout>|undefined,hea
 const handlers=new Set<(event:any)=>void>()
 export function subscribeActivity(fn:(event:any)=>void){handlers.add(fn);return()=>handlers.delete(fn)}
 function dispatch(event:any){handlers.forEach(fn=>fn(event))}
-let counts:Promise<void>|null=null
+let counts:Promise<void>|null=null,countsAgain=false
 export async function updateCounts(){
- if(counts)return counts
- const selected=organization
- counts=(async()=>{try{const [messages,notifications]=await Promise.all([api('messaging/conversations'),api('notifications')]);if(selected!==organization)return;messageUnread.value=messages.unread;notificationUnread.value=notifications.unread}catch{}})()
- try{await counts}finally{counts=null}
+ if(counts){countsAgain=true;return counts}
+ const selected=organization,generation=epoch
+ counts=(async()=>{try{const [messages,notifications]=await Promise.all([api('messaging/conversations'),api('notifications')]);if(selected!==organization||generation!==epoch)return;messageUnread.value=messages.unread;notificationUnread.value=notifications.unread}catch{}})()
+ try{await counts}finally{counts=null;if(countsAgain&&!stopped){countsAgain=false;updateCounts()}}
 }
 async function connect(generation:number){
  if(stopped||generation!==epoch||!navigator.onLine)return
