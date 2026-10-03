@@ -15,10 +15,10 @@
 <img src="{{ logo_url }}" alt="Logo TransitFlow" width="80" height="80" style="display:block;width:80px;height:80px;border:0;">
 <div style="padding-top:10px;font-size:22px;font-weight:bold;color:#073b70;">TransitFlow</div>
 </td></tr>
-<tr><td style="padding:28px 24px 12px;font-size:24px;line-height:32px;font-weight:bold;">{{ company_name }} vous invite{% if is_client %} à accéder à son portail client{% else %} à rejoindre son équipe{% endif %}</td></tr>
+<tr><td style="padding:28px 24px 12px;font-size:24px;line-height:32px;font-weight:bold;">{{ company_name }} vous invite{% if is_client %} à accéder à votre espace client TransitFlow{% else %} à rejoindre son équipe{% endif %}</td></tr>
 <tr><td style="padding:8px 24px 0;font-size:16px;line-height:26px;">
 <p style="margin:0 0 16px;">{{ greeting }}</p>
-<p style="margin:0 0 16px;"><strong>{{ company_name }}</strong> vous invite à rejoindre {% if is_client %}son portail client{% else %}son espace de travail{% endif %} sur <strong>TransitFlow</strong> en tant que <strong>{{ role_name }}</strong>.</p>
+<p style="margin:0 0 16px;">{% if is_client %}<strong>{{ company_name }}</strong> vous invite à accéder à votre espace client <strong>TransitFlow</strong>.{% else %}<strong>{{ company_name }}</strong> vous invite à rejoindre son espace de travail sur <strong>TransitFlow</strong> en tant que <strong>{{ role_name }}</strong>.{% endif %}</p>
 <p style="margin:0 0 16px;">TransitFlow est la plateforme utilisée par {{ company_name }} pour centraliser et simplifier la gestion de ses opérations de transport.</p>
 <p style="margin:0 0 20px;">Pour accepter cette invitation et accéder à votre espace, cliquez sur le bouton ci-dessous :</p>
 </td></tr>

@@ -14,7 +14,9 @@ def send_invitation(request, invitation, link):
     organization = invitation.organization
     recipient = Utilisateur.objects.filter(courriel__iexact=invitation.email).first()
     name = recipient.nom.strip() if recipient and recipient.nom else ''
-    if not name:
+    if invitation.role == 'client' and invitation.partner_id:
+        name = invitation.partner.contact_name.strip() or name
+    if not name and invitation.role != 'client':
         employee = Employee.objects.filter(organization=organization, email__iexact=invitation.email).first()
         name = employee.name.strip() if employee else ''
     try:
@@ -33,7 +35,7 @@ def send_invitation(request, invitation, link):
         'link': link,
         'logo_url': request.build_absolute_uri('/' + static('erp/email/transitflow-logo.png').lstrip('/')),
     }
-    subject = f'Invitation à rejoindre {organization.name} sur TransitFlow'
+    subject = f'{organization.name} : invitation à votre espace client TransitFlow' if invitation.role == 'client' else f'Invitation à rejoindre {organization.name} sur TransitFlow'
     text = render_to_string('erp/email/invitation.txt', context)
     html = render_to_string('erp/email/invitation.html', context)
     return envoyer(invitation.email, subject, text, html)

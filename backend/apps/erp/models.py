@@ -73,6 +73,7 @@ def money(label, default=0):
 
 
 class Partner(TenantModel):
+    contact_name = models.CharField('Nom du contact', max_length=150, blank=True)
     name = models.CharField('Nom', max_length=150)
     kind = models.CharField('Type', max_length=15, choices=choices(('customer','Client'),('supplier','Fournisseur'),('both','Client et fournisseur')), default='customer')
     email = models.EmailField('Courriel', blank=True)
@@ -327,6 +328,7 @@ class TeamInvitation(TenantModel):
     digest = models.CharField(max_length=64, unique=True)
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
+    canceled_at = models.DateTimeField(null=True, blank=True)
 
 
 class Sequence(TenantModel):

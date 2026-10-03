@@ -86,8 +86,12 @@ class RegisterView(APIView):
             with transaction.atomic():
                 invite=None
                 if invitation:
-                    invite=TeamInvitation.objects.select_for_update().filter(digest=hashlib.sha256(invitation.encode()).hexdigest()).first()
-                    if not invite or invite.used_at or invite.expires_at<=timezone.now() or invite.email.lower()!=email:
+                    candidate=TeamInvitation.objects.filter(digest=hashlib.sha256(invitation.encode()).hexdigest()).first()
+                    if candidate:
+                        set_scope(candidate.organization_id)
+                        Organization.objects.select_for_update().get(pk=candidate.organization_id)
+                        invite=TeamInvitation.objects.select_for_update().get(pk=candidate.pk)
+                    if not invite or invite.used_at or invite.canceled_at or invite.expires_at<=timezone.now() or invite.email.lower()!=email:
                         raise ValidationError('Invitation invalide, expirée ou destinée à un autre courriel.')
                 user=Utilisateur.objects.create_user(courriel=email,mot_de_passe=password,nom=name)
                 if invite:

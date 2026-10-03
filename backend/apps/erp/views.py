@@ -302,7 +302,7 @@ class TeamView(ScopedView):
         self.check()
         return Response({'members':[{'id':x.pk,'name':x.user.nom,'email':x.user.courriel,'role':x.role,'active':x.active}
             for x in m.Membership.objects.filter(organization=self.org).select_related('user')],
-            'invitations':[{'id':x.pk,'email':x.email,'role':x.role,'expires_at':x.expires_at,'used':bool(x.used_at)} for x in m.TeamInvitation.objects.filter(organization=self.org)]})
+            'invitations':[{'id':x.pk,'email':x.email,'role':x.role,'expires_at':x.expires_at,'used':bool(x.used_at)} for x in m.TeamInvitation.objects.filter(organization=self.org).exclude(role='client')]})
     def post(self,request):
         self.check();from rest_framework import serializers
         email=serializers.EmailField().run_validation(request.data.get('email')).lower()
@@ -310,7 +310,7 @@ class TeamView(ScopedView):
         if role not in dict(m.ROLES) or role=='owner':raise ValidationError('Rôle invalide.')
         if role=='admin' and self.member.role!='owner':raise PermissionDenied('Seul un propriétaire invite un administrateur.')
         token=secrets.token_urlsafe(32)
-        m.TeamInvitation.objects.filter(organization=self.org,email=email,used_at__isnull=True).update(expires_at=timezone.now())
+        m.TeamInvitation.objects.filter(organization=self.org,email=email,used_at__isnull=True).exclude(role='client').update(expires_at=timezone.now())
         invite=m.TeamInvitation.objects.create(organization=self.org,email=email,role=role,
             digest=hashlib.sha256(token.encode()).hexdigest(),expires_at=timezone.now()+timedelta(days=7))
         services.audit(self.org,request.user,'invite',invite)
@@ -343,9 +343,12 @@ class AcceptInvitationView(APIView):
     @transaction.atomic
     def post(self,request):
         digest=hashlib.sha256(str(request.data.get('token','')).encode()).hexdigest()
-        invite=get_object_or_404(m.TeamInvitation.objects.select_for_update(),digest=digest)
+        candidate=get_object_or_404(m.TeamInvitation,digest=digest)
+        security.set_scope(candidate.organization_id)
+        m.Organization.objects.select_for_update().get(pk=candidate.organization_id)
+        invite=get_object_or_404(m.TeamInvitation.objects.select_for_update(),pk=candidate.pk)
         if invite.email.lower()!=request.user.courriel.lower():raise PermissionDenied('Connectez-vous avec le courriel invité.')
-        if invite.used_at or invite.expires_at<timezone.now():raise ValidationError('Invitation expirée ou déjà utilisée.')
+        if invite.used_at or invite.canceled_at or invite.expires_at<=timezone.now():raise ValidationError('Invitation expirée ou déjà utilisée.')
         security.set_scope(invite.organization_id)
         security.grant_invitation(invite,request.user)
         invite.used_at=timezone.now();invite.save(update_fields=['used_at'])
