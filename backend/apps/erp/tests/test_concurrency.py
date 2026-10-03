@@ -50,3 +50,16 @@ def test_simultaneous_bookings_do_not_oversell():
     results=concurrent(lambda n:services.booking(org,user,dict(mission=trip,passenger=f'Voyageur {n}',phone='600000000',seats=1)))
     assert sorted(results)==['accepted','rejected']
     assert m.Booking.objects.count()==1
+
+
+def test_simultaneous_internal_invitations_do_not_duplicate_employee():
+    if connection.vendor!='postgresql':pytest.skip('Verrouillage vérifié sur PostgreSQL uniquement')
+    from apps.erp.security import grant_invitation
+    org=m.Organization.objects.create(name='Personnel',slug='personnel-race')
+    user=Utilisateur.objects.create_user(courriel='staff-race@example.test',mot_de_passe='Race-test-934!',nom='Chauffeur')
+    invitations=[m.TeamInvitation.objects.create(organization=org,email=user.courriel,role='driver',
+        digest=str(n)*64,expires_at=timezone.now()+timedelta(days=1)) for n in range(2)]
+    results=concurrent(lambda n:grant_invitation(invitations[n],user))
+    assert sorted(results)==['accepted','rejected']
+    assert m.Membership.objects.filter(organization=org,user=user).count()==1
+    assert m.Employee.objects.filter(organization=org,user=user).count()==1

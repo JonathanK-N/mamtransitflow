@@ -126,3 +126,75 @@ def test_driver_can_only_operate_assigned_mission_and_sync_late_points(env):
     env['driver'].user=None;env['driver'].save()
     assert env['client'].get(url).status_code==404
     assert env['client'].post(url,{'positions':[point]},format='json').status_code==404
+
+
+@pytest.mark.parametrize('role,job', [('driver','driver'),('operations','dispatcher'),('workshop','mechanic'),('admin','office'),('finance','office'),('viewer','office'),('owner','office')])
+def test_internal_invited_signup_creates_visible_employee(env,role,job):
+    token='internal-personnel-token'
+    m.TeamInvitation.objects.create(organization=env['org'],email='staff@example.test',role=role,
+        digest=hashlib.sha256(token.encode()).hexdigest(),expires_at=timezone.now()+timedelta(days=1))
+    result=APIClient().post('/api/v2/auth/register',{'name':'Nouveau membre','email':'staff@example.test',
+        'password':'Independent-password-839!','invitation':token},format='json')
+    assert result.status_code==201,result.data
+    employee=m.Employee.objects.get(organization=env['org'],email='staff@example.test')
+    assert employee.user.courriel=='staff@example.test'
+    assert employee.name=='Nouveau membre'
+    assert employee.job==job
+    listing=env['client'].get('/api/v2/employees')
+    assert listing.status_code==200
+    assert str(employee.pk) in str(listing.data)
+
+
+@pytest.mark.parametrize('match', ['email','user'])
+def test_existing_account_acceptance_reuses_employee_and_preserves_business_data(env,match):
+    from apps.comptes.models import Utilisateur
+    user=Utilisateur.objects.create_user(courriel='staff@example.test',mot_de_passe='Independent-password-839!',nom='Compte')
+    employee=m.Employee.objects.create(organization=env['org'],name='Nom métier',
+        user=user if match=='user' else None,email='' if match=='user' else 'STAFF@example.test',
+        job='mechanic',phone='123456',license_number='PERMIS',notes='Conserver',active=False)
+    foreign=m.Employee.objects.create(organization=env['other'],name='Autre entreprise',email=user.courriel)
+    token='existing-personnel-token'
+    invitation=m.TeamInvitation.objects.create(organization=env['org'],email=user.courriel,role='driver',
+        digest=hashlib.sha256(token.encode()).hexdigest(),expires_at=timezone.now()+timedelta(days=1))
+    client=APIClient();client.force_authenticate(user)
+    before=m.Employee.objects.count()
+    result=client.post('/api/v2/invitation/accept',{'token':token},format='json')
+    assert result.status_code==200,result.data
+    employee.refresh_from_db();foreign.refresh_from_db()
+    assert employee.user_id==user.pk
+    assert employee.email.lower()==user.courriel
+    assert (employee.name,employee.job,employee.phone,employee.license_number,employee.notes,employee.active)==('Nom métier','mechanic','123456','PERMIS','Conserver',False)
+    assert foreign.user_id is None
+    assert m.Employee.objects.count()==before
+    assert client.post('/api/v2/invitation/accept',{'token':token},format='json').status_code==400
+    assert m.Employee.objects.count()==before
+    invitation.refresh_from_db();assert invitation.used_at is not None
+
+
+def test_client_invited_signup_does_not_create_employee(env):
+    token='client-personnel-token'
+    m.TeamInvitation.objects.create(organization=env['org'],email='customer@example.test',role='client',partner=env['partner'],
+        digest=hashlib.sha256(token.encode()).hexdigest(),expires_at=timezone.now()+timedelta(days=1))
+    before=m.Employee.objects.count()
+    result=APIClient().post('/api/v2/auth/register',{'name':'Client','email':'customer@example.test',
+        'password':'Independent-password-839!','invitation':token},format='json')
+    assert result.status_code==201,result.data
+    assert m.Employee.objects.count()==before
+    assert m.PortalAccess.objects.filter(user__courriel='customer@example.test',partner=env['partner']).exists()
+    assert not m.Membership.objects.filter(user__courriel='customer@example.test').exists()
+
+
+@pytest.mark.parametrize('conflict', ['duplicate','linked'])
+def test_employee_email_conflict_rolls_back_membership(env,conflict):
+    from apps.comptes.models import Utilisateur
+    from apps.erp.security import grant_invitation
+    from rest_framework.exceptions import ValidationError
+    user=Utilisateur.objects.create_user(courriel='staff@example.test',mot_de_passe='Independent-password-839!',nom='Compte')
+    m.Employee.objects.create(organization=env['org'],name='Existant',email=user.courriel,
+        user=env['user'] if conflict=='linked' else None)
+    if conflict=='duplicate':m.Employee.objects.create(organization=env['org'],name='Doublon',email=user.courriel.upper())
+    invite=m.TeamInvitation(organization=env['org'],email=user.courriel,role='driver')
+    before=m.Employee.objects.count()
+    with pytest.raises(ValidationError):grant_invitation(invite,user)
+    assert not m.Membership.objects.filter(organization=env['org'],user=user).exists()
+    assert m.Employee.objects.count()==before
