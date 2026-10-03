@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "python backend/manage.py migrate --noinput && gunicorn --chdir backend transitflow.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --timeout 60 --access-logfile - --error-logfile -",
+    "startCommand": "python backend/manage.py migrate --noinput && python backend/manage.py reconcile_personnel --apply && gunicorn --chdir backend transitflow.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --timeout 60 --access-logfile - --error-logfile -",
     "healthcheckPath": "/api/sante",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

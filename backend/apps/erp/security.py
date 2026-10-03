@@ -55,22 +55,6 @@ def grant_invitation(invite,user):
             raise ValidationError('Rôle interne invalide.')
         if m.PortalAccess.objects.filter(organization=invite.organization,user=user,active=True).exists():
             raise ValidationError('Révoquez l’accès client avant de donner un accès interne.')
-        email=user.courriel.strip().lower()
-        employees=m.Employee.objects.select_for_update().filter(organization=invite.organization)
-        employee=employees.filter(user=user).order_by('created_at','pk').first()
-        if employee is None:
-            matches=list(employees.filter(email__iexact=email).order_by('created_at','pk'))
-            if len(matches)>1 or any(x.user_id not in (None,user.pk) for x in matches):
-                raise ValidationError('Le courriel est déjà rattaché à une fiche Personnel ambiguë ou à un autre compte.')
-            employee=matches[0] if matches else None
-        if employee is None:
-            m.Employee.objects.create(organization=invite.organization,user=user,email=email,
-                name=user.nom.strip() or email,
-                job={'driver':'driver','operations':'dispatcher','workshop':'mechanic'}.get(invite.role,'office'))
-        else:
-            changes=[]
-            if employee.user_id is None:employee.user=user;changes.append('user')
-            if not employee.email.strip():employee.email=email;changes.append('email')
-            if not employee.name.strip():employee.name=user.nom.strip() or email;changes.append('name')
-            if changes:employee.save(update_fields=changes+['updated_at'])
+        from .personnel import sync_employee
+        sync_employee(invite.organization,user,invite.role)
         m.Membership.objects.create(organization=invite.organization,user=user,role=invite.role)
