@@ -16,7 +16,7 @@ test('Personnel contacte puis retire un compte TEST connecté sans perdre son au
  const received:string[]=[];let closed=false
  pb.on('websocket',ws=>{let tenant='';ws.on('framesent',e=>{try{const value=JSON.parse(String(e.payload));if(value.type==='authenticate')tenant=value.organization}catch{}});ws.on('framereceived',e=>{if(tenant===org)received.push(String(e.payload))});ws.on('close',()=>{if(tenant===org)closed=true})})
  async function login(page:any,address:string){await page.goto('/connexion');await page.getByLabel('Adresse courriel').fill(address);await page.getByLabel('Mot de passe',{exact:true}).fill(password);await page.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(page.locator('.workspace')).toBeVisible()}
- async function navigate(page:any,name:string){if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Menu',exact:true}).click();await page.locator('.sidebar').getByRole('button',{name,exact:true}).click()}
+ async function navigate(page:any,name:string){if((page.viewportSize()?.width||1280)<=600)await page.getByRole('navigation',{name:'Navigation mobile'}).getByRole('button',{name:'Plus',exact:true}).click();else if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Menu',exact:true}).click();await page.locator('.sidebar').getByRole('button',{name,exact:true}).click()}
  try{
   await login(pa,email);await login(pb,'peer-'+email);await navigate(pb,'Messages');await expect(pb.getByRole('status').filter({hasText:'En direct'})).toBeVisible()
   await navigate(pa,'Personnel');await pa.getByRole('button',{name:'Actions pour Chauffeur TEST retrait',exact:true}).click()

@@ -18,7 +18,7 @@ import FieldWorkspace from './FieldWorkspace.vue'
 import ApplicationStore from './ApplicationStore.vue'
 import CustomWorkspace from './CustomWorkspace.vue'
 import BusinessAction from './BusinessAction.vue'
-const props=defineProps<{session:any}>();defineEmits(['logout'])
+const props=defineProps<{session:any,accessNotice?:string}>();defineEmits(['logout'])
 const navigator=window.navigator
 const current=ref(props.session.organizations.find((x:any)=>x.id===organization)?.role==='driver'?'missions':'dashboard'),catalog=ref<any[]>([]),dashboard=ref<any>(null),rows=ref<any[]>([]),count=ref(0),page=ref(1),query=ref(''),status=ref(''),loading=ref(true),busy=ref(false),error=ref(''),notice=ref(''),mobile=ref(false)
 const editor=ref(false),selected=ref<any>(null),orgId=ref(organization),org=ref<any>(props.session.organizations.find((x:any)=>x.id===organization)||props.session.organizations[0]||{})
@@ -50,7 +50,7 @@ function label(field:string){return schema.value?.fields.find((f:any)=>f.name===
 function display(row:any,field:string){
  if(row.relations?.[field])return row.relations[field]
  const value=row[field];if(value===null||value===undefined||value==='')return '—'
- if(typeof value==='boolean')return value?'Oui':'Non'
+ if(typeof value==='boolean')return current.value==='employees'&&field==='active'?(value?'Actif':'Inactif'):(value?'Oui':'Non')
  const f=schema.value?.fields.find((x:any)=>x.name===field)
  if(f?.options?.length)return f.options.find((x:any)=>x.value===value)?.label||value
  if(['amount','total','paid','cost','fare','unit_cost','unit_price','agreed_amount'].includes(field))return money(value,org.value.currency)
@@ -100,7 +100,7 @@ async function openContext(context:any){
  if(context.id){try{const record=await api(key+'/'+context.id);open(record)}catch(e:any){error.value=e.message}}
 }
 async function missionChat(row:any){try{const conversation=await api('messaging/conversations','POST',{kind:'mission',mission:row.id});await openContext({conversation:conversation.id})}catch(e:any){error.value=e.message}}
-onMounted(async()=>{const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);const tenant=params.get('organization');if(tenant&&props.session.organizations.some((o:any)=>o.id===tenant)){orgId.value=tenant;setOrganization(tenant);org.value=props.session.organizations.find((o:any)=>o.id===tenant)}if(route&&[...Object.keys(columns),'reports','team','settings','applications','portal-admin','field','messages','notifications'].includes(route))current.value=route;conversationId.value=params.get('conversation')||'';await bootstrap();if(org.value.role!=='client'){startActivity();setPushAccount(props.session.user.id,orgId.value);if(params.get('record'))await openContext({module:route,id:params.get('record')})}})
+onMounted(async()=>{if(props.accessNotice)notify(props.accessNotice);const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);const tenant=params.get('organization');if(tenant&&props.session.organizations.some((o:any)=>o.id===tenant)){orgId.value=tenant;setOrganization(tenant);org.value=props.session.organizations.find((o:any)=>o.id===tenant)}if(route&&[...Object.keys(columns),'reports','team','settings','applications','portal-admin','field','messages','notifications'].includes(route))current.value=route;conversationId.value=params.get('conversation')||'';await bootstrap();if(org.value.role!=='client'){startActivity();setPushAccount(props.session.user.id,orgId.value);if(params.get('record'))await openContext({module:route,id:params.get('record')})}})
 async function hashChanged(){const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);if(params.get('organization')&&params.get('organization')!==orgId.value){const target=params.get('organization')!;if(!props.session.organizations.some((o:any)=>o.id===target))return;orgId.value=target;await switchOrg()}if(!permitted(route))return;current.value=route;conversationId.value=params.get('conversation')||'';await load();if(params.get('record'))await openContext({module:route,id:params.get('record')})}
 window.addEventListener('hashchange',hashChanged)
 onUnmounted(()=>{stopActivity();window.removeEventListener('hashchange',hashChanged)})

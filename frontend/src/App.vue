@@ -10,14 +10,14 @@ import PasswordRecovery from './PasswordRecovery.vue'
 import {api,refresh,setOrganization,organization,clearSession} from './api'
 const screen=ref(location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':location.pathname.startsWith('/app')?'loading':'public')
 if(new URLSearchParams(location.search).has('reset'))screen.value='recovery'
-const session=ref<any>(null),error=ref(''),busy=ref(false)
+const session=ref<any>(null),accessNotice=ref(''),error=ref(''),busy=ref(false)
 const form=ref({name:'',email:'',password:'',company:'',country:'GN',activity:'freight'})
 const invitationToken=ref(new URLSearchParams(location.search).get('invitation')||sessionStorage.getItem('transitflow.invitation')||'')
 if(new URLSearchParams(location.search).has('invitation')&&screen.value!=='recovery')screen.value='loading'
 const countries=[['GN','Guinée','GNF','Africa/Conakry'],['CM','Cameroun','XAF','Africa/Douala'],['CG','Congo','XAF','Africa/Brazzaville'],['CD','RDC','CDF','Africa/Kinshasa'],['SN','Sénégal','XOF','Africa/Dakar'],['CI',"Côte d’Ivoire",'XOF','Africa/Abidjan'],['ML','Mali','XOF','Africa/Bamako'],['BJ','Bénin','XOF','Africa/Porto-Novo'],['BF','Burkina Faso','XOF','Africa/Ouagadougou'],['TG','Togo','XOF','Africa/Lome'],['GA','Gabon','XAF','Africa/Libreville'],['TD','Tchad','XAF','Africa/Ndjamena']]
 function go(view:string){screen.value=view;error.value='';const path=view==='public'?'/':view==='register'?'/commencer':'/connexion';history.pushState({},'',path+(invitationToken.value&&view!=='public'?'?invitation='+encodeURIComponent(invitationToken.value):''))}
 async function enter(data:any){
- session.value=data
+ accessNotice.value='';session.value=data
  if(!data.organizations.some((x:any)=>x.id===organization))setOrganization(data.organizations[0]?.id||'')
  const invite=new URLSearchParams(location.search).get('invitation')||sessionStorage.getItem('transitflow.invitation')
  if(invite){try{const r=await api('invitation/accept','POST',{token:invite});setOrganization(r.organization);session.value=await api('auth/me');sessionStorage.removeItem('transitflow.invitation');invitationToken.value=''}catch(e:any){error.value=e.message}}
@@ -42,7 +42,7 @@ async function revoked(){
  if(checkingAccess||!session.value)return
  checkingAccess=true;stopActivity();await setPushAccount(null)
  const old=organization;screen.value='loading'
- try{const fresh=await api('auth/me');session.value=fresh;setOrganization(fresh.organizations.find((x:any)=>x.id!==old)?.id||'');history.replaceState({},'','/app');screen.value=fresh.organizations.length?'workspace':'removed';error.value='Votre accès à cette entreprise a été retiré.'}catch{screen.value='removed';error.value='Votre accès à cette entreprise a été retiré.'}finally{checkingAccess=false}
+ try{const fresh=await api('auth/me');session.value=fresh;accessNotice.value='Votre accès à l’entreprise précédente a été retiré. Votre autre entreprise reste accessible.';setOrganization(fresh.organizations.find((x:any)=>x.id!==old)?.id||'');history.replaceState({},'','/app');screen.value=fresh.organizations.length?'workspace':'removed';error.value='Votre accès à cette entreprise a été retiré.'}catch{screen.value='removed';error.value='Votre accès à cette entreprise a été retiré.'}finally{checkingAccess=false}
 }
 async function logout(){try{await disableDevicePush();await api('auth/logout','POST');stopActivity();session.value=null;clearSession();form.value.password='';go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
 onMounted(async()=>{
@@ -60,7 +60,7 @@ onMounted(async()=>{
  <PwaStatus/>
  <PublicSite v-if="screen==='public'" @login="go('login')" @register="go('register')"/>
  <div v-else-if="screen==='removed'" class="loading-screen"><p role="alert">{{error}}</p><button class="secondary" @click="logout">Se déconnecter</button></div>
- <Workspace v-else-if="screen==='workspace'&&session" :key="organization" :session="session" @logout="logout"/>
+ <Workspace v-else-if="screen==='workspace'&&session" :key="organization" :session="session" :access-notice="accessNotice" @logout="logout"/>
  <PasswordRecovery v-else-if="screen==='recovery'" @login="go('login')"/>
  <div v-else-if="screen==='loading'" class="loading-screen"><LoaderCircle class="spin"/> Ouverture de votre espace…</div>
  <main v-else class="auth-layout">
