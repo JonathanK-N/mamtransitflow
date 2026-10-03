@@ -79,7 +79,8 @@ def process_pending(limit=20):
                 except Exception:pass
                 finally:client.close()
             if visible:
-                row.push_pending=False;row.save(update_fields=['push_pending']);continue
+                row.push_after=timezone.now()+timedelta(seconds=45)
+                row.save(update_fields=['push_after']);continue
             payload={'id':str(row.pk),'title':'TransitFlow','body':'Vous avez une nouvelle notification.',
                 'url':'/app#notifications','organization':str(row.organization_id),'user':row.user_id,'context':row.context}
             if preference.preview:

@@ -61,3 +61,22 @@ def test_notification_history_paginates_beyond_one_hundred(pair):
     for n in range(110):notify(pair['org'],pair['user'].pk,'test:'+str(n),'operations','Alerte','Test',{})
     first=pair['client'].get('/api/v2/notifications').data;last=pair['client'].get('/api/v2/notifications?page=5').data
     assert first['count']==110 and len(first['results'])==25 and len(last['results'])==10
+
+
+@override_settings(TF_VAPID_PUBLIC_KEY='public',TF_VAPID_PRIVATE_KEY='private',TF_REDIS_URL='redis://localhost:6379')
+def test_foreground_defers_push_until_closed_instead_of_losing_it(pair):
+    from django.utils import timezone
+    pair['bc'].post('/api/v2/notifications/subscriptions',subscription(),format='json')
+    pair['bc'].patch('/api/v2/notifications/preferences',{'push':True},format='json')
+    identity=conversation(pair);send(pair,identity)
+    with patch('redis.from_url') as redis_client,patch('pywebpush.webpush') as push:
+        redis_client.return_value.exists.return_value=1
+        assert process_pending()==0
+        push.assert_not_called()
+        row=m.GlobalNotification.objects.get(category='messages')
+        assert row.push_pending and row.push_attempts==0 and row.push_after>timezone.now()
+        m.GlobalNotification.objects.filter(pk=row.pk).update(push_after=timezone.now())
+        redis_client.return_value.exists.return_value=0
+        assert process_pending()==1
+        push.assert_called_once()
+        row.refresh_from_db();assert not row.push_pending
