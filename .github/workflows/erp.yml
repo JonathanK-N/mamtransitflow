@@ -60,6 +60,14 @@ jobs:
           done
           cat /tmp/transitflow-server.log
           exit 1
+      - name: Portail client création et invitation sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-portal-$project pnpm --dir frontend exec playwright test portal.spec.ts --project=$project --output=test-results-portal-$project || exit 1
+          done
+      - name: Isoler les compteurs après la recette portail
+        run: python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
       - run: pnpm exec playwright test erp.spec.ts
         working-directory: frontend
       - name: Isoler les compteurs de la recette invitations
@@ -87,12 +95,6 @@ jobs:
           for project in chromium android iphone ipad small; do
             python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
             PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-personnel-$project pnpm --dir frontend exec playwright test personnel.spec.ts --project=$project --output=test-results-personnel-$project || exit 1
-          done
-      - name: Portail client création et invitation sur cinq appareils
-        run: |
-          for project in chromium android iphone ipad small; do
-            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
-            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-portal-$project pnpm --dir frontend exec playwright test portal.spec.ts --project=$project --output=test-results-portal-$project || exit 1
           done
       - name: Connexions PostgreSQL après la charge navigateur ASGI
         run: |
