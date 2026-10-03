@@ -23,6 +23,7 @@ Genere par `django-admin startproject`, puis adapte pour TransitFlow :
 
 import os
 import sys
+from .static_headers import pwa_headers
 from datetime import timedelta
 from pathlib import Path
 
@@ -240,6 +241,8 @@ TF_LEGACY_ENABLED = os.environ.get('TF_LEGACY_ENABLED', '0') == '1'
 PASSWORD_RESET_TIMEOUT = 3600
 MEDIA_ROOT = Path(os.environ.get('TF_PRIVATE_STORAGE', str(BASE_DIR / 'privatefiles')))
 WHITENOISE_ROOT = None if TF_LEGACY_ENABLED else RACINE_PROJET / 'frontend' / 'dist'
+WHITENOISE_MIMETYPES = {'.webmanifest': 'application/manifest+json'}
+WHITENOISE_ADD_HEADERS_FUNCTION = pwa_headers
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
