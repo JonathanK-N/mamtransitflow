@@ -26,6 +26,12 @@ test('Deux collaborateurs échangent en direct, lecture, reconnexion et isolatio
   const foreignHeaders={Authorization:'Bearer '+outsider.access,'X-Organization':outsider.organizations[0].id}
   expect((await request.get('/api/v2/messaging/conversations/'+identity+'/messages',{headers:foreignHeaders})).status()).toBe(404)
   const people=await request.get('/api/v2/messaging/collaborators',{headers:foreignHeaders});expect((await people.json()).results).toEqual([])
+  const foreignMembers=await request.get('/api/v2/team',{headers:foreignHeaders});const foreignMember=(await foreignMembers.json()).members[0]
+  const group=await request.post('/api/v2/messaging/conversations',{headers,data:{kind:'group',title:'Isolation recette',participants:[(await (await request.get('/api/v2/messaging/collaborators',{headers})).json()).results[0].id]}});expect(group.status()).toBe(201)
+  expect((await request.patch('/api/v2/messaging/conversations/'+(await group.json()).id,{headers,data:{add:foreignMember.id}})).status()).toBe(404)
+  const attachment=await request.post('/api/v2/messaging/conversations/'+identity+'/messages',{headers,multipart:{body:'Justificatif recette',client_id:crypto.randomUUID(),file:{name:'proof.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\nproof')}}});expect(attachment.status()).toBe(201)
+  const attachmentId=(await attachment.json()).attachments[0].id
+  expect((await request.get('/api/v2/messaging/attachments/'+attachmentId,{headers:foreignHeaders})).status()).toBe(404)
   await b.setOffline(true);await pa.getByLabel('Votre message').fill('Pendant la coupure '+stamp);await pa.getByRole('button',{name:'Envoyer',exact:true}).click();await b.setOffline(false)
   await expect(pb.locator('.message-stream')).toContainText('Pendant la coupure '+stamp)
   await pb.reload();await expect(pb.locator('.message-stream')).toContainText('Bien reçu '+stamp)

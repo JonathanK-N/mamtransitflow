@@ -34,7 +34,10 @@ export function startActivity(){stopActivity();stopped=false;const generation=ep
 export function stopActivity(){stopped=true;epoch++;clearTimeout(timer);clearInterval(heartbeat);clearInterval(fallback);socket?.close();socket=null;window.removeEventListener('online',online);document.removeEventListener('visibilitychange',visibility);messageUnread.value=0;notificationUnread.value=0}
 export function typing(conversation:string){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'typing',conversation}))}
 
+let pushAccount:{user:number|null,organization:string}={user:null,organization:''}
+navigator.serviceWorker?.addEventListener('controllerchange',()=>{navigator.serviceWorker.controller?.postMessage({type:'PUSH_ACCOUNT',...pushAccount})})
 export async function setPushAccount(user:number|null,tenant:string=''){
+ pushAccount={user,organization:tenant}
  const registration=await navigator.serviceWorker?.getRegistration();registration?.active?.postMessage({type:'PUSH_ACCOUNT',user,organization:tenant})
 }
 export async function disableDevicePush(){
