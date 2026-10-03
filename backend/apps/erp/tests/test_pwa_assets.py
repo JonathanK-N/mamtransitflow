@@ -17,7 +17,12 @@ def test_pwa_entrypoints_revalidate(tmp_path, filename, content_type):
         response = middleware(RequestFactory().get('/' + filename))
     assert response.status_code == 200
     assert response['Content-Type'].split(';')[0] == content_type
-    assert response['Cache-Control'] == 'no-cache'
+    assert response['Cache-Control'] == 'no-store, no-cache, must-revalidate, max-age=0'
+    assert response['CDN-Cache-Control'] == 'no-store'
+    assert response['Cloudflare-CDN-Cache-Control'] == 'no-store'
+    conditional = middleware(RequestFactory().get('/' + filename, HTTP_IF_NONE_MATCH=response['ETag']))
+    assert conditional.status_code == 304
+    assert conditional['Cache-Control'] == response['Cache-Control']
 
 
 def test_static_images_keep_public_cache(tmp_path):
