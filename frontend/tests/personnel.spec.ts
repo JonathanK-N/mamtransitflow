@@ -26,7 +26,7 @@ test('Personnel contacte puis retire un compte TEST connecté sans perdre son au
   await expect(pb.locator('.conversation-item')).toContainText('Contact Personnel '+stamp)
   const reuse=await request.post('/api/v2/employees/'+employee.id+'/contact',{headers,data:{}});expect((await reuse.json()).id).toBe(id)
   await navigate(pa,'Personnel');await pa.getByRole('button',{name:'Actions pour Chauffeur TEST retrait',exact:true}).click();await pa.getByRole('button',{name:'Retirer de l’entreprise',exact:true}).click()
-  const dialog=pa.getByRole('dialog',{name:/Retirer Chauffeur TEST retrait/});await expect(dialog).toBeVisible();await expect(dialog).toContainText('Son historique professionnel sera conservé')
+  const dialog=pa.getByRole('dialog',{name:/Retirer Chauffeur TEST retrait/});await expect(dialog).toBeVisible();await expect(dialog).toContainText('Son historique professionnel sera conservé');expect(await dialog.evaluate(el=>el.contains(document.activeElement))).toBeTruthy();await pa.keyboard.press('Shift+Tab');expect(await dialog.evaluate(el=>el.contains(document.activeElement))).toBeTruthy()
   expect(await dialog.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})).toBeTruthy()
   await dialog.getByRole('button',{name:'Annuler',exact:true}).click();expect((await (await request.get('/api/v2/employees/'+employee.id,{headers})).json()).active).toBe(true)
   if(info.project.name==='small')await pa.setViewportSize({width:360,height:740})
