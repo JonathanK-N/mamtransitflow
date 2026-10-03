@@ -27,6 +27,7 @@ def test_redis_delivers_from_another_process(pair):
         assert (await ws.receive_json_from())['type']=='ready'
         script="import os;os.environ.setdefault('DJANGO_SETTINGS_MODULE','transitflow.settings');import django;django.setup();from channels.layers import get_channel_layer;from asgiref.sync import async_to_sync;async_to_sync(get_channel_layer().group_send)("+repr(target)+",{'type':'activity','event':'changed','conversation':"+repr(identity)+"})"
         import asyncio
+        await asyncio.sleep(6)
         result=await asyncio.to_thread(subprocess.run,[sys.executable,'-c',script],cwd=str(settings.BASE_DIR),capture_output=True,timeout=20)
         assert result.returncode==0
         assert (await ws.receive_json_from(timeout=5))['conversation']==identity

@@ -14,6 +14,10 @@ logger=logging.getLogger(__name__)
 def group(organization,user):return f'org.{organization}.user.{user}'
 
 
+async def send_event(layer,target,payload):
+    await asyncio.wait_for(layer.group_send(target,payload),timeout=2)
+
+
 def publish(organization,users,event='changed',conversation=None):
     try:layer=get_channel_layer()
     except Exception:
@@ -22,7 +26,7 @@ def publish(organization,users,event='changed',conversation=None):
     if not layer:return
     for user in users:
         try:
-            async_to_sync(layer.group_send)(group(organization,user),{'type':'activity','event':event,'conversation':conversation})
+            async_to_sync(send_event)(layer,group(organization,user),{'type':'activity','event':event,'conversation':conversation})
         except Exception:
             logger.warning('Diffusion temps réel indisponible ; événement conservé en base.')
 
