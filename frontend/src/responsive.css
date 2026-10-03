@@ -1,12 +1,12 @@
 .mobile-bottom-nav,.mobile-records{display:none}
 .drawer-close{position:absolute;top:8px;right:8px}
-.pwa-status{position:relative;z-index:101}
+.pwa-status{position:sticky;top:0;z-index:20}
 .connection-state,.pwa-update{margin:0;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));background:#fff3d9;color:#594014;font-size:14px;line-height:1.5}
 .connection-state.restored{background:#e8f2ed;color:#123c33}
 .pwa-update{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;background:#e8f2ed;color:#123c33}
 .pwa-install{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));max-width:min(360px,calc(100vw - 32px));padding:12px 16px;background:white;border:1px solid #cad9cf;border-radius:12px;box-shadow:0 4px 24px #123c3320;font-size:14px}
 .pwa-install summary{cursor:pointer;min-height:24px;font-weight:600}.pwa-install p{line-height:1.6;margin-top:12px}.pwa-install button{margin-top:12px}
-.auth-layout,.workspace,.client-portal,.loading-screen{min-height:100dvh}
+.auth-layout,.workspace,.client-portal,.loading-screen,.recovery-page{min-height:100dvh}
 .modal-backdrop{padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 .editor{max-height:calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
 @media(max-width:900px){
