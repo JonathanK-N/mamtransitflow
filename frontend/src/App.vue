@@ -1,6 +1,6 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
-import { onMounted, ref, defineAsyncComponent } from 'vue'
+import { onMounted, ref, defineAsyncComponent, nextTick } from 'vue'
 import PwaStatus from './PwaStatus.vue'
 import {disableDevicePush,setPushAccount,stopActivity} from './activity'
 import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-next'
@@ -40,8 +40,10 @@ async function submit(){
 let checkingAccess=false
 async function revoked(){
  if(checkingAccess||!session.value)return
- checkingAccess=true;stopActivity();await setPushAccount(null)
- const old=organization;screen.value='loading'
+ checkingAccess=true;const old=organization;screen.value='loading';stopActivity();await nextTick()
+ const prefix=`transitflow.positions.${session.value.user.id}.${old}.`
+ for(const key of Object.keys(localStorage))if(key.startsWith(prefix))localStorage.removeItem(key)
+ await setPushAccount(null)
  try{const fresh=await api('auth/me');session.value=fresh;accessNotice.value='Votre accès à l’entreprise précédente a été retiré. Votre autre entreprise reste accessible.';setOrganization(fresh.organizations.find((x:any)=>x.id!==old)?.id||'');history.replaceState({},'','/app');screen.value=fresh.organizations.length?'workspace':'removed';error.value='Votre accès à cette entreprise a été retiré.'}catch{screen.value='removed';error.value='Votre accès à cette entreprise a été retiré.'}finally{checkingAccess=false}
 }
 async function logout(){try{await disableDevicePush();await api('auth/logout','POST');stopActivity();session.value=null;clearSession();form.value.password='';go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}

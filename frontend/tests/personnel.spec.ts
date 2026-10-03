@@ -19,6 +19,7 @@ test('Personnel contacte puis retire un compte TEST connecté sans perdre son au
  async function navigate(page:any,name:string){if((page.viewportSize()?.width||1280)<=600)await page.getByRole('navigation',{name:'Navigation mobile'}).getByRole('button',{name:'Plus',exact:true}).click();else if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Menu',exact:true}).click();await page.locator('.sidebar').getByRole('button',{name,exact:true}).click()}
  try{
   await login(pa,email);await login(pb,'peer-'+email);await navigate(pb,'Messages');await expect(pb.getByRole('status').filter({hasText:'En direct'})).toBeVisible()
+  await pb.evaluate(([user,one,two])=>{localStorage.setItem(`transitflow.positions.${user}.${one}.test`,'[]');localStorage.setItem(`transitflow.positions.${user}.${two}.test`,'[]')},[peer.user.id,org,otherOrg])
   await navigate(pa,'Personnel');await pa.getByRole('button',{name:'Actions pour Chauffeur TEST retrait',exact:true}).click()
   await pa.getByRole('button',{name:'Contacter',exact:true}).click();await expect(pa.getByLabel('Votre message')).toBeVisible()
   const id=new URL(pa.url()).hash.split('conversation=')[1]
@@ -37,6 +38,8 @@ test('Personnel contacte puis retire un compte TEST connecté sans perdre son au
   await expect.poll(()=>received.some(x=>JSON.parse(x).type==='access_revoked')).toBe(true);await expect.poll(()=>closed).toBe(true)
   await expect.poll(()=>pb.evaluate(()=>sessionStorage.getItem('transitflow.organization'))).toBe(otherOrg)
   await expect(pb.locator('.workspace')).toBeVisible();await expect(pb.locator('.message-stream')).toHaveCount(0)
+  expect(await pb.evaluate(key=>localStorage.getItem(key),`transitflow.positions.${peer.user.id}.${org}.test`)).toBeNull()
+  expect(await pb.evaluate(key=>localStorage.getItem(key),`transitflow.positions.${peer.user.id}.${otherOrg}.test`)).toBe('[]')
   const removedHeaders={Authorization:'Bearer '+peer.access,'X-Organization':org}
   for(const path of ['missions','employees','notifications','messaging/conversations/'+id+'/messages'])expect((await request.get('/api/v2/'+path,{headers:removedHeaders})).status()).toBe(403)
   expect((await request.post('/api/v2/messaging/conversations/'+id+'/messages',{headers:removedHeaders,data:{body:'Interdit après retrait',client_id:crypto.randomUUID()}})).status()).toBe(403)
