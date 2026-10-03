@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test'
+test.use({actionTimeout:20000})
 
 async function fits(page:any){const info=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('body *')].map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right})).filter(e=>e.right>innerWidth+1).slice(0,8)}));expect(info.scroll,JSON.stringify(info)).toBeLessThanOrEqual(info.width)}
 
@@ -67,7 +68,7 @@ test('Session, modules autorisés, cartes mobiles, formulaire et déconnexion',a
  await page.getByLabel('Type de déclaration').selectOption('check')
  await page.getByLabel('Objet',{exact:true}).fill('Contrôle mobile')
  await page.getByLabel('Compteur kilométrique').fill('12000')
- for(const name of ['Freins','Pneus','Éclairage','Niveaux et fuites','Équipements de sécurité','Documents du véhicule'])await page.getByLabel(name,{exact:true}).selectOption('ok')
+ for(const name of ['Freins','Pneus','Éclairage','Niveaux et fuites','Équipements de sécurité','Documents du véhicule'])await page.getByRole('combobox',{name,exact:true}).selectOption('ok')
  await fits(page);await page.getByRole('button',{name:'Enregistrer la déclaration',exact:true}).click()
  await expect(page.getByRole('heading',{name:'Contrôle mobile',exact:true})).toBeVisible()
  await page.locator('.field-tabs').getByRole('button',{name:/^Notifications/}).click()
