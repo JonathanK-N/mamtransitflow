@@ -19,6 +19,10 @@ test('Manifest, cache statique, démarrage privé et reconnexion',async({page,co
  await page.evaluate(()=>navigator.serviceWorker.ready)
  await page.reload();await page.evaluate(()=>navigator.serviceWorker.ready)
  await expect.poll(()=>page.evaluate(()=>!!navigator.serviceWorker.controller)).toBeTruthy()
+ if(['iphone','ipad'].includes(test.info().project.name)){
+  await page.locator('.pwa-install summary').click()
+  await expect(page.locator('.pwa-install p')).toContainText('Dans Safari')
+ }
  if(test.info().project.name==='chromium'){
   const session=await context.newCDPSession(page)
   const checked=await session.send('Page.getAppManifest');expect(checked.errors).toEqual([])
@@ -75,5 +79,7 @@ test('Session, modules autorisés, cartes mobiles, formulaire et déconnexion',a
  await expect(page.locator('.field-help').filter({hasText:'actualisées toutes les minutes'})).toBeVisible()
  const read=page.getByRole('button',{name:'Marquer comme lu',exact:true})
  if(await read.count()){await read.first().click();await expect(page.locator('.field-card .status').filter({hasText:/^Lu$/}).first()).toBeVisible()}
+ const cached=await page.evaluate(async()=>{const keys=await caches.keys();return (await Promise.all(keys.map(async key=>(await (await caches.open(key)).keys()).map(request=>request.url)))).flat()})
+ expect(cached.some(url=>url.includes('/api/'))).toBeFalsy()
  await page.screenshot({path:`test-results/responsive-${test.info().project.name}.png`,fullPage:true})
 })
