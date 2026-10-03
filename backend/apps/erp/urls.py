@@ -11,11 +11,11 @@ from .push import PushSubscriptionsView
 
 urlpatterns=[
     path('messaging/collaborators',CollaboratorsView.as_view()),
-    path('messaging/conversations',MessagingView.as_view()),
-    path('messaging/conversations/<uuid:pk>',MessagingView.as_view()),
-    path('messaging/conversations/<uuid:pk>/messages',MessagesView.as_view()),
-    path('messaging/conversations/<uuid:pk>/read',MessageReadView.as_view()),
-    path('messaging/attachments/<uuid:pk>',MessageAttachmentView.as_view()),
+    path('messaging/conversations',MessagingView.as_view(http_method_names=['get','post','head','options'])),
+    path('messaging/conversations/<uuid:pk>',MessagingView.as_view(http_method_names=['get','patch','head','options'])),
+    path('messaging/conversations/<uuid:pk>/messages',MessagesView.as_view(http_method_names=['get','post','head','options'])),
+    path('messaging/conversations/<uuid:pk>/read',MessageReadView.as_view(http_method_names=['post','options'])),
+    path('messaging/attachments/<uuid:pk>',MessageAttachmentView.as_view(http_method_names=['get','head','options'])),
     path('notifications',GlobalNotificationsView.as_view()),
     path('notifications/preferences',PreferencesView.as_view()),
     path('notifications/subscriptions',PushSubscriptionsView.as_view()),

@@ -182,3 +182,14 @@ def test_realtime_failure_keeps_message_and_notification_recoverable(pair):
     assert response.status_code==201
     assert pair['bc'].get(BASE+f'conversations/{identity}/messages').data['results'][0]['id']==response.data['id']
     assert pair['bc'].get('/api/v2/notifications').data['unread']==1
+
+
+@pytest.mark.parametrize('method,route',[
+    ('patch','conversations'),('post','conversations/{identity}'),
+    ('patch','conversations/{identity}/messages'),('get','conversations/{identity}/read'),
+    ('post','attachments/{identity}')])
+def test_messaging_routes_reject_unsupported_mutations(pair,method,route):
+    identity=conversation(pair)
+    response=getattr(pair['client'],method)(BASE+route.format(identity=identity),{'title':'Unexpected mutation'},format='json')
+    assert response.status_code==405
+    assert m.Conversation.objects.get(pk=identity).title==''
