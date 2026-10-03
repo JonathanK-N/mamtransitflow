@@ -1,11 +1,12 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, defineAsyncComponent } from 'vue'
+import PwaStatus from './PwaStatus.vue'
 import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-next'
 import PublicSite from './PublicSite.vue'
-import Workspace from './Workspace.vue'
+const Workspace=defineAsyncComponent(()=>import('./Workspace.vue'))
 import PasswordRecovery from './PasswordRecovery.vue'
-import {api,refresh,setOrganization,organization,setAccess} from './api'
+import {api,refresh,setOrganization,organization,clearSession} from './api'
 const screen=ref(location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':location.pathname.startsWith('/app')?'loading':'public')
 if(new URLSearchParams(location.search).has('reset'))screen.value='recovery'
 const session=ref<any>(null),error=ref(''),busy=ref(false)
@@ -35,10 +36,10 @@ async function submit(){
   form.value.password=''
  }catch(e:any){error.value=e.message}finally{busy.value=false}
 }
-async function logout(){try{await api('auth/logout','POST');session.value=null;setAccess('');setOrganization('');go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
+async function logout(){try{await api('auth/logout','POST');session.value=null;clearSession();form.value.password='';go('login')}catch(e:any){window.alert('Déconnexion non confirmée : '+e.message)}}
 onMounted(async()=>{
  const invite=new URLSearchParams(location.search).get('invitation');if(invite)sessionStorage.setItem('transitflow.invitation',invite)
- window.addEventListener('session-expired',()=>{session.value=null;go('login');error.value='Votre session a expiré. Reconnectez-vous.'})
+ window.addEventListener('session-expired',()=>{session.value=null;clearSession();form.value.password='';go('login');error.value='Votre session a expiré. Reconnectez-vous.'})
  window.addEventListener('popstate',()=>{
   if(location.pathname.startsWith('/app')){if(session.value)screen.value='workspace';else go('login')}
   else screen.value=location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':'public'
@@ -47,6 +48,7 @@ onMounted(async()=>{
 })
 </script>
 <template>
+ <PwaStatus/>
  <PublicSite v-if="screen==='public'" @login="go('login')" @register="go('register')"/>
  <Workspace v-else-if="screen==='workspace'&&session" :session="session" @logout="logout"/>
  <PasswordRecovery v-else-if="screen==='recovery'" @login="go('login')"/>

@@ -1,7 +1,7 @@
 name: Recette ERP
 on:
   push:
-    branches: [transitflow-erp, transitflow-tests]
+    branches: [transitflow-erp, transitflow-tests, pwa-mobile]
   pull_request:
     branches: [erp, main, transitflow-erp]
 permissions:
@@ -41,7 +41,7 @@ jobs:
       - run: python -m pytest apps/erp/tests -q
         working-directory: backend
       - run: python backend/manage.py migrate --noinput
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright install --with-deps chromium webkit
         working-directory: frontend
       - name: Serveur de recette
         run: |
@@ -61,6 +61,13 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-invitation
+      - name: Isoler les compteurs de la recette multi-appareils
+        run: python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+      - name: Recette PWA et responsive multi-appareils
+        run: pnpm exec playwright test responsive.spec.ts --output=test-results-responsive
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-responsive
       - name: Construction de l’image de production
         run: docker build --tag transitflow-recette .
       - name: Stockage persistant et abandon des privileges
@@ -82,3 +89,5 @@ jobs:
             frontend/test-results
             frontend/playwright-report-invitation
             frontend/test-results-invitation
+            frontend/playwright-report-responsive
+            frontend/test-results-responsive
