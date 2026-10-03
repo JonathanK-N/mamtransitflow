@@ -64,7 +64,7 @@ def process_pending(limit=20):
     candidates=list(m.GlobalNotification.objects.filter(push_pending=True,push_after__lte=timezone.now()).order_by('push_after').values_list('pk',flat=True)[:limit])
     for identity in candidates:
         with transaction.atomic():
-            row=m.GlobalNotification.objects.select_for_update(skip_locked=True).filter(pk=identity,push_pending=True).first()
+            row=m.GlobalNotification.objects.select_for_update(skip_locked=True).filter(pk=identity,push_pending=True,push_after__lte=timezone.now()).first()
             if not row:continue
             member=m.Membership.objects.select_related('organization','user').filter(organization=row.organization,user=row.user,active=True,user__is_active=True).first()
             preference=m.NotificationPreference.objects.filter(organization=row.organization,user=row.user,push=True).first()
