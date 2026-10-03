@@ -46,8 +46,8 @@ def test_asgi_private_attachment_stream_is_async_and_authorized(pair,tmp_path):
         assert response.status_code==201
         token=str(RefreshToken.for_user(pair['b']).access_token)
         async def run():
-            client=AsyncClient(headers={'Authorization':'Bearer '+token,'X-Organization':str(pair['org'].pk)})
-            download=await client.get('/api/v2/messaging/attachments/'+response.data['attachments'][0]['id'])
+            client=AsyncClient()
+            download=await client.get('/api/v2/messaging/attachments/'+response.data['attachments'][0]['id'],headers={'Authorization':'Bearer '+token,'X-Organization':str(pair['org'].pk)})
             assert download.status_code==200 and download.is_async and download['Cache-Control']=='no-store'
             assert b''.join([chunk async for chunk in download.streaming_content])==b'%PDF-1.4\nproof'
         async_to_sync(run)()

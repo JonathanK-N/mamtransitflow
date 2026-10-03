@@ -29,11 +29,11 @@ def visible_notifications(member):
     from . import security
     if not security.allowed(member.role,'missions'):qs=qs.exclude(category='missions')
     for module in ('incidents','maintenance','documents'):
-        if not security.allowed(member.role,module):qs=qs.exclude(context__module=module)
+        if not security.allowed(member.role,module):qs=qs.filter(Q(context__module__isnull=True)|~Q(context__module=module))
     if member.role=='driver':
         documents=[str(identity) for identity in m.Document.objects.filter(organization=member.organization,
             mission__driver__user=member.user).exclude(category='finance').values_list('pk',flat=True)]
-        qs=qs.filter(~Q(context__module='documents')|Q(context__id__in=documents))
+        qs=qs.filter(Q(context__module__isnull=True)|~Q(context__module='documents')|Q(context__id__in=documents))
     return qs
 
 
