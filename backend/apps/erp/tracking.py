@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from . import models as m, services
 from .views import ScopedView
 
-CONFIG=dict(sample_seconds=10, stationary_seconds=30, movement_metres=10, max_accuracy=1000, online_seconds=45, lost_seconds=180)
+CONFIG=dict(sample_seconds=10, stationary_seconds=30, movement_metres=10, max_accuracy=1000, online_seconds=45, lost_seconds=180, max_future_seconds=120)
 FIELDS=('timestamp','latitude','longitude','accuracy','speed','heading','client_id')
 
 
@@ -121,7 +121,7 @@ class PositionsView(ScopedView):
             if not isinstance(point,dict):raise ValidationError('Position invalide.')
             timestamp=serializers.DateTimeField().run_validation(point.get('timestamp'))
             lat=services.decimal(point.get('latitude'));lng=services.decimal(point.get('longitude'))
-            end=mission.completed_at or now+timedelta(minutes=2)
+            end=mission.completed_at or now+timedelta(seconds=CONFIG["max_future_seconds"])
             if not -90<=lat<=90 or not -180<=lng<=180 or not mission.started_at<=timestamp<=end:raise ValidationError('Position hors limites du trajet.')
             values={}
             for field,maximum in [('accuracy',1000),('speed',150),('heading',360)]:
