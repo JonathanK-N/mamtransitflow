@@ -44,6 +44,10 @@ def test_permission_loss_retains_last_point_and_deduplicates_alerts(gps_env,stat
     check_signals(e['org'].pk);assert m.GlobalNotification.objects.filter(key__startswith='gps:').count()==count
     assert m.Position.objects.count()==1
     assert e['client'].get('/api/v2/tracking').data['missions'][0]['state']==state
+    if state=='permission_required':
+        assert post(e,[point()]).status_code==200
+        assert e['client'].get('/api/v2/tracking').data['missions'][0]['state']=='permission_required'
+        assert e['driver_client'].post(url,{'state':'capturing'},format='json').status_code==200
     assert post(e,[point()]).status_code==200
     assert e['client'].get('/api/v2/tracking').data['missions'][0]['state']=='online'
 

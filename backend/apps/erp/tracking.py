@@ -93,6 +93,7 @@ class TrackingView(ScopedView):
         if mission.status!='active':raise ValidationError('Mission inactive.')
         state=request.data.get('state')
         if state not in ('permission_required','unavailable','capturing'):raise ValidationError('État GPS invalide.')
+        if mission.tracking_status==state:return Response({'state':state})
         mission.tracking_status=state;mission.save(update_fields=['tracking_status'])
         last=m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first()
         inspect_signal(mission,last,timezone.now());broadcast(mission)
@@ -141,8 +142,9 @@ class PositionsView(ScopedView):
             if point.client_id:identities.add(point.client_id)
         m.Position.objects.bulk_create(fresh,ignore_conflicts=True)
         if fresh and mission.status=='active':
-            mission.tracking_status='capturing'
-            mission.save(update_fields=['tracking_status'])
+            if mission.tracking_status!='permission_required':
+                mission.tracking_status='capturing'
+                mission.save(update_fields=['tracking_status'])
             latest=m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first()
             inspect_signal(mission,latest,now)
         if fresh:broadcast(mission)

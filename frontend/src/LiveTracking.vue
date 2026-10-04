@@ -5,7 +5,7 @@ import {subscribeActivity,connectionState} from './activity'
 import {trackingLabel} from './gps'
 import TrackingMap from './TrackingMap.vue'
 const emit=defineEmits(['mission']),data=ref<any>(null),selected=ref(''),error=ref('');let unsubscribe:()=>void,timer:any,debounce:any,loading=false,again=false,alive=true,lastRequest=0
-async function load(){if(loading){again=true;return}loading=true;lastRequest=Date.now();try{const result=await api('tracking');if(alive)data.value=result;error.value=''}catch(e:any){error.value=e.message}finally{loading=false;if(again&&alive){again=false;debounce=setTimeout(load,Math.max(0,1000-(Date.now()-lastRequest)))}}}
+async function load(){if(loading){again=true;return}loading=true;lastRequest=Date.now();try{const result=await api('tracking');if(alive)data.value=result;error.value=''}catch(e:any){error.value=e.message}finally{loading=false;if(again&&alive){again=false;debounce=setTimeout(()=>{debounce=null;load()},Math.max(0,1000-(Date.now()-lastRequest)))}}}
 function freshness(){if(!data.value)return;const now=Date.now();for(const mission of data.value.missions){if(['permission_required','unavailable'].includes(mission.state))continue;const age=(now-Date.parse(mission.last?.timestamp||mission.started_at))/1000;mission.state=age>=data.value.config.lost_seconds?'lost':!mission.last?'waiting':age<=data.value.config.online_seconds?'online':'recent'}}
 onMounted(()=>{load();unsubscribe=subscribeActivity(e=>{if(['tracking','resync'].includes(e.type)){if(!debounce)debounce=setTimeout(()=>{debounce=null;load()},Math.max(200,1000-(Date.now()-lastRequest)))}});timer=setInterval(freshness,5000)});onUnmounted(()=>{alive=false;unsubscribe?.();clearTimeout(debounce);clearInterval(timer)})
 </script>
