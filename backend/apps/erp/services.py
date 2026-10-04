@@ -21,6 +21,9 @@ def rounded(value): return decimal(value).quantize(Decimal('.01'), rounding=ROUN
 
 
 def audit(org, actor, action, obj, **detail):
+    if isinstance(obj,(m.Invoice,m.TransportOrder,m.Mission,m.Payment)):
+        detail.setdefault('reference',str(obj)[:180])
+    if isinstance(obj,m.Invoice):detail.setdefault('kind',obj.kind)
     m.AuditEvent.objects.create(organization=org, actor=actor, action=action,
         resource=obj._meta.model_name, object_id=str(obj.pk), detail=detail)
 
@@ -159,6 +162,7 @@ def transition(org,actor,model,pk,action,data=None):
             obj.lines,obj.subtotal,obj.tax,obj.total=invoice_totals(obj.lines)
             if obj.total<=0: raise ValidationError('Le total doit être positif.')
             obj.number=sequence(org,{'quote':'DEV','invoice':'FAC','credit':'AVO'}[obj.kind]);obj.status='issued'
+            if obj.kind=='quote':obj.quote_status='sent'
             if obj.kind=='credit':
                 if not obj.original_id or obj.original.kind!='invoice' or obj.original.status not in ('issued','paid') or obj.original.customer_id!=obj.customer_id:
                     raise ValidationError("Une facture d'origine émise pour ce client est requise.")
@@ -241,6 +245,8 @@ def payment(org,actor,data):
     inv.save(update_fields=['paid','status','updated_at'])
     auto_journal(org,actor,f'REG-{obj.pk}',obj.date,f'Règlement {inv.number}',[{'account':'521','debit':str(amount)},{'account':'411','credit':str(amount)}])
     audit(org,actor,'payment',obj)
+    from .crm_services import commercial_notification
+    commercial_notification(org,inv,'payment-'+str(obj.pk),'Paiement enregistré','invoices')
     return obj
 
 

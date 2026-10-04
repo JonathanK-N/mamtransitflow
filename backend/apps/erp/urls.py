@@ -12,8 +12,18 @@ from .push import PushSubscriptionsView
 from .personnel_actions import EmployeeActionView
 
 from .tracking import TrackingView, PositionsView
+from .crm import ClientView, CommercialActionView
+from .client_messaging import ClientMessagesView, StartClientConversationView, PortalMessagesView
 
 urlpatterns=[
+    path('clients/<uuid:pk>/conversation',StartClientConversationView.as_view()),
+    path('clients/<uuid:pk>/messages',ClientMessagesView.as_view()),
+    path('portal/messages',PortalMessagesView.as_view()),
+    path('clients',ClientView.as_view()),
+    path('clients/duplicates',ClientView.as_view(),{'section':'duplicates'}),
+    path('clients/<uuid:pk>',ClientView.as_view()),
+    path('clients/<uuid:pk>/<str:section>',ClientView.as_view()),
+    path('commercial/<uuid:pk>/<str:section>',CommercialActionView.as_view()),
     path("tracking",TrackingView.as_view()),
     path("missions/<uuid:pk>/tracking",TrackingView.as_view()),
     path('employees/<uuid:pk>/contact',EmployeeActionView.as_view(http_method_names=['post','options']),{'action':'contact'}),

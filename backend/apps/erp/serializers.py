@@ -7,6 +7,7 @@ from apps.comptes.models import Utilisateur
 from . import models as m, services
 
 RESOURCES = {
+    'contacts':m.PartnerContact,
     'leave':m.LeaveRequest,'advances':m.EmployeeAdvance,'periods':m.FiscalPeriod,'statements':m.BankStatementLine,
     'contracts':m.TransportContract,'pricing':m.PricingRule,'subcontracts':m.Subcontract,'incidents':m.Incident,
     'supplier-bills':m.SupplierBill,'supplier-payments':m.SupplierPayment,
@@ -17,12 +18,13 @@ RESOURCES = {
     'documents':m.Document,'audit':m.AuditEvent,
 }
 PROTECTED = {
+    m.Partner:['archived_at'],
     m.LeaveRequest:['status','decision_note'],m.EmployeeAdvance:['status','payment_reference','payment_date','settlement_reference','settlement_date'],
     m.FiscalPeriod:['status','closing_note','closed_at'],m.BankStatementLine:['status','journal','reconciliation_note'],
     m.TransportContract:['status'],m.Subcontract:['status','completion_note'],m.Incident:['status','resolution','resolved_at'],
     m.SupplierBill:['status','subtotal','tax','total','paid'],
-    m.Mission:['status','started_at','completed_at','tracking_status','tracking_lost_at','tracking_started_at','tracking_ended_at'],m.TransportOrder:['status'],m.Maintenance:['status'],
-    m.Booking:['status','amount'],m.Expense:['status'],m.Invoice:['status','number','subtotal','tax','total','paid'],
+    m.Mission:['status','started_at','completed_at','tracking_status','tracking_lost_at','tracking_started_at','tracking_ended_at'],m.TransportOrder:['status','source_quote'],m.Maintenance:['status'],
+    m.Booking:['status','amount'],m.Expense:['status'],m.Invoice:['status','quote_status','number','subtotal','tax','total','paid'],
     m.JournalEntry:['status'],m.Purchase:['status','total'],m.StockItem:['quantity'],
 }
 
@@ -53,6 +55,9 @@ class ScopedSerializer(serializers.ModelSerializer):
         super().__init__(*args,**kwargs)
         org=self.context.get('organization')
         for name,field in self.fields.items():
+            if name=='reference' and self.Meta.model in (m.TransportOrder,m.Mission):
+                field.required=False
+                field.allow_blank=True
             if isinstance(field,serializers.PrimaryKeyRelatedField) and not field.read_only:
                 related=self.Meta.model._meta.get_field(name).related_model
                 if related is Utilisateur:
@@ -81,17 +86,34 @@ class ScopedSerializer(serializers.ModelSerializer):
         if current:
             for f in model._meta.fields:setattr(candidate,f.attname,getattr(current,f.attname))
         for k,v in data.items():setattr(candidate,k,v)
+        if model in (m.TransportOrder, m.Invoice, m.PartnerContact) and (not current or candidate.customer_id != current.customer_id):
+            from .crm_services import active_customer
+            active_customer(candidate.customer)
+        if model is m.TransportOrder:
+            if candidate.window_start and candidate.window_end and candidate.window_end <= candidate.window_start:
+                raise serializers.ValidationError('La fin de fenêtre doit suivre le début.')
+            if candidate.source_quote_id and (not current or current.source_quote_id != candidate.source_quote_id):
+                raise serializers.ValidationError('Utilisez la conversion du devis pour créer la commande liée.')
         from .business import validate as validate_business
         data=validate_business(model,candidate,data)
         from .management import validate as validate_management
         data=validate_management(model,candidate,data)
         if model is m.Document and candidate.shared_with_customer:
-            if candidate.category!='delivery' or not candidate.mission_id or not candidate.mission.order_id:
-                raise serializers.ValidationError('Seuls les documents de livraison liés à une commande client peuvent être partagés.')
+            if not candidate.customer_id and (candidate.category!='delivery' or not candidate.mission_id or not candidate.mission.order_id):
+                raise serializers.ValidationError('Rattachez ce document à un client ou à sa livraison avant le partage.')
+        if model is m.Document and candidate.category=='finance':
+            from .security import allowed
+            member=self.context['request'].user.membership_set.get(organization=org,active=True)
+            if not allowed(member.role,'invoices',True):raise serializers.ValidationError('Les documents financiers sont réservés aux rôles autorisés.')
+        if model is m.Document and candidate.customer_id and candidate.mission_id and candidate.mission.order_id and candidate.mission.order.customer_id!=candidate.customer_id:
+            raise serializers.ValidationError('Le document et la mission doivent appartenir au même client.')
         if model is m.Mission:
             if candidate.arrival<=candidate.departure:raise serializers.ValidationError('L’arrivée doit suivre le départ.')
             if not candidate.driver.active:raise serializers.ValidationError('Ce chauffeur a quitté l’entreprise.')
             if candidate.driver.job!='driver':raise serializers.ValidationError('Sélectionnez un chauffeur.')
+            if candidate.vehicle.status!='available':raise serializers.ValidationError('Ce véhicule est indisponible ou en maintenance.')
+            if candidate.driver.license_expiry and candidate.driver.license_expiry < candidate.departure.date():
+                raise serializers.ValidationError('Le permis du chauffeur sera expiré au départ.')
             if candidate.order_id and candidate.order.status not in ('confirmed',):raise serializers.ValidationError('Confirmez la commande avant sa mission.')
             if candidate.order_id and candidate.route_id:raise serializers.ValidationError('Choisissez une commande ou une ligne voyageurs.')
             if candidate.route_id and candidate.vehicle.seats<=0:raise serializers.ValidationError('Le véhicule doit disposer de places voyageurs.')
@@ -101,6 +123,11 @@ class ScopedSerializer(serializers.ModelSerializer):
             if current:overlaps=overlaps.exclude(pk=current.pk)
             if overlaps.exists():raise serializers.ValidationError('Chevauchement de planning pour ce véhicule ou ce chauffeur.')
         if model is m.Invoice:
+            if candidate.kind=='quote':
+                from .applications import active_keys
+                if 'commercial' not in active_keys(org):raise serializers.ValidationError('L’application commerciale est désactivée.')
+            if candidate.mission_id and (candidate.mission.order_id != candidate.order_id or not candidate.order_id):
+                raise serializers.ValidationError('La mission doit appartenir à la commande facturée.')
             if candidate.due_date<candidate.date:raise serializers.ValidationError('L’échéance ne peut pas précéder la date.')
             if candidate.order_id and candidate.order.customer_id!=candidate.customer_id:
                 raise serializers.ValidationError('La commande appartient à un autre client.')
@@ -141,4 +168,18 @@ def serializer_for(model):
         read_only_fields=['id','created_at','updated_at']+PROTECTED.get(model,[])
         validators=[]
     Meta.model=model
-    return type(f'{model.__name__}Serializer',(ScopedSerializer,),{'Meta':Meta})
+    attrs={'Meta':Meta}
+    if model is m.Invoice:
+        attrs['balance']=serializers.SerializerMethodField()
+        attrs['get_balance']=lambda self,obj:str(max(0,getattr(obj,'remaining',obj.total-obj.paid)))
+        attrs['payment_state']=serializers.SerializerMethodField()
+        def get_payment_state(self,obj):
+            from .crm_services import payment_state
+            return payment_state(obj)
+        attrs['get_payment_state']=get_payment_state
+        attrs['overdue_days']=serializers.SerializerMethodField()
+        def overdue(self,obj):
+            from django.utils import timezone
+            return max(0,(timezone.localdate()-obj.due_date).days) if obj.kind=='invoice' and obj.status=='issued' and getattr(obj,'remaining',obj.total-obj.paid)>0 else 0
+        attrs['get_overdue_days']=overdue
+    return type(f'{model.__name__}Serializer',(ScopedSerializer,),attrs)

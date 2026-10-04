@@ -1,7 +1,7 @@
 name: Recette ERP
 on:
   push:
-    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime, personnel-actions, portal-client-invitations, gps-mission-tracking]
+    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime, personnel-actions, portal-client-invitations, gps-mission-tracking, crm-commercial-workflow]
   pull_request:
     branches: [erp, main, transitflow-erp]
 permissions:
@@ -102,6 +102,12 @@ jobs:
             python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
             PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-personnel-$project pnpm --dir frontend exec playwright test personnel.spec.ts --project=$project --output=test-results-personnel-$project || exit 1
           done
+      - name: Cycle CRM et portail sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-crm-$project pnpm --dir frontend exec playwright test crm.spec.ts --project=$project --output=test-results-crm-$project || exit 1
+          done
       - name: Connexions PostgreSQL après la charge navigateur ASGI
         run: |
           python - <<'PY'
@@ -139,6 +145,8 @@ jobs:
         with:
           name: recette-navigateur
           path: |
+            frontend/playwright-report-crm-*
+            frontend/test-results-crm-*
             frontend/playwright-report
             frontend/test-results
             frontend/playwright-report-invitation

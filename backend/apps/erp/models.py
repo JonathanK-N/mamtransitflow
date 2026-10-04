@@ -73,6 +73,11 @@ def money(label, default=0):
 
 
 class Partner(TenantModel):
+    city = models.CharField('Ville', max_length=100, blank=True)
+    region = models.CharField('Province / région', max_length=100, blank=True)
+    country = models.CharField('Pays', max_length=100, blank=True)
+    postal_code = models.CharField('Code postal', max_length=30, blank=True)
+    archived_at = models.DateTimeField('Archivé le', null=True, blank=True)
     contact_name = models.CharField('Nom du contact', max_length=150, blank=True)
     name = models.CharField('Nom', max_length=150)
     kind = models.CharField('Type', max_length=15, choices=choices(('customer','Client'),('supplier','Fournisseur'),('both','Client et fournisseur')), default='customer')
@@ -82,6 +87,18 @@ class Partner(TenantModel):
     tax_number = models.CharField('Identifiant fiscal', max_length=100, blank=True)
     payment_days = models.PositiveSmallIntegerField('Délai de paiement (jours)', default=30)
     notes = models.TextField('Notes', blank=True)
+    class Meta(TenantModel.Meta):
+        indexes=[models.Index(fields=['organization','kind','archived_at','name'],name='erp_client_directory')]
+    def __str__(self): return self.name
+
+
+class PartnerContact(TenantModel):
+    customer = models.ForeignKey(Partner, on_delete=models.PROTECT, related_name='contacts')
+    name = models.CharField('Nom', max_length=150)
+    role = models.CharField('Fonction', max_length=100, blank=True)
+    email = models.EmailField('Courriel', blank=True)
+    phone = models.CharField('Téléphone', max_length=40, blank=True)
+    notes = models.TextField('Notes internes', blank=True)
     def __str__(self): return self.name
 
 
@@ -116,6 +133,11 @@ class Vehicle(TenantModel):
 
 
 class TransportOrder(TenantModel):
+    source_quote = models.OneToOneField('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='converted_order')
+    origin_contact = models.CharField('Contact au départ', max_length=180, blank=True)
+    destination_contact = models.CharField('Contact à destination', max_length=180, blank=True)
+    window_start = models.DateTimeField('Début de fenêtre', null=True, blank=True)
+    window_end = models.DateTimeField('Fin de fenêtre', null=True, blank=True)
     reference = models.CharField('Référence client', max_length=80)
     customer = models.ForeignKey(Partner, verbose_name='Client', on_delete=models.PROTECT)
     activity = models.CharField('Activité', max_length=20, choices=ACTIVITIES, default='freight')
@@ -130,6 +152,7 @@ class TransportOrder(TenantModel):
     notes = models.TextField('Consignes', blank=True)
     class Meta(TenantModel.Meta):
         constraints = [models.UniqueConstraint(fields=['organization','reference'], name='erp_order_reference')]
+        indexes=[models.Index(fields=['organization','customer','-created_at'],name='erp_customer_orders')]
     def __str__(self): return self.reference
 
 
@@ -207,6 +230,12 @@ class Expense(TenantModel):
 
 
 class Invoice(TenantModel):
+    quote_status = models.CharField('État du devis', max_length=15, default='draft', choices=choices(('draft','Brouillon'),('sent','Envoyé'),('accepted','Accepté'),('refused','Refusé'),('expired','Expiré')))
+    origin = models.CharField('Départ', max_length=180, blank=True)
+    destination = models.CharField('Destination', max_length=180, blank=True)
+    activity = models.CharField('Activité', max_length=20, choices=ACTIVITIES, default='freight')
+    unit = models.CharField('Unité', max_length=15, choices=[(u,u) for u in ['kg','t','L','m3','colis','voyageurs','mission']], default='mission')
+    mission = models.ForeignKey(Mission, verbose_name='Mission', null=True, blank=True, on_delete=models.PROTECT)
     number = models.CharField('Numéro', max_length=80, blank=True)
     customer = models.ForeignKey(Partner, verbose_name='Client', on_delete=models.PROTECT)
     order = models.ForeignKey(TransportOrder, verbose_name='Commande', null=True, blank=True, on_delete=models.PROTECT)
@@ -223,10 +252,12 @@ class Invoice(TenantModel):
     notes = models.TextField('Conditions / notes', blank=True)
     class Meta(TenantModel.Meta):
         constraints = [models.UniqueConstraint(fields=['organization','number'], condition=~Q(number=''), name='erp_invoice_number')]
+        indexes=[models.Index(fields=['organization','customer','kind','status'],name='erp_customer_invoices')]
     def __str__(self): return self.number or 'Brouillon'
 
 
 class Payment(TenantModel):
+    notes = models.TextField('Notes', blank=True)
     invoice = models.ForeignKey(Invoice, verbose_name='Facture', on_delete=models.PROTECT)
     amount = money('Montant')
     date = models.DateField('Date')
@@ -297,6 +328,7 @@ def private_path(instance, filename):
 
 
 class Document(TenantModel):
+    customer = models.ForeignKey(Partner, verbose_name='Client', null=True, blank=True, on_delete=models.PROTECT)
     title = models.CharField('Document', max_length=180)
     category = models.CharField('Catégorie', max_length=20, choices=choices(('vehicle','Véhicule'),('driver','Personnel'),('delivery','Livraison'),('finance','Finance'),('other','Autre')), default='other')
     vehicle = models.ForeignKey(Vehicle, verbose_name='Véhicule', null=True, blank=True, on_delete=models.PROTECT)
@@ -327,6 +359,8 @@ class AuditEvent(TenantModel):
     resource = models.CharField(max_length=80)
     object_id = models.CharField(max_length=80)
     detail = models.JSONField(default=dict)
+    class Meta(TenantModel.Meta):
+        indexes=[models.Index(fields=['organization','resource','object_id','-created_at'],name='erp_client_audit_lookup')]
 
 
 class TeamInvitation(TenantModel):
@@ -579,5 +613,20 @@ class PortalAccess(TenantModel):
     active = models.BooleanField(default=True)
     class Meta(TenantModel.Meta):
         constraints=[models.UniqueConstraint(fields=['organization','user'],name='erp_portal_user_unique')]
+
+class ClientConversation(TenantModel):
+    access = models.OneToOneField(PortalAccess, on_delete=models.PROTECT, related_name='conversation')
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    active = models.BooleanField(default=True)
+
+
+class ClientMessage(TenantModel):
+    conversation = models.ForeignKey(ClientConversation, on_delete=models.PROTECT, related_name='messages')
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    body = models.TextField()
+    client_id = models.UUIDField()
+    class Meta(TenantModel.Meta):
+        constraints=[models.UniqueConstraint(fields=['conversation','sender','client_id'],name='erp_client_message_retry_unique')]
+
 
 from .chat_models import Conversation, ConversationParticipant, Message, MessageAttachment, GlobalNotification, NotificationPreference, PushSubscription

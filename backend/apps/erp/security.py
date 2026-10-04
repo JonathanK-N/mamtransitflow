@@ -25,6 +25,7 @@ def membership(request):
 
 
 def allowed(role,resource,write=False):
+    if resource=='contacts':return role in ('owner','admin','operations','finance') or role=='viewer' and not write
     if role in ('owner','admin'):return True
     if resource=='employees' and role=='finance':return not write
     if resource in {'leave','advances'}:return role=='finance'

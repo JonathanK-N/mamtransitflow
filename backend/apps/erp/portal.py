@@ -43,7 +43,7 @@ class PortalAdminView(ScopedView):
         if self.member.role not in ('owner','admin'):raise PermissionDenied('Administration requise.')
         if 'customer-portal' not in self.active_applications:raise PermissionDenied('Le portail client est désactivé.')
     def customers(self):
-        return m.Partner.objects.filter(organization=self.org,kind__in=['customer','both'])
+        return m.Partner.objects.filter(organization=self.org,kind__in=['customer','both'],archived_at__isnull=True)
     def invitations(self):
         return m.TeamInvitation.objects.filter(organization=self.org,role='client',partner__organization=self.org).select_related('partner')
     def get(self,request,section=None):
@@ -133,7 +133,8 @@ class PortalView(ScopedView):
         if 'customer-portal' not in self.active_applications:raise PermissionDenied('Le portail client est actuellement désactivé.')
 
     def documents(self):
-        return m.Document.objects.filter(organization=self.org,shared_with_customer=True,category='delivery',mission__order__customer=self.access.partner)
+        from django.db.models import Q
+        return m.Document.objects.filter(organization=self.org,shared_with_customer=True).filter(Q(customer=self.access.partner)|Q(customer__isnull=True,category='delivery',mission__order__customer=self.access.partner))
 
     def get(self,request,resource='orders',pk=None):
         partner=self.access.partner
@@ -153,14 +154,23 @@ class PortalView(ScopedView):
             return response
         if pk is not None:raise NotFound('Section introuvable.')
         if resource=='orders':
-            qs=m.TransportOrder.objects.filter(organization=self.org,customer=partner).exclude(status='draft')
-            def output(x):return dict(id=str(x.pk),reference=x.reference,origin=x.origin,destination=x.destination,planned_date=x.planned_date,quantity=x.quantity,unit=x.unit,amount=x.amount,status=x.status)
+            from django.db.models import Exists,OuterRef
+            from .crm_services import invoice_balances
+            missions=m.Mission.objects.filter(organization=self.org,order_id=OuterRef('pk'))
+            invoices=m.Invoice.objects.filter(organization=self.org,order_id=OuterRef('pk'),kind='invoice',status__in=['issued','paid'])
+            qs=m.TransportOrder.objects.filter(organization=self.org,customer=partner).exclude(status='draft').annotate(
+                has_planned=Exists(missions.filter(status='planned')),has_active=Exists(missions.filter(status='active')),
+                has_invoice=Exists(invoices),has_unpaid=Exists(invoice_balances(invoices).filter(remaining__gt=0)))
+            def output(x):
+                stage='paid' if x.has_invoice and not x.has_unpaid else 'invoiced' if x.has_invoice else 'delivered' if x.status=='completed' else 'in_progress' if x.has_active else 'planned' if x.has_planned else 'received'
+                return dict(id=str(x.pk),reference=x.reference,origin=x.origin,destination=x.destination,planned_date=x.planned_date,quantity=x.quantity,unit=x.unit,amount=x.amount,status=x.status,stage=stage)
         elif resource=='deliveries':
             qs=m.Mission.objects.filter(organization=self.org,order__customer=partner).select_related('receipt')
             def output(x):return dict(id=str(x.pk),reference=x.reference,origin=x.origin,destination=x.destination,departure=x.departure,arrival=x.arrival,completed_at=x.completed_at,delivered_quantity=x.delivered_quantity,status=x.status,signed=hasattr(x,'receipt'))
         elif resource=='invoices':
-            qs=m.Invoice.objects.filter(organization=self.org,customer=partner,status__in=['issued','paid'])
-            def output(x):return dict(id=str(x.pk),number=x.number,kind=x.kind,date=x.date,due_date=x.due_date,subtotal=x.subtotal,tax=x.tax,total=x.total,paid=x.paid,status=x.status,lines=x.lines,notes=x.notes)
+            from .crm_services import invoice_balances,payment_state
+            qs=invoice_balances(m.Invoice.objects.filter(organization=self.org,customer=partner,status__in=['issued','paid']))
+            def output(x):return dict(id=str(x.pk),number=x.number,kind=x.kind,date=x.date,due_date=x.due_date,subtotal=x.subtotal,tax=x.tax,total=x.total,paid=x.paid,balance=str(max(0,x.remaining)),status=x.status,payment_state=payment_state(x),lines=x.lines,notes=x.notes)
         elif resource=='documents':
             qs=self.documents()
             def output(x):return dict(id=str(x.pk),title=x.title,created_at=x.created_at)

@@ -51,6 +51,9 @@ ACTION_FIELDS={
 }
 
 
+LABELS['contacts']='Contacts clients'
+
+
 class Page(PageNumberPagination):
     page_size=25
     page_size_query_param='page_size'
@@ -88,6 +91,11 @@ class ScopedView(APIView):
         model=RESOURCES.get(resource)
         if not model:raise NotFound('Module introuvable.')
         qs=model.objects.filter(organization=self.org)
+        if model is m.Invoice:
+            from .crm_services import invoice_balances
+            qs=invoice_balances(qs)
+        if model is m.Document and not security.allowed(self.member.role,'invoices'):
+            qs=qs.exclude(category='finance')
         if self.member.role=='driver':
             if model is m.Mission:qs=qs.filter(driver__user=self.request.user)
             elif model is m.Document:qs=qs.filter(mission__driver__user=self.request.user).exclude(category='finance')
@@ -107,7 +115,7 @@ class CatalogView(ScopedView):
             serializer=serializer_for(model)(context=self.context())
             fields=[]
             for name,field in serializer.fields.items():
-                if name in ('id','label','relations','created_at','updated_at','actor'):continue
+                if name in ('id','label','relations','balance','payment_state','overdue_days','created_at','updated_at','actor'):continue
                 dbfield=model._meta.get_field(name)
                 kind='text'
                 if isinstance(dbfield,models.DateTimeField):kind='datetime-local'
@@ -152,10 +160,25 @@ class ResourceView(ScopedView):
             qs=qs.filter(query)
         if request.query_params.get('status') and hasattr(RESOURCES[resource],'status'):
             qs=qs.filter(status=request.query_params['status'])
+        if resource=='partners':
+            archived=request.query_params.get('archived','false')
+            if archived!='all':qs=qs.filter(archived_at__isnull=archived!='true')
+            if request.query_params.get('kind')=='customer':qs=qs.filter(kind__in=['customer','both'])
+        if resource=='invoices' and request.query_params.get('kind'):
+            qs=qs.filter(kind=request.query_params['kind'])
+        if resource=='payments' and request.query_params.get('customer'):
+            qs=qs.filter(invoice__customer_id=request.query_params['customer'])
+        if resource=='missions' and request.query_params.get('customer'):
+            qs=qs.filter(order__customer_id=request.query_params['customer'])
+        ordering=request.query_params.get('sort')
+        if ordering in ('name','-name','created_at','-created_at') and any(f.name==ordering.lstrip('-') for f in RESOURCES[resource]._meta.fields):
+            qs=qs.order_by(ordering,'id')
         for key in ('vehicle','mission','customer','driver','item','order'):
             value=request.query_params.get(key)
             if value and any(f.name==key for f in RESOURCES[resource]._meta.fields):
-                try:qs=qs.filter(**{key:value})
+                try:
+                    if resource=='documents' and key=='customer':qs=qs.filter(Q(customer_id=value)|Q(customer__isnull=True,mission__order__customer_id=value))
+                    else:qs=qs.filter(**{key:value})
                 except (ValueError,DjangoValidation):raise ValidationError('Filtre invalide.')
         paginator=Page();page=paginator.paginate_queryset(qs,request)
         return paginator.get_paginated_response(serializer(page,many=True,context=self.context()).data)
@@ -174,7 +197,10 @@ class ResourceView(ScopedView):
         elif model is m.StockMovement:obj=services.stock_move(self.org,request.user,serializer.validated_data)
         elif model is m.Booking:obj=services.booking(self.org,request.user,serializer.validated_data)
         else:
-            obj=serializer.save(organization=self.org);services.audit(self.org,request.user,'create',obj)
+            generated={}
+            if model in (m.TransportOrder,m.Mission) and not serializer.validated_data.get('reference'):
+                generated['reference']=services.sequence(self.org,'CMD' if model is m.TransportOrder else 'MIS')
+            obj=serializer.save(organization=self.org,**generated);services.audit(self.org,request.user,'create',obj)
         return Response(serializer_for(model)(obj,context=self.context()).data,status=201)
     def patch(self,request,resource,pk):
         self.ensure(resource,True)
@@ -186,7 +212,8 @@ class ResourceView(ScopedView):
         return Response(serializer.data)
     def delete(self,request,resource,pk):
         self.ensure(resource,True)
-        if resource in ('employees','audit','payments','supplier-payments','movements','bookings','journal','accounts'):raise PermissionDenied('Historique conservé ; suppression interdite.')
+        if resource=='partners':get_object_or_404(self.queryset(resource),pk=pk)
+        if resource in ('partners','employees','audit','payments','supplier-payments','movements','bookings','journal','accounts'):raise PermissionDenied('Historique conservé ; suppression interdite.')
         m.Organization.objects.select_for_update().get(pk=self.org.pk)
         obj=get_object_or_404(self.queryset(resource),pk=pk)
         if hasattr(obj,'status') and obj.status not in ('draft','planned','available','retired'):raise ValidationError('Cette fiche ne peut plus être supprimée.')

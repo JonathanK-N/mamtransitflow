@@ -27,6 +27,10 @@ def visible_notifications(member):
         missions=[str(identity) for identity in m.Mission.objects.filter(organization=member.organization,driver__user=member.user).values_list('pk',flat=True)]
         qs=qs.filter(~Q(category='missions')|Q(context__id__in=missions))
     from . import security
+    from .applications import resource_enabled
+    for resource in ('invoices','orders','payments','partners'):
+        if not security.allowed(member.role,resource) or not resource_enabled(member.organization,resource):
+            qs=qs.filter(Q(context__module__isnull=True)|~Q(context__module=resource))
     if not security.allowed(member.role,'missions'):qs=qs.exclude(category='missions')
     for module in ('incidents','maintenance','documents'):
         if not security.allowed(member.role,module):qs=qs.filter(Q(context__module__isnull=True)|~Q(context__module=module))

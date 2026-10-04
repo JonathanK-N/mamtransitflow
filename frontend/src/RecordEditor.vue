@@ -5,10 +5,10 @@ import { X, Plus, Trash2, Save, LoaderCircle, Download, Printer } from 'lucide-v
 import { api,download,money } from './api'
 import MissionTracking from './MissionTracking.vue'
 import PersonnelActions from './PersonnelActions.vue'
-const props=defineProps<{schema:any,record:any,currency:string,admin?:boolean}>()
-const emit=defineEmits(['close','saved','contact'])
+const props=defineProps<{schema:any,record:any,currency:string,admin?:boolean,prefill?:any}>()
+const emit=defineEmits(['close','saved','contact','existing'])
 const data=ref<Record<string,any>>({}),options=ref<Record<string,any[]>>({}),error=ref(''),saving=ref(false)
-const initializing=ref(true)
+const initializing=ref(true),duplicates=ref<any[]>([]),duplicateConfirmed=ref(false)
 const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly&&!(props.schema.key==='employees'&&props.record&&f.name==='active')))
 const locked=computed(()=>!props.schema.writable||props.record&&['issued','paid','posted','approved','completed','active','cancelled','received','ordered','confirmed','boarded','paused','closed','reported','resolved','submitted','rejected','disbursed','settled','matched'].includes(props.record.status)||props.record&&['payments','supplier-payments','movements','bookings'].includes(props.schema.key))
 const lineType=computed(()=>props.schema.key==='journal'?'journal':props.schema.key==='purchases'?'purchase':'invoice')
@@ -22,7 +22,7 @@ function keydown(e:KeyboardEvent){if(e.key==='Escape')emit('close')}
 onMounted(async()=>{
  const resources=new Set<string>()
  for(const f of fields.value){
-  let value=props.record?.[f.name]??f.default??(f.type==='checkbox'?false:f.type==='json'?[]:'')
+  let value=props.record?.[f.name]??props.prefill?.[f.name]??f.default??(f.type==='checkbox'?false:f.type==='json'?[]:'')
   if(f.type==='datetime-local'&&value){const d=new Date(value);value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
   data.value[f.name]=Array.isArray(value)?JSON.parse(JSON.stringify(value)):value
   if(f.relation&&!locked.value)resources.add(f.relation)
@@ -31,6 +31,12 @@ onMounted(async()=>{
  if(props.schema.key==='journal'&&!locked.value)resources.add('accounts')
  if(props.schema.key==='purchases'&&!locked.value)resources.add('stock')
  await Promise.all([...resources].map(resource=>loadOptions(resource)))
+ for(const f of fields.value){
+  const value=data.value[f.name]
+  if(f.relation&&value&&!locked.value&&!options.value[f.relation]?.some((row:any)=>row.id===value)){
+   try{const row=await api(f.relation+'/'+value);options.value[f.relation]=[row,...(options.value[f.relation]||[])]}catch{error.value='Une référence préremplie n’est plus accessible. Sélectionnez une fiche valide.'}
+  }
+ }
  initializing.value=false
  await nextTick()
  document.addEventListener('keydown',keydown)
@@ -46,6 +52,10 @@ async function save(){
    if(f.type==='file'&&!(value instanceof File))continue
    if(value===''&&(f.name==='user'||f.type==='relation'||['date','datetime-local','number'].includes(f.type))){if(!f.required)body[f.name]=null;continue}
    body[f.name]=f.type==='datetime-local'&&value?new Date(value).toISOString():value
+  }
+  if(props.schema.key==='partners'&&!props.record&&!duplicateConfirmed.value){
+   duplicates.value=await api('clients/duplicates','POST',body)
+   if(duplicates.value.length)return
   }
   if(props.schema.key==='documents'){
    const multipart=new FormData();for(const [key,value] of Object.entries(body)){if(value!==null&&value!==undefined)multipart.append(key,value instanceof File?value:typeof value==='object'?JSON.stringify(value):String(value))}
@@ -63,6 +73,7 @@ function print(){window.print()}
   <div v-if="initializing" class="editor-body" role="status"><LoaderCircle class="spin"/> Chargement de la fiche…</div>
   <form v-else @submit.prevent="save" class="editor-body">
    <div v-if="error" class="error-box" role="alert">{{error}}</div>
+   <div v-if="duplicates.length&&!duplicateConfirmed" class="info-box"><p>Un client similaire existe déjà.</p><p v-for="row in duplicates">{{row.name}} · {{row.email}} · {{row.phone}} <button type="button" class="secondary" @click="emit('existing',row)">Voir la fiche existante</button></p><button type="button" class="secondary" @click="duplicateConfirmed=true;save()">Créer quand même</button><button type="button" class="secondary" @click="emit('close')">Annuler</button></div>
    <div v-if="locked" class="info-box">Cet enregistrement est consultable. Son état ou vos permissions ne permettent pas de modifier ses valeurs.</div>
    <PersonnelActions v-if="record&&schema.key==='employees'&&record.active" :employee="record" :writable="schema.writable" :admin="!!admin" profile @contact="emit('contact',$event)"/>
    <div class="form-grid">
@@ -70,7 +81,7 @@ function print(){window.print()}
      <div v-if="f.name==='lines'" class="span-2 line-editor"><div class="line-heading"><h3>{{lineType==='journal'?'Écritures':lineType==='purchase'?'Articles commandés':'Prestations'}}</h3><button v-if="!locked" type="button" class="secondary small" @click="addLine"><Plus :size="15"/>Ajouter une ligne</button></div>
       <div v-for="(line,i) in lines" :key="i" class="line-row" :class="lineType">
        <template v-if="lineType==='journal'"><label>Compte<select v-model="line.account" :disabled="locked" required><option value="">Choisir</option><option v-if="locked" :value="line.account">{{line.account}}</option><option v-for="o in options.accounts||[]" :value="o.code">{{o.label}}</option></select></label><label>Débit<input v-model="line.debit" type="number" min="0" step=".01" :disabled="locked"/></label><label>Crédit<input v-model="line.credit" type="number" min="0" step=".01" :disabled="locked"/></label></template>
-       <template v-else><label v-if="lineType==='purchase'">Article<select v-model="line.item" required :disabled="locked"><option value="">Choisir</option><option v-if="locked" :value="line.item">{{line.item}}</option><option v-for="o in options.stock||[]" :value="o.id">{{o.label}}</option></select></label><label v-else>Description<input v-model="line.description" required :disabled="locked" placeholder="Prestation de transport"/></label><label>Quantité<input v-model="line.quantity" type="number" step=".001" min=".001" required :disabled="locked"/></label><label>Prix unitaire<input v-model="line.price" type="number" min="0" step=".01" required :disabled="locked"/></label><label v-if="lineType==='invoice'">Taxe (%)<input v-model="line.tax_rate" type="number" min="0" max="100" step=".01" :disabled="locked"/></label></template>
+       <template v-else><label v-if="lineType==='purchase'">Article<select v-model="line.item" required :disabled="locked"><option value="">Choisir</option><option v-if="locked" :value="line.item">{{line.item}}</option><option v-for="o in options.stock||[]" :value="o.id">{{o.label}}</option></select></label><label v-else>Description<input v-model="line.description" required :disabled="locked" placeholder="Prestation de transport"/></label><label>Quantité<input v-model="line.quantity" type="number" step=".001" min=".001" required :disabled="locked"/></label><label>Prix unitaire<input v-model="line.price" type="number" min="0" step="any" required :disabled="locked"/></label><label v-if="lineType==='invoice'">Taxe (%)<input v-model="line.tax_rate" type="number" min="0" max="100" step=".01" :disabled="locked"/></label></template>
        <button v-if="!locked" class="icon-btn danger-text" type="button" aria-label="Supprimer cette ligne" @click="data.lines.splice(i,1)"><Trash2 :size="15"/></button>
       </div>
       <p v-if="lineType==='invoice'" class="field-help">Les taux sont ceux que votre entreprise applique. Faites valider votre paramétrage fiscal.</p>

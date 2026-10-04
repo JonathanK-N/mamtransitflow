@@ -213,3 +213,7 @@ railway.json      configuration du deploiement Railway
 
 Voir le plan de developpement pour la suite (suivi GPS en direct via
 Django Channels, migration du front-end vers Vue.js, etc.).
+
+## Clients et parcours commercial
+
+Le module Clients centralise le dossier commercial et le parcours devis → commande → mission → livraison → facture → paiement. Voir [le fonctionnement, les permissions et les migrations](docs/CRM-commercial.md).
