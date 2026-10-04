@@ -231,3 +231,18 @@ def test_database_rejects_cross_company_commercial_relations(env,relation):
     }
     if relation=='conversation_access':conversation.delete()
     with pytest.raises(IntegrityError),transaction.atomic():constructors[relation]()
+
+
+def test_portal_billing_excludes_sent_quotes_and_draft_invoices(env):
+    from apps.comptes.models import Utilisateur
+    from rest_framework.test import APIClient
+    user=Utilisateur.objects.create_user(courriel='portal-finance-test@example.test',mot_de_passe='Portal-test-938!',nom='Client TEST')
+    m.PortalAccess.objects.create(organization=env['org'],user=user,partner=env['partner'])
+    sent=quote(env);commercial(env,sent['id'],'send')
+    draft=create(env,'invoices',dict(kind='invoice',customer=str(env['partner'].pk),date=str(timezone.localdate()),due_date=str(timezone.localdate()),lines=[dict(description='TEST',quantity='1',price='100',tax_rate='0')]))
+    portal=APIClient();portal.force_authenticate(user);portal.credentials(HTTP_X_ORGANIZATION=str(env['org'].pk))
+    response=portal.get('/api/v2/portal/invoices');assert response.status_code==200,response.data
+    assert response.data['count']==0
+    act(env,'invoices',draft['id'],'issue')
+    response=portal.get('/api/v2/portal/invoices');assert response.data['count']==1
+    assert response.data['results'][0]['id']==draft['id']
