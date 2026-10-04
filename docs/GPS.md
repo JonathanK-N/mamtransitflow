@@ -26,7 +26,7 @@ La boucle de durée de vie ASGI vérifie les interruptions toutes les 30 s, mêm
 
 ## Carte et permissions
 
-Leaflet 1.9.4 est installé par npm/pnpm et compilé avec Vite. Le fournisseur par défaut est `https://tile.openstreetmap.org/{z}/{x}/{y}.png` avec attribution visible. Pour remplacer le fournisseur, définir `TF_MAP_TILE_URL` (HTTPS) et `TF_MAP_TILE_ATTRIBUTION`, avec attribution conforme aux droits du fournisseur. La politique CSP autorise l’origine HTTPS configurée. Les tests interceptent les tuiles ; le Service Worker ne les précharge pas et n’enregistre aucune réponse privée GPS.
+Leaflet 1.9.4 est installé par npm/pnpm et compilé avec Vite. Le fournisseur par défaut est `https://tile.openstreetmap.org/{z}/{x}/{y}.png` avec attribution visible. Pour remplacer le fournisseur, définir `TF_MAP_TILE_URL` (HTTPS) et `TF_MAP_TILE_ATTRIBUTION` / `TF_MAP_TILE_ATTRIBUTION_URL`, avec attribution conforme aux droits du fournisseur. La politique CSP autorise l’origine HTTPS configurée. Les tests interceptent les tuiles ; le Service Worker ne les précharge pas et n’enregistre aucune réponse privée GPS.
 
 Politique OSM : https://operations.osmfoundation.org/policies/tiles/ . Le service public offre une disponibilité au mieux ; utiliser un fournisseur dédié avec quotas et engagement de service avant un déploiement à grande échelle. Leaflet : https://leafletjs.com/download.html .
 
