@@ -43,3 +43,5 @@ Navigateurs Vue/PWA : `pnpm --dir frontend exec playwright test gps.spec.ts`, ou
 Le scénario utilise deux sessions contrôlées, une géolocalisation native simulée pour les déplacements et une injection des erreurs de permission. Les profils couvrent desktop Chromium, Android, iPhone/WebKit, iPad/WebKit et smartphone 320/360 px. Les comptes et missions sont préfixés TEST ; aucun trajet réel n’est simulé comme preuve physique.
 
 La lecture de flotte calcule la fraîcheur sans mutation ni verrou d’entreprise. Le contrôle automatique prend un verrou non bloquant (`skip_locked`) et reprend les entreprises occupées au prochain passage : deux workers ne produisent pas deux alertes et une opération métier ne bloque pas la consultation de carte.
+
+La fixture navigateur relit une mesure du fournisseur natif après chaque changement de géolocalisation simulée, puis la remet au callback suivi. Les erreurs CODE2 produites par le remplacement de ce fournisseur sont isolées ; un épisode CODE2 est injecté explicitement pour vérifier indisponibilité, conservation du dernier point et reprise. Aucun timestamp ni coordonnée de production ne sont fabriqués.
