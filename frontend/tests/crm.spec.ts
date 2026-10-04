@@ -35,6 +35,7 @@ test('CRM : client, devis, commande, mission, livraison, facture, paiements et p
  await dialog.getByLabel('Description',{exact:true}).fill('Transport TEST CRM');await dialog.getByLabel('Quantité',{exact:true}).fill('2');await dialog.getByLabel('Prix unitaire',{exact:true}).fill('100')
  await dialog.getByRole('button',{name:/Enregistrer/}).click();await expect(dialog).toHaveCount(0)
  await page.getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Marquer comme envoyé',exact:true}).click();await page.getByRole('button',{name:'Accepter',exact:true}).click();await page.getByRole('button',{name:'Créer la commande',exact:true}).click()
+ await expect.poll(async()=> (await get('orders')).count).toBe(1)
  const quote=(await get('invoices?kind=quote')).results[0],order=(await get('orders')).results[0];expect(order.source_quote).toBe(quote.id);proof.quote=quote.id;proof.order=order.id;saveProof('order-created')
  await page.getByRole('navigation',{name:'Dossier client'}).getByRole('button',{name:'Commandes',exact:true}).click();await page.getByRole('button',{name:'Confirmer la commande',exact:true}).click();await page.getByRole('button',{name:'Planifier la mission',exact:true}).click();dialog=page.getByRole('dialog')
  await expect(dialog.getByLabel(/^Départ\s*\*?$/)).toHaveValue('Conakry')
