@@ -22,12 +22,12 @@ def authorized(view):
     return view.queryset('missions')
 
 
-def broadcast(mission):
+def broadcast(mission,event="tracking"):
     from .realtime import publish
     users=list(m.Membership.objects.filter(organization_id=mission.organization_id,active=True,user__is_active=True,role__in=['owner','admin','operations']).values_list('user_id',flat=True))
     driver_user=m.Employee.objects.filter(pk=mission.driver_id,organization_id=mission.organization_id).values_list('user_id',flat=True).first()
     if driver_user:users.append(driver_user)
-    transaction.on_commit(lambda:publish(mission.organization_id,set(users),'tracking',mission=mission.pk))
+    transaction.on_commit(lambda:publish(mission.organization_id,set(users),event,mission=mission.pk))
 
 
 def status(mission,last,now):
@@ -79,7 +79,9 @@ class TrackingView(ScopedView):
         if pk:
             mission=get_object_or_404(qs,pk=pk)
             return Response({'started_at':mission.started_at,'completed_at':mission.completed_at,'state':status(mission,m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first(),timezone.now())})
-        if self.member.role in ('owner','admin','operations'):check_signals(self.org.pk)
+        own=request.query_params.get('assigned')=='1'
+        if own:qs=qs.filter(driver__user=request.user)
+        if not own and self.member.role in ('owner','admin','operations'):check_signals(self.org.pk)
         now=timezone.now()
         rows=[]
         for mission in active_rows(qs):

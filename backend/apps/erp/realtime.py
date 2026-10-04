@@ -105,7 +105,7 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
         except Exception:
             if event.get('conversation'):return
             await self.close(code=4403);return
-        if event.get('event')=='tracking' and not await self.tracking_allowed(event.get('mission')):return
+        if event.get('event') in ('tracking','tracking_lifecycle') and not await self.tracking_allowed(event.get('mission')):return
         await self.send_json({'mission':event.get('mission'),'type':event['event'],'conversation':event.get('conversation'),'member':event.get('member')})
 
     async def disconnect(self,code):
