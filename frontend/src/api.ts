@@ -34,17 +34,18 @@ export async function refresh():Promise<boolean> {
   })()
   try{return await renewing}finally{renewing=null}
 }
-export async function api(path:string,method='GET',body?:any,retry=true):Promise<any> {
+export async function api(path:string,method='GET',body?:any,retry=true,scope?:string):Promise<any> {
   if(method==='POST'&&/^missions\/[^/]+\/actions\/(complete|cancel)$/.test(path)){const {finalGps}=await import('./gps');await finalGps(path.split('/')[1])}
   const headers:Record<string,string>={}
   if(access)headers.Authorization='Bearer '+access
-  if(organization)headers['X-Organization']=organization
+  const selected=scope??organization
+  if(selected)headers['X-Organization']=selected
   if(csrf)headers['X-CSRFToken']=csrf
   const multipart=body instanceof FormData
   if(body!==undefined&&!multipart)headers['Content-Type']='application/json'
   const response=await network('/api/v2/'+path,{method,headers,credentials:'same-origin',body:body===undefined?undefined:multipart?body:JSON.stringify(body)})
   if(response.status===401&&retry&&!path.startsWith('auth/')){
-    if(await refresh())return api(path,method,body,false)
+    if(await refresh())return api(path,method,body,false,selected)
     window.dispatchEvent(new Event('session-expired'))
   }
   if(response.status===204)return null

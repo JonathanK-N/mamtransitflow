@@ -1,7 +1,7 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
-import { onMounted, ref, defineAsyncComponent, nextTick } from 'vue'
-import {stopGps,purgeGps} from './gps'
+import { onMounted, ref, defineAsyncComponent, nextTick, watch } from 'vue'
+import {startGps,stopGps,purgeGps} from './gps'
 import PwaStatus from './PwaStatus.vue'
 import {disableDevicePush,setPushAccount,stopActivity} from './activity'
 import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-next'
@@ -12,6 +12,7 @@ import {api,refresh,setOrganization,organization,clearSession} from './api'
 const screen=ref(location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':location.pathname.startsWith('/app')?'loading':'public')
 if(new URLSearchParams(location.search).has('reset'))screen.value='recovery'
 const session=ref<any>(null),accessNotice=ref(''),error=ref(''),busy=ref(false)
+watch(()=>screen.value==='workspace'&&session.value?JSON.stringify([session.value.user.id,session.value.organizations.map((o:any)=>[o.id,o.role])]):'',key=>{if(key)startGps(session.value.user.id,session.value.organizations);else stopGps()})
 const form=ref({name:'',email:'',password:'',company:'',country:'GN',activity:'freight'})
 const invitationToken=ref(new URLSearchParams(location.search).get('invitation')||sessionStorage.getItem('transitflow.invitation')||'')
 if(new URLSearchParams(location.search).has('invitation')&&screen.value!=='recovery')screen.value='loading'

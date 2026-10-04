@@ -1,14 +1,14 @@
 # Suivi GPS des missions
 
-Le frontend officiel est Vue/PWA. `frontend/src/gps.ts` possède la capture, la file IndexedDB et la synchronisation ; `DriverTracking.vue` le monte au niveau de l’espace du chauffeur, indépendamment des fiches Missions ou Terrain. `MissionTracking.vue` affiche désormais le parcours enregistré ; `LiveTracking.vue` affiche la flotte autorisée sur `TrackingMap.vue`.
+Le frontend officiel est Vue/PWA. `frontend/src/gps.ts` possède la capture, la file IndexedDB et la synchronisation ; `App.vue` le rattache à la session et `DriverTracking.vue` affiche son état, indépendamment des fiches Missions ou Terrain et des changements d’entreprise. Chaque requête conserve explicitement le tenant de sa mission. `MissionTracking.vue` affiche désormais le parcours enregistré ; `LiveTracking.vue` affiche la flotte autorisée sur `TrackingMap.vue`.
 
 Les anciens `assets/js/gps.js`, les pages HTML et `apps/suivi` restent des références compatibles avec les autres modules historiques. Ils ne sont pas chargés en production lorsque `TF_LEGACY_ENABLED=0`. Le scénario `e2e/parcours_gps.py` appelle les tests Vue/PWA `gps.spec.ts`. Aucun troisième modèle de positions ni canal GPS séparé n’a été ajouté : `erp.Position`, PostgreSQL et `/ws/activity` restent les sources officielles.
 
 ## Cycle professionnel obligatoire
 
-Seules les missions actives assignées au compte chauffeur déclenchent la capture. La permission déjà accordée lance `watchPosition` ; une permission inconnue ou refusée affiche un bouton Autoriser la localisation et l’exigence obligatoire. Aucun bouton d’arrêt, pause ou désactivation du GPS n’est fourni. La fin normale essaie un dernier point, synchronise la file puis la transition métier ferme le suivi. L’annulation autorisée, le retrait d’accès, le changement d’entreprise ou l’invalidation de session arrêtent la capture et libèrent Wake Lock. Le chauffeur ne peut pas annuler une mission par l’API.
+Seules les missions actives assignées au compte chauffeur déclenchent la capture. La permission déjà accordée lance `watchPosition` ; une permission inconnue ou refusée affiche un bouton Autoriser la localisation et l’exigence obligatoire. Aucun bouton d’arrêt, pause ou désactivation du GPS n’est fourni. La fin normale essaie un dernier point, synchronise la file puis la transition métier ferme le suivi. L’annulation autorisée, le retrait d’accès, l’invalidation de session arrêtent la capture et libèrent Wake Lock. Le chauffeur ne peut pas annuler une mission par l’API.
 
-Une révocation distante ne peut être reçue pendant une coupure réseau : l’application utilise sa dernière affectation active connue jusqu’à resynchronisation. Après une ouverture hors connexion, elle ne relance pas une capture sans pouvoir vérifier l’affectation auprès du serveur ; les positions déjà conservées restent dans IndexedDB.
+Une révocation distante ne peut être reçue pendant une coupure réseau : l’application utilise sa dernière affectation active connue jusqu’à resynchronisation. Changer d’entreprise ne permet pas de couper une mission active : le suivi continue dans son tenant autorisé, identifié dans le bandeau. Après une ouverture hors connexion, elle ne relance pas une capture sans pouvoir vérifier l’affectation auprès du serveur ; les positions déjà conservées restent dans IndexedDB.
 
 ## Mesures et fréquence
 
