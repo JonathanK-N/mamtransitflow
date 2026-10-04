@@ -23,6 +23,13 @@ def business_notification(sender,instance,created,**kwargs):
     org=instance.organization
     members=m.Membership.objects.filter(organization=org,active=True,user__is_active=True).select_related('user','organization')
     if sender is m.Mission:
+        from .tracking import broadcast
+        broadcast(instance)
+        if previous and previous['driver_id']!=instance.driver_id:
+            from django.db import transaction
+            from .realtime import publish
+            old_user=m.Employee.objects.filter(pk=previous['driver_id'],organization=org).values_list('user_id',flat=True).first()
+            if old_user:transaction.on_commit(lambda:publish(org.pk,[old_user],'tracking_access',mission=instance.pk))
         category='missions';module='missions'
         title='Nouvelle mission assignée' if created or previous and previous['driver_id']!=instance.driver_id else 'Mission annulée' if instance.status=='cancelled' else 'Mission modifiée'
         body='Mission '+instance.reference

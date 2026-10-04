@@ -1,7 +1,7 @@
 name: Recette ERP
 on:
   push:
-    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime, personnel-actions, portal-client-invitations]
+    branches: [transitflow-erp, transitflow-tests, pwa-mobile, messaging-realtime, personnel-actions, portal-client-invitations, gps-mission-tracking]
   pull_request:
     branches: [erp, main, transitflow-erp]
 permissions:
@@ -60,6 +60,12 @@ jobs:
           done
           cat /tmp/transitflow-server.log
           exit 1
+      - name: GPS obligatoire et Leaflet sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-gps-$project pnpm --dir frontend exec playwright test gps.spec.ts --project=$project --output=test-results-gps-$project || exit 1
+          done
       - name: Portail client création et invitation sur cinq appareils
         run: |
           for project in chromium android iphone ipad small; do
@@ -143,6 +149,8 @@ jobs:
             frontend/test-results-messaging-*
             frontend/playwright-report-personnel-*
             frontend/test-results-personnel-*
+            frontend/playwright-report-gps-*
+            frontend/test-results-gps-*
             frontend/playwright-report-portal-*
             frontend/test-results-portal-*
             frontend/lighthouse-mobile.report.json

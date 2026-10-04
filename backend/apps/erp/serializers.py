@@ -21,7 +21,7 @@ PROTECTED = {
     m.FiscalPeriod:['status','closing_note','closed_at'],m.BankStatementLine:['status','journal','reconciliation_note'],
     m.TransportContract:['status'],m.Subcontract:['status','completion_note'],m.Incident:['status','resolution','resolved_at'],
     m.SupplierBill:['status','subtotal','tax','total','paid'],
-    m.Mission:['status','started_at','completed_at'],m.TransportOrder:['status'],m.Maintenance:['status'],
+    m.Mission:['status','started_at','completed_at','tracking_status','tracking_lost_at','tracking_started_at','tracking_ended_at'],m.TransportOrder:['status'],m.Maintenance:['status'],
     m.Booking:['status','amount'],m.Expense:['status'],m.Invoice:['status','number','subtotal','tax','total','paid'],
     m.JournalEntry:['status'],m.Purchase:['status','total'],m.StockItem:['quantity'],
 }

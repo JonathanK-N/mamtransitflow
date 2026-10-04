@@ -1,0 +1,7 @@
+<script setup lang="ts">
+import {onMounted,onUnmounted} from 'vue'
+import {gps,startGps,stopGps,authorizeGps} from './gps'
+const props=defineProps<{user:number}>()
+onMounted(()=>startGps(props.user));onUnmounted(stopGps)
+</script>
+<template><section v-if="gps.missions.length" class="gps-banner" aria-live="polite" data-testid="driver-tracking"><strong>{{gps.state==='capturing'?(gps.offline?'Hors connexion — suivi GPS actif':'● Suivi GPS actif'):gps.state==='permission_required'?'Suivi GPS interrompu — Localisation requise':'GPS indisponible — Localisation requise'}}</strong><p>{{gps.state==='capturing'?'Votre position est transmise à exploitation pendant cette mission.':'Le suivi GPS est obligatoire pendant cette mission. Autorisez TransitFlow à accéder à votre position pour poursuivre.'}}</p><p v-if="gps.error" role="alert">{{gps.error}}</p><p v-if="gps.pending">{{gps.pending}} positions en attente de synchronisation</p><button v-if="gps.state!=='capturing'" class="primary" @click="authorizeGps">Autoriser la localisation</button><small>Gardez TransitFlow ouvert au premier plan. Le verrouillage ou la suspension par Android/iOS peut interrompre le GPS ; Wake Lock reste soumis aux permissions du système.</small></section></template>

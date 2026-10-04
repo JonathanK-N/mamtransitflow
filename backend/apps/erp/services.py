@@ -124,10 +124,11 @@ def transition(org,actor,model,pk,action,data=None):
             obj.status='completed';obj.completed_at=timezone.now()
             if obj.order_id:
                 obj.order.status='completed';obj.order.save(update_fields=['status','updated_at'])
-        elif action=='cancel' and old=='planned':
+        elif action=='cancel' and old in ('planned','active'):
             if m.Booking.objects.filter(mission=obj).exclude(status='cancelled').exists():
                 raise ValidationError('Annulez les réservations avant cette mission.')
             obj.status='cancelled'
+            if old=='active':obj.completed_at=timezone.now()
         else: raise ValidationError('Transition de mission impossible.')
     elif model is m.Maintenance:
         vehicle=m.Vehicle.objects.select_for_update().get(pk=obj.vehicle_id,organization=org)
@@ -195,6 +196,9 @@ def transition(org,actor,model,pk,action,data=None):
         elif action=='cancel' and old in ('draft','ordered'):obj.status='cancelled'
         else: raise ValidationError('Transition achat impossible.')
     else: raise ValidationError('Action inconnue.')
+    if model is m.Mission:
+        if obj.status=='active':obj.tracking_started_at=obj.started_at;obj.tracking_status='waiting'
+        else:obj.tracking_status='ended';obj.tracking_ended_at=obj.completed_at or timezone.now()
     obj.full_clean();obj.save();audit(org,actor,action,obj,previous=old,status=obj.status)
     return obj
 

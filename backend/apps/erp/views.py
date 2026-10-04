@@ -353,31 +353,3 @@ class AcceptInvitationView(APIView):
         security.grant_invitation(invite,request.user)
         invite.used_at=timezone.now();invite.save(update_fields=['used_at'])
         return Response({'organization':str(invite.organization_id)})
-
-
-class PositionsView(ScopedView):
-    def get(self,request,pk):
-        mission=get_object_or_404(self.queryset('missions'),pk=pk)
-        qs=m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp')[:2000]
-        return Response({'positions':list(qs.values('timestamp','latitude','longitude'))})
-    def post(self,request,pk):
-        mission=get_object_or_404(self.queryset('missions'),pk=pk)
-        if self.member.role=='viewer' or self.member.role=='driver' and mission.driver.user_id!=request.user.pk:raise PermissionDenied()
-        if self.member.role not in ('owner','admin','operations','driver'):raise PermissionDenied()
-        points=request.data.get('positions')
-        if not isinstance(points,list) or not 1<=len(points)<=200:raise ValidationError('Entre 1 et 200 positions requises.')
-        from rest_framework import serializers
-        now=timezone.now()
-        if mission.status not in ('active','completed') or mission.completed_at and now>mission.completed_at+timedelta(hours=24):
-            raise ValidationError('Fenêtre de synchronisation fermée.')
-        new=[]
-        for point in points:
-            if not isinstance(point,dict):raise ValidationError('Position invalide.')
-            timestamp=serializers.DateTimeField().run_validation(point.get('timestamp'))
-            lat=services.decimal(point.get('latitude'));lng=services.decimal(point.get('longitude'))
-            end=mission.completed_at or now+timedelta(minutes=2)
-            if not -90<=lat<=90 or not -180<=lng<=180 or not mission.started_at-timedelta(minutes=10)<=timestamp<=end:
-                raise ValidationError('Position hors limites du trajet.')
-            new.append(m.Position(organization=self.org,mission=mission,timestamp=timestamp,latitude=lat,longitude=lng))
-        m.Position.objects.bulk_create(new,ignore_conflicts=True)
-        return Response({'accepted':len(new)})

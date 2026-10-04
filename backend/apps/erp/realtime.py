@@ -18,7 +18,7 @@ async def send_event(layer,target,payload):
     await asyncio.wait_for(layer.group_send(target,payload),timeout=2)
 
 
-def publish(organization,users,event='changed',conversation=None):
+def publish(organization,users,event='changed',conversation=None,mission=None):
     try:layer=get_channel_layer()
     except Exception:
         logger.warning('Diffusion temps réel indisponible ; événement conservé en base.')
@@ -26,7 +26,7 @@ def publish(organization,users,event='changed',conversation=None):
     if not layer:return
     for user in users:
         try:
-            async_to_sync(send_event)(layer,group(organization,user),{'type':'activity','event':event,'conversation':conversation})
+            async_to_sync(send_event)(layer,group(organization,user),{'type':'activity','event':event,'conversation':conversation,'mission':str(mission) if mission else None})
         except Exception:
             logger.warning('Diffusion temps réel indisponible ; événement conservé en base.')
 
@@ -90,6 +90,12 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
         return list(m.ConversationParticipant.objects.filter(organization_id=self.organization,conversation_id=conversation,
             active=True,membership__active=True).exclude(membership_id=self.member_id).values_list('membership__user_id',flat=True))
 
+    @database_sync_to_async
+    def tracking_allowed(self,mission):
+        member=m.Membership.objects.get(pk=self.member_id,active=True)
+        if member.role in ('owner','admin','operations'):return True
+        return member.role=='driver' and m.Mission.objects.filter(pk=mission,organization_id=self.organization,driver__user_id=self.user_id).exists()
+
     async def activity(self,event):
         if event.get('event')=='access_revoked':
             await self.send_json({'type':'access_revoked'});await self.close(code=4403);return
@@ -97,7 +103,8 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
         except Exception:
             if event.get('conversation'):return
             await self.close(code=4403);return
-        await self.send_json({'type':event['event'],'conversation':event.get('conversation'),'member':event.get('member')})
+        if event.get('event')=='tracking' and not await self.tracking_allowed(event.get('mission')):return
+        await self.send_json({'mission':event.get('mission'),'type':event['event'],'conversation':event.get('conversation'),'member':event.get('member')})
 
     async def disconnect(self,code):
         if hasattr(self,'deadline'):self.deadline.cancel()

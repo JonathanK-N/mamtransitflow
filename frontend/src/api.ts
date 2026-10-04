@@ -11,6 +11,7 @@ export function setOrganization(id:string) { organization=id;sessionStorage.setI
 export function setAccess(token:string) { access=token }
 export function realtimeToken(){return access}
 export function clearSession() {
+  import('./gps').then(({stopGps,purgeGps})=>{stopGps();purgeGps().catch(()=>{})})
   access='';csrf='';setOrganization('')
   sessionStorage.removeItem('transitflow.invitation')
   for(const key of Object.keys(localStorage))if(key.startsWith('transitflow.positions.'))localStorage.removeItem(key)
@@ -34,6 +35,7 @@ export async function refresh():Promise<boolean> {
   try{return await renewing}finally{renewing=null}
 }
 export async function api(path:string,method='GET',body?:any,retry=true):Promise<any> {
+  if(method==='POST'&&/^missions\/[^/]+\/actions\/(complete|cancel)$/.test(path)){const {finalGps}=await import('./gps');await finalGps(path.split('/')[1])}
   const headers:Record<string,string>={}
   if(access)headers.Authorization='Bearer '+access
   if(organization)headers['X-Organization']=organization

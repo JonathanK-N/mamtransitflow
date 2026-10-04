@@ -145,6 +145,10 @@ class Route(TenantModel):
 
 
 class Mission(TenantModel):
+    tracking_status = models.CharField(max_length=24, default="waiting")
+    tracking_lost_at = models.DateTimeField(null=True, blank=True)
+    tracking_started_at = models.DateTimeField(null=True, blank=True)
+    tracking_ended_at = models.DateTimeField(null=True, blank=True)
     reference = models.CharField('Référence', max_length=80)
     order = models.ForeignKey(TransportOrder, verbose_name='Commande', null=True, blank=True, on_delete=models.PROTECT)
     route = models.ForeignKey(Route, verbose_name='Ligne / circuit', null=True, blank=True, on_delete=models.PROTECT)
@@ -304,12 +308,16 @@ class Document(TenantModel):
 
 
 class Position(TenantModel):
+    accuracy = models.FloatField(null=True, blank=True)
+    speed = models.FloatField(null=True, blank=True)
+    heading = models.FloatField(null=True, blank=True)
+    client_id = models.UUIDField(null=True, blank=True)
     mission = models.ForeignKey(Mission, on_delete=models.CASCADE)
     timestamp = models.DateTimeField()
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
     class Meta(TenantModel.Meta):
-        constraints = [models.UniqueConstraint(fields=['mission','timestamp'], name='erp_position_once')]
+        constraints = [models.UniqueConstraint(fields=['mission','timestamp'], name='erp_position_once'), models.UniqueConstraint(fields=['mission','client_id'], name='erp_position_client_once')]
         indexes = [models.Index(fields=['organization','mission','timestamp'])]
 
 

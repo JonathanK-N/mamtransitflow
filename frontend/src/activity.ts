@@ -22,7 +22,7 @@ async function connect(generation:number){
    if(generation!==epoch)return
    if(value.type==='ready'){retries=0;connectionState.value='En direct';ping();updateCounts();dispatch({type:'resync'})}
    else if(value.type==='access_revoked'){stopActivity();setPushAccount(null);window.dispatchEvent(new Event('organization-revoked'))}
-   else if(value.type!=='pong'){if(value.type!=='typing')updateCounts();dispatch(value)}
+   else if(value.type!=='pong'){if(!['typing','tracking','tracking_access'].includes(value.type))updateCounts();dispatch(value)}
   }
   candidate.onclose=event=>{if(stopped||generation!==epoch||socket!==candidate)return;connectionState.value='Reconnexion…';timer=setTimeout(async()=>{if(event.code===4403||event.code===4401)await refresh();connect(generation)},Math.min(30000,1000*2**Math.min(retries++,5))+Math.random()*500)}
   candidate.onerror=()=>candidate.close()

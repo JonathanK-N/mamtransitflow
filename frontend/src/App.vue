@@ -1,6 +1,7 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
 import { onMounted, ref, defineAsyncComponent, nextTick } from 'vue'
+import {stopGps,purgeGps} from './gps'
 import PwaStatus from './PwaStatus.vue'
 import {disableDevicePush,setPushAccount,stopActivity} from './activity'
 import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-next'
@@ -40,7 +41,7 @@ async function submit(){
 let checkingAccess=false
 async function revoked(){
  if(checkingAccess||!session.value)return
- checkingAccess=true;const old=organization;screen.value='loading';stopActivity();await nextTick()
+ checkingAccess=true;const old=organization;screen.value='loading';stopGps();stopActivity();await nextTick();await purgeGps(session.value.user.id,old).catch(()=>{})
  const prefix=`transitflow.positions.${session.value.user.id}.${old}.`
  for(const key of Object.keys(localStorage))if(key.startsWith(prefix))localStorage.removeItem(key)
  await setPushAccount(null)

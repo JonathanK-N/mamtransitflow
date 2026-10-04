@@ -11,7 +11,11 @@ from .push import PushSubscriptionsView
 
 from .personnel_actions import EmployeeActionView
 
+from .tracking import TrackingView, PositionsView
+
 urlpatterns=[
+    path("tracking",TrackingView.as_view()),
+    path("missions/<uuid:pk>/tracking",TrackingView.as_view()),
     path('employees/<uuid:pk>/contact',EmployeeActionView.as_view(http_method_names=['post','options']),{'action':'contact'}),
     path('employees/<uuid:pk>/remove',EmployeeActionView.as_view(http_method_names=['post','options']),{'action':'remove'}),
     path('messaging/collaborators',CollaboratorsView.as_view()),
@@ -52,7 +56,7 @@ urlpatterns=[
     path('dashboard',v.DashboardView.as_view()),path('reports',v.ReportsView.as_view()),
     path('team',v.TeamView.as_view()),
     path('documents/<uuid:pk>/download',v.DownloadView.as_view()),
-    path('missions/<uuid:pk>/positions',v.PositionsView.as_view()),
+    path('missions/<uuid:pk>/positions',PositionsView.as_view()),
     path('<str:resource>/export',v.ExportView.as_view()),
     path('<str:resource>/<uuid:pk>/actions/<str:action>',v.ActionView.as_view()),
     path('<str:resource>/<uuid:pk>',v.ResourceView.as_view()),
