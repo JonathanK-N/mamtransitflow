@@ -2,6 +2,12 @@
 
 from django.db import migrations, models
 
+def initialize(apps,schema_editor):
+    Mission=apps.get_model("erp","Mission")
+    Mission.objects.filter(status="active").update(tracking_started_at=models.F("started_at"))
+    Mission.objects.filter(status__in=["completed","cancelled"]).update(tracking_status="ended",tracking_ended_at=models.F("completed_at"))
+
+
 
 class Migration(migrations.Migration):
 
@@ -54,4 +60,5 @@ class Migration(migrations.Migration):
             model_name='position',
             constraint=models.UniqueConstraint(fields=('mission', 'client_id'), name='erp_position_client_once'),
         ),
+        migrations.RunPython(initialize,migrations.RunPython.noop),
     ]
