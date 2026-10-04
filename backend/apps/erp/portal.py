@@ -169,7 +169,7 @@ class PortalView(ScopedView):
             def output(x):return dict(id=str(x.pk),reference=x.reference,origin=x.origin,destination=x.destination,departure=x.departure,arrival=x.arrival,completed_at=x.completed_at,delivered_quantity=x.delivered_quantity,status=x.status,signed=hasattr(x,'receipt'))
         elif resource=='invoices':
             from .crm_services import invoice_balances,payment_state
-            qs=invoice_balances(m.Invoice.objects.filter(organization=self.org,customer=partner,status__in=['issued','paid']))
+            qs=invoice_balances(m.Invoice.objects.filter(organization=self.org,customer=partner,kind__in=['invoice','credit'],status__in=['issued','paid']))
             def output(x):return dict(id=str(x.pk),number=x.number,kind=x.kind,date=x.date,due_date=x.due_date,subtotal=x.subtotal,tax=x.tax,total=x.total,paid=x.paid,balance=str(max(0,x.remaining)),status=x.status,payment_state=payment_state(x),lines=x.lines,notes=x.notes)
         elif resource=='documents':
             qs=self.documents()
