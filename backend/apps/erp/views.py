@@ -34,7 +34,7 @@ ACTIONS={'leave':{'draft':['submit','cancel'],'submitted':['approve','reject','c
     'periods':{'draft':['close']},'statements':{'draft':['match'],'matched':['unmatch']},'contracts':{'draft':['activate','close'],'active':['generate','pause','close'],'paused':['activate','close']},
     'subcontracts':{'draft':['approve','cancel'],'approved':['complete','cancel']},'incidents':{'draft':['report'],'reported':['resolve']},
     'supplier-bills':{'draft':['post','cancel']},'orders':{'draft':['price','confirm','cancel'],'confirmed':['cancel']},
-    'missions':{'planned':['start','cancel'],'active':['complete']},
+    'missions':{'planned':['start','cancel'],'active':['complete','cancel']},
     'maintenance':{'planned':['start','cancel'],'active':['complete','cancel']},
     'invoices':{'draft':['issue','cancel']},'journal':{'draft':['post']},
     'expenses':{'draft':['approve']},'bookings':{'confirmed':['board','cancel']},

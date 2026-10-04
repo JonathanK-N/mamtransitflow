@@ -89,7 +89,7 @@ function print(){window.print()}
     </template>
    </div>
    <div v-if="record&&['invoices','supplier-bills'].includes(schema.key)" class="invoice-summary"><p>Total HT <strong>{{money(record.subtotal,currency)}}</strong></p><p>Taxes <strong>{{money(record.tax,currency)}}</strong></p><p>Total TTC <strong>{{money(record.total,currency)}}</strong></p><p>Réglé <strong>{{money(record.paid,currency)}}</strong></p></div>
-   <MissionTracking v-if="record&&schema.key==='missions'&&['active','completed'].includes(record.status)" :mission="record" :can-track="schema.canTrack" :user-id="schema.userId"/>
+   <MissionTracking v-if="record&&schema.key==='missions'&&['active','completed','cancelled'].includes(record.status)" :mission="record" :can-track="schema.canTrack" :user-id="schema.userId"/>
    <footer class="editor-footer"><button type="button" class="secondary" @click="$emit('close')">Fermer</button><button v-if="record" type="button" class="secondary" @click="print"><Printer :size="16"/>Imprimer</button><button v-if="!locked" class="primary" :disabled="saving"><LoaderCircle v-if="saving" class="spin" :size="16"/><Save v-else :size="16"/>Enregistrer</button></footer>
   </form>
  </section></div>

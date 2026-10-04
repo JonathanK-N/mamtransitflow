@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test'
 test('GPS obligatoire : deux sessions Leaflet, navigation, offline, permissions et fin de mission',async({browser,request},info)=>{
  test.setTimeout(240000)
  const stamp=Date.now()+'-'+info.project.name,password='Gps-Recette-938!',email='gps-owner-'+stamp+'@example.test',driverEmail='gps-driver-'+stamp+'@example.test'
- const register=async(address:string,invitation='')=>{const r=await request.post('/api/v2/auth/register',{data:{name:address===email?'Direction GPS TEST':'Chauffeur GPS TEST',email:address,password,invitation,organization:{name:'TEST GPS '+stamp,country:'CA',currency:'USD',timezone:'America/Toronto',activities:['freight']}}});expect(r.status(),await r.text()).toBe(201);return r.json()}
+ const register=async(address:string,invitation='')=>{const r=await request.post('/api/v2/auth/register',{data:{name:address===email?'Direction GPS TEST':'Chauffeur GPS TEST',email:address,password,invitation,organization:{name:'TEST GPS '+stamp,country:'GN',currency:'USD',timezone:'America/Toronto',activities:['freight']}}});expect(r.status(),await r.text()).toBe(201);return r.json()}
  const owner=await register(email),org=owner.organizations[0].id,headers={Authorization:'Bearer '+owner.access,'X-Organization':org}
  const post=async(path:string,data:any)=>{const r=await request.post('/api/v2/'+path,{headers,data});expect(r.ok(),await r.text()).toBeTruthy();return r.json()}
  const invitation=await post('team',{email:driverEmail,role:'driver'}),driver=await register(driverEmail,new URL(invitation.link).searchParams.get('invitation')!)
@@ -49,7 +49,8 @@ test('GPS obligatoire : deux sessions Leaflet, navigation, offline, permissions 
   await navigate(phone,'Missions');await phone.getByRole('button',{name:'Terminer',exact:true}).first().click();const dialog=phone.getByRole('dialog',{name:'Terminer la mission'});await dialog.getByRole('button',{name:'Clôturer la mission',exact:true}).click();await expect(dialog).toHaveCount(0)
   await expect(phone.getByTestId('driver-tracking')).toHaveCount(0);await expect.poll(()=>phone.evaluate(()=>(window as any).gpsTest.watch)).toBeNull();const finished=(await positions()).length;await emit(-71.99);await phone.waitForTimeout(1000);expect((await positions()).length).toBe(finished)
   await expect(card).toHaveCount(0)
-  await navigate(admin,'Missions');await admin.locator('tbody tr').filter({hasText:mission.reference}).click();await expect(admin.getByRole('heading',{name:'Parcours GPS réel'})).toBeVisible();await expect(admin.locator('.tracking-panel .leaflet-overlay-pane path')).toHaveCount(3)
+  await navigate(admin,'Missions');await admin.locator('tbody tr').filter({hasText:mission.reference}).locator('.record-link').click();await expect(admin.getByRole('heading',{name:'Parcours GPS réel'})).toBeVisible();await expect(admin.locator('.tracking-panel .leaflet-overlay-pane path')).toHaveCount(3)
+  await expect.poll(()=>phone.evaluate(()=>new Promise<number>((resolve,reject)=>{const r=indexedDB.open('transitflow-mission-gps',1);r.onsuccess=()=>{const db=r.result,q=db.transaction('points').objectStore('points').count();q.onsuccess=()=>{resolve(q.result);db.close()};q.onerror=()=>reject(q.error)}}))).toBe(0)
   expect(errors).toEqual([])
  }finally{await a.close();await b.close()}
 })
