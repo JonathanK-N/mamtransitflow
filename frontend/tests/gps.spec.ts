@@ -15,7 +15,7 @@ test('GPS obligatoire : deux sessions Leaflet, navigation, offline, permissions 
  admin.on('websocket',ws=>ws.on('framereceived',e=>{try{events.push(JSON.parse(String(e.payload)))}catch{}}))
  await a.route('https://tile.openstreetmap.org/**',r=>r.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/58BAwAI/AL+XJ/PAAAAAElFTkSuQmCC','base64')}))
  await b.route('https://tile.openstreetmap.org/**',r=>r.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/58BAwAI/AL+XJ/PAAAAAElFTkSuQmCC','base64')}))
- await b.addInitScript(()=>{const w=window as any,native=navigator.geolocation,measured=(p:GeolocationPosition)=>({coords:p.coords,timestamp:p.timestamp>Date.now()*10?p.timestamp/1000:p.timestamp});w.gpsTest={watch:null,error:null,cleared:0,permission:{state:'granted',onchange:null}};Object.defineProperty(navigator,'geolocation',{value:{watchPosition:(success:any,error:any,options:any)=>{w.gpsTest.watch=success;w.gpsTest.error=error;return native.watchPosition(p=>success(measured(p)),error,options)},clearWatch:(id:number)=>{native.clearWatch(id);w.gpsTest.watch=null;w.gpsTest.cleared++},getCurrentPosition:(success:any,error:any,options:any)=>native.getCurrentPosition(p=>success(measured(p)),error,options)}});Object.defineProperty(navigator,'permissions',{value:{query:async()=>w.gpsTest.permission}})})
+ await b.addInitScript(()=>{const w=window as any,native=navigator.geolocation,measured=(p:GeolocationPosition)=>({coords:p.coords,timestamp:p.timestamp>Date.now()*10?p.timestamp/1000:p.timestamp});w.gpsTest={watch:null,error:null,cleared:0,permission:{state:'denied',onchange:null}};Object.defineProperty(navigator,'geolocation',{value:{watchPosition:(success:any,error:any,options:any)=>{w.gpsTest.watch=success;w.gpsTest.error=error;return native.watchPosition(p=>success(measured(p)),error,options)},clearWatch:(id:number)=>{native.clearWatch(id);w.gpsTest.watch=null;w.gpsTest.cleared++},getCurrentPosition:(success:any,error:any,options:any)=>native.getCurrentPosition(p=>success(measured(p)),error,options)}});Object.defineProperty(navigator,'permissions',{value:{query:async()=>w.gpsTest.permission}})})
  async function login(page:any,address:string){await page.goto('/connexion');await page.getByLabel('Adresse courriel').fill(address);await page.getByLabel('Mot de passe',{exact:true}).fill(password);await page.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(page.locator('.workspace')).toBeVisible()}
  async function navigate(page:any,name:string){if((page.viewportSize()?.width||1280)<=600)await page.getByRole('navigation',{name:'Navigation mobile'}).getByRole('button',{name:'Plus',exact:true}).click();else if((page.viewportSize()?.width||1280)<=900)await page.getByRole('button',{name:'Menu',exact:true}).click();await page.locator('.sidebar').getByRole('button',{name,exact:true}).click()}
  async function emit(lng:number){await b.setGeolocation({latitude:45.4042,longitude:lng,accuracy:12})}
@@ -24,6 +24,12 @@ test('GPS obligatoire : deux sessions Leaflet, navigation, offline, permissions 
   await login(admin,email);await navigate(admin,'Suivi en direct');await expect(admin.getByTestId('tracking-map')).toBeVisible()
   await login(phone,driverEmail);expect(await phone.evaluate(()=>(window as any).gpsTest.watch)).toBeNull()
   await post('missions/'+mission.id+'/actions/start',{})
+  await expect(phone.getByTestId('driver-tracking')).toContainText('Localisation requise')
+  expect(await phone.evaluate(()=>(window as any).gpsTest.watch)).toBeNull()
+  expect((await positions()).length).toBe(0)
+  await expect(admin.locator(`[data-mission="${mission.id}"] [data-state]`)).toHaveAttribute('data-state','permission_required')
+  await phone.evaluate(()=>{const t=(window as any).gpsTest;t.permission.state='prompt'})
+  await phone.getByRole('button',{name:'Autoriser la localisation',exact:true}).click()
   await expect(phone.getByTestId('driver-tracking')).toContainText('Suivi GPS actif')
   await expect.poll(()=>phone.evaluate(()=>!!(window as any).gpsTest.watch)).toBe(true)
   expect(await phone.getByRole('button',{name:/arrêter|désactiver|pause/i}).count()).toBe(0)
