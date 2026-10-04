@@ -119,3 +119,47 @@ def test_history_pagination_does_not_truncate(gps_env):
     assert len(response['positions'])==2000 and response['next']
     response=e['driver_client'].get(f"/api/v2/missions/{e['trip'].pk}/positions",{'after':response['next'].isoformat()}).data
     assert len(response['positions'])==2 and not response['next']
+
+
+def test_fleet_read_does_not_write_loss_notifications(gps_env):
+    e=gps_env
+    response=e['client'].get('/api/v2/tracking')
+    assert response.status_code==200 and response.data['missions'][0]['state']=='lost'
+    e['trip'].refresh_from_db()
+    assert e['trip'].tracking_lost_at is None
+    assert not m.GlobalNotification.objects.filter(key__startswith='gps:').exists()
+    check_signals(e['org'].pk)
+    assert m.GlobalNotification.objects.filter(key__startswith='gps:').count()==1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_busy_organization_does_not_block_fleet_or_signal_worker(gps_env):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from django.db import connection,connections,transaction
+    e=gps_env
+    if connection.vendor!='postgresql':
+        check_signals(e['org'].pk)
+        assert m.GlobalNotification.objects.filter(key__startswith='gps:').count()==1
+        return
+    acquired=Event();release=Event()
+    def mutation():
+        try:
+            with transaction.atomic():
+                m.Organization.objects.select_for_update().get(pk=e['org'].pk)
+                acquired.set()
+                assert release.wait(10)
+        finally:connections.close_all()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        held=executor.submit(mutation)
+        try:
+            assert acquired.wait(5)
+            with connection.cursor() as cursor:cursor.execute("SET lock_timeout='500ms'")
+            assert e['client'].get('/api/v2/tracking').status_code==200
+            check_signals(e['org'].pk)
+            assert not m.GlobalNotification.objects.filter(key__startswith='gps:').exists()
+        finally:
+            release.set();held.result(timeout=5)
+            with connection.cursor() as cursor:cursor.execute('RESET lock_timeout')
+    check_signals(e['org'].pk);check_signals(e['org'].pk)
+    assert m.GlobalNotification.objects.filter(key__startswith='gps:').count()==1

@@ -67,7 +67,8 @@ def check_signals(organization=None):
     orgs=m.Organization.objects.filter(pk=organization) if organization else m.Organization.objects.filter(mission__status='active').distinct()
     for org in orgs:
         with transaction.atomic():
-            m.Organization.objects.select_for_update().get(pk=org.pk)
+            locked=m.Organization.objects.select_for_update(skip_locked=True).filter(pk=org.pk).first()
+            if not locked:continue
             for mission in active_rows(m.Mission.objects.filter(organization=org).select_related('vehicle','organization')):
                 inspect_signal(mission,mission.gps_timestamp,now)
 
@@ -80,7 +81,6 @@ class TrackingView(ScopedView):
             return Response({'started_at':mission.started_at,'completed_at':mission.completed_at,'state':status(mission,m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first(),timezone.now())})
         own=request.query_params.get('assigned')=='1'
         if own:qs=qs.filter(driver__user=request.user)
-        if not own and self.member.role in ('owner','admin','operations'):check_signals(self.org.pk)
         now=timezone.now()
         rows=[]
         for mission in active_rows(qs):

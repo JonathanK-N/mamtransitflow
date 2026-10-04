@@ -41,3 +41,5 @@ Android/iOS peuvent suspendre une PWA, restreindre le GPS en arrière-plan, lors
 Backend : `python -m pytest backend/apps/erp/tests/test_tracking.py backend/apps/erp/tests/test_tracking_realtime.py -q`.
 Navigateurs Vue/PWA : `pnpm --dir frontend exec playwright test gps.spec.ts`, ou `python e2e/parcours_gps.py`.
 Le scénario utilise deux sessions contrôlées, une géolocalisation native simulée pour les déplacements et une injection des erreurs de permission. Les profils couvrent desktop Chromium, Android, iPhone/WebKit, iPad/WebKit et smartphone 320/360 px. Les comptes et missions sont préfixés TEST ; aucun trajet réel n’est simulé comme preuve physique.
+
+La lecture de flotte calcule la fraîcheur sans mutation ni verrou d’entreprise. Le contrôle automatique prend un verrou non bloquant (`skip_locked`) et reprend les entreprises occupées au prochain passage : deux workers ne produisent pas deux alertes et une opération métier ne bloque pas la consultation de carte.
