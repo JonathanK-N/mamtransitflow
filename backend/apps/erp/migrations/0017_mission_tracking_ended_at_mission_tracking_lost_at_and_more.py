@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='mission',
             name='tracking_status',
-            field=models.CharField(default='waiting', max_length=24),
+            field=models.CharField(db_default='waiting', default='waiting', max_length=24),
         ),
         migrations.AddField(
             model_name='position',

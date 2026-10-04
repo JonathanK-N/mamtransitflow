@@ -145,7 +145,7 @@ class Route(TenantModel):
 
 
 class Mission(TenantModel):
-    tracking_status = models.CharField(max_length=24, default="waiting")
+    tracking_status = models.CharField(max_length=24, default="waiting", db_default="waiting")
     tracking_lost_at = models.DateTimeField(null=True, blank=True)
     tracking_started_at = models.DateTimeField(null=True, blank=True)
     tracking_ended_at = models.DateTimeField(null=True, blank=True)
