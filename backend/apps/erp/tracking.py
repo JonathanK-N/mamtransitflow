@@ -4,7 +4,7 @@ from html import escape
 from datetime import timedelta
 from uuid import UUID
 from django.db import transaction
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Subquery, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers
@@ -133,11 +133,17 @@ class PositionsView(ScopedView):
             try:client=UUID(str(client)) if client else None
             except ValueError:raise ValidationError('Identifiant du point invalide.')
             new.append(m.Position(organization=self.org,mission=mission,timestamp=timestamp,latitude=lat,longitude=lng,client_id=client,**values))
-        m.Position.objects.bulk_create(new,ignore_conflicts=True)
-        if mission.status=='active':
+        existing=list(m.Position.objects.filter(organization=self.org,mission=mission).filter(Q(timestamp__in=[p.timestamp for p in new])|Q(client_id__in=[p.client_id for p in new if p.client_id])).values_list('timestamp','client_id'))
+        timestamps={p[0] for p in existing};identities={p[1] for p in existing if p[1]};fresh=[]
+        for point in new:
+            if point.timestamp in timestamps or point.client_id and point.client_id in identities:continue
+            fresh.append(point);timestamps.add(point.timestamp)
+            if point.client_id:identities.add(point.client_id)
+        m.Position.objects.bulk_create(fresh,ignore_conflicts=True)
+        if fresh and mission.status=='active':
             mission.tracking_status='capturing'
             mission.save(update_fields=['tracking_status'])
             latest=m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first()
             inspect_signal(mission,latest,now)
-        broadcast(mission)
-        return Response({'accepted':len(new)})
+        if fresh:broadcast(mission)
+        return Response({'accepted':len(new),'created':len(fresh)})

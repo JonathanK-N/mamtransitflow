@@ -24,7 +24,7 @@ def point(**extra):return dict(timestamp=timezone.now().isoformat(),latitude=45.
 def post(e,points,client=None):return (client or e['driver_client']).post(f"/api/v2/missions/{e['trip'].pk}/positions",{'positions':points},format='json')
 
 def test_idempotent_batch_and_optional_measurements(gps_env):
-    e=gps_env;p=point();assert post(e,[p]).status_code==200;assert post(e,[p]).status_code==200
+    e=gps_env;p=point();audits=m.AuditEvent.objects.count();assert post(e,[p]).status_code==200;assert post(e,[p]).data['created']==0;assert m.AuditEvent.objects.count()==audits
     assert m.Position.objects.count()==1
     result=e['driver_client'].get(f"/api/v2/missions/{e['trip'].pk}/positions").data['positions'][0]
     assert result['accuracy']==12 and result['speed']==17.5 and result['heading']==90

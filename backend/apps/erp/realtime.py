@@ -95,7 +95,7 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
         member=m.Membership.objects.get(pk=self.member_id,active=True)
         from .applications import resource_enabled
         if not resource_enabled(member.organization,'missions'):return False
-        if member.role in ('owner','admin','operations'):return True
+        if member.role in ('owner','admin','operations'):return m.Mission.objects.filter(pk=mission,organization_id=self.organization).exists()
         return member.role=='driver' and m.Mission.objects.filter(pk=mission,organization_id=self.organization,driver__user_id=self.user_id).exists()
 
     async def activity(self,event):
