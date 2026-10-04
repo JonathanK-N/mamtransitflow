@@ -78,7 +78,7 @@ class TrackingView(ScopedView):
         qs=authorized(self)
         if pk:
             mission=get_object_or_404(qs,pk=pk)
-            return Response({'state':status(mission,m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first(),timezone.now())})
+            return Response({'started_at':mission.started_at,'completed_at':mission.completed_at,'state':status(mission,m.Position.objects.filter(organization=self.org,mission=mission).order_by('-timestamp').values_list('timestamp',flat=True).first(),timezone.now())})
         if self.member.role in ('owner','admin','operations'):check_signals(self.org.pk)
         now=timezone.now()
         rows=[]
@@ -104,10 +104,11 @@ class PositionsView(ScopedView):
     def get(self,request,pk):
         mission=get_object_or_404(authorized(self),pk=pk)
         qs=m.Position.objects.filter(organization=self.org,mission=mission).order_by('timestamp')
+        latest=qs.order_by('-timestamp').values_list('timestamp',flat=True).first()
         after=request.query_params.get('after')
         if after:qs=qs.filter(timestamp__gt=serializers.DateTimeField().run_validation(after))
         points=list(qs.values(*FIELDS)[:2001]);more=len(points)>2000;points=points[:2000]
-        return Response({'positions':points,'next':points[-1]['timestamp'] if more else None,'state':status(mission,points[-1]['timestamp'] if points else None,timezone.now())})
+        return Response({'positions':points,'next':points[-1]['timestamp'] if more else None,'state':status(mission,latest,timezone.now())})
 
     def post(self,request,pk):
         mission=get_object_or_404(authorized(self),pk=pk)

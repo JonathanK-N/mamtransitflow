@@ -50,7 +50,9 @@ test('GPS obligatoire : deux sessions Leaflet, navigation, offline, permissions 
   await expect(phone.getByTestId('driver-tracking')).toHaveCount(0);await expect.poll(()=>phone.evaluate(()=>(window as any).gpsTest.watch)).toBeNull();const finished=(await positions()).length;await emit(-71.99);await phone.waitForTimeout(1000);expect((await positions()).length).toBe(finished)
   await expect(card).toHaveCount(0)
   await navigate(admin,'Missions');await admin.locator('tbody tr').filter({hasText:mission.reference}).locator('.record-link').click();await expect(admin.getByRole('heading',{name:'Parcours GPS réel'})).toBeVisible();await expect(admin.locator('.tracking-panel .leaflet-overlay-pane path')).toHaveCount(3)
+  await phone.evaluate(async([user,org,mission,prior])=>{const db=await new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('transitflow-mission-gps',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});await new Promise<void>((resolve,reject)=>{const tx=db.transaction('points','readwrite');for(const timestamp of [prior.timestamp,new Date(Date.now()+1000).toISOString()]){const id=crypto.randomUUID();tx.objectStore('points').put({key:id,user,organization:org,mission,point:{...prior,client_id:id,timestamp}})}tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});db.close();window.dispatchEvent(new Event('online'))},[driver.user.id,org,mission.id,(await positions())[0]])
   await expect.poll(()=>phone.evaluate(()=>new Promise<number>((resolve,reject)=>{const r=indexedDB.open('transitflow-mission-gps',1);r.onsuccess=()=>{const db=r.result,q=db.transaction('points').objectStore('points').count();q.onsuccess=()=>{resolve(q.result);db.close()};q.onerror=()=>reject(q.error)}}))).toBe(0)
+  expect((await positions()).length).toBe(finished)
   expect(errors).toEqual([])
  }finally{await a.close();await b.close()}
 })
