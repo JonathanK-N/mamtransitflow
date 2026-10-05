@@ -23,11 +23,12 @@ test.describe('Charge cartographique',()=>{
  const initialMs=Date.now()-started
  await page.evaluate(()=>{(window as any).__mapNode=document.querySelector('.leaflet-container');(window as any).__markerNode=document.querySelector('.leaflet-interactive')})
  await center.getByRole('button',{name:'Agrandir la carte',exact:true}).click();await center.locator('.leaflet-control-zoom-in').click();await page.waitForTimeout(350)
- const map=center.getByTestId('tracking-map'),box=await map.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box!.x+box!.width*.3,box!.y+box!.height*.3);await page.mouse.down();await page.mouse.move(box!.x+box!.width*.3+60,box!.y+box!.height*.3+50,{steps:5});await page.mouse.up();await page.waitForTimeout(350)
+ const map=center.getByTestId('tracking-map'),box=await map.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box!.x+box!.width*.3,box!.y+box!.height*.3);await page.mouse.down();for(let n=1;n<=5;n++){await page.mouse.move(box!.x+box!.width*.3+n*12,box!.y+box!.height*.3+n*10);await page.waitForTimeout(50)}await page.mouse.up();await page.waitForTimeout(350)
  await page.waitForFunction(()=>{const root=document.querySelector('.operations-center .leaflet-container'),pane=root?.querySelector<HTMLElement>('.leaflet-map-pane'),value=pane?.style.transform,w=window as any;if(!w.__operationsMapStill||w.__operationsMapStill.value!==value)w.__operationsMapStill={value,at:performance.now()};return !!pane&&!root?.classList.contains('leaflet-zoom-anim')&&performance.now()-w.__operationsMapStill.at>750})
- const transform=await center.locator('.leaflet-map-pane').getAttribute('style'),path=await markers.first().getAttribute('d'),before=calls
+ await center.locator('.leaflet-interactive:not([d="M0 0"])').first().evaluate(el=>{el.setAttribute('data-operations-probe','true');(window as any).__operationsProbe=el})
+ const probe=center.locator('[data-operations-probe="true"]'),transform=await center.locator('.leaflet-map-pane').getAttribute('style'),path=await probe.getAttribute('d'),before=calls
  offset=.001;const changed=Date.now();await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')))
- await expect.poll(()=>calls).toBeGreaterThan(before);await expect.poll(()=>markers.first().getAttribute('d')).not.toBe(path)
+ await expect.poll(()=>calls).toBeGreaterThan(before);await expect.poll(()=>probe.getAttribute('d')).not.toBe(path);expect(await probe.evaluate(el=>el===(window as any).__operationsProbe)).toBeTruthy()
  expect(await page.evaluate(()=>document.querySelector('.leaflet-container')===(window as any).__mapNode&&document.querySelector('.leaflet-interactive')===(window as any).__markerNode)).toBeTruthy()
  expect(await center.locator('.leaflet-map-pane').getAttribute('style')).toBe(transform);expect(history).toBe(0);expect(calls).toBeLessThanOrEqual(before+2)
  const refreshMs=Date.now()-changed
