@@ -33,7 +33,7 @@ async function invite(){await run(async()=>{await api('portal-access','POST',{mo
 async function portalAction(action:string){await run(async()=>{await api(`portal-access/invitations/${detail.value.portal.invitation.id}/${action}`,'POST',{});await show(detail.value.customer.id)})}
 async function access(){await run(async()=>{await api('portal-access','PATCH',{id:detail.value.portal.access.id,active:!detail.value.portal.access.active});await show(detail.value.customer.id)})}
 onMounted(load);onUnmounted(()=>clearTimeout(timer))
-defineExpose({refresh:saved})
+defineExpose({refresh:saved,show})
 </script>
 <template>
  <div v-if="error" class="error-box" role="alert">{{error}}</div>

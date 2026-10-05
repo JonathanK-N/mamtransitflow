@@ -109,19 +109,13 @@ class ScopedSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Le document et la mission doivent appartenir au même client.')
         if model is m.Mission:
             if candidate.arrival<=candidate.departure:raise serializers.ValidationError('L’arrivée doit suivre le départ.')
-            if not candidate.driver.active:raise serializers.ValidationError('Ce chauffeur a quitté l’entreprise.')
-            if candidate.driver.job!='driver':raise serializers.ValidationError('Sélectionnez un chauffeur.')
-            if candidate.vehicle.status!='available':raise serializers.ValidationError('Ce véhicule est indisponible ou en maintenance.')
-            if candidate.driver.license_expiry and candidate.driver.license_expiry < candidate.departure.date():
-                raise serializers.ValidationError('Le permis du chauffeur sera expiré au départ.')
+            from .operations_rules import validate_assignment
+            validate_assignment(org,candidate,current)
             if candidate.order_id and candidate.order.status not in ('confirmed',):raise serializers.ValidationError('Confirmez la commande avant sa mission.')
             if candidate.order_id and candidate.route_id:raise serializers.ValidationError('Choisissez une commande ou une ligne voyageurs.')
             if candidate.route_id and candidate.vehicle.seats<=0:raise serializers.ValidationError('Le véhicule doit disposer de places voyageurs.')
             if candidate.order_id and candidate.order.unit==candidate.vehicle.capacity_unit and candidate.loaded_quantity>candidate.vehicle.capacity:
                 raise serializers.ValidationError('Chargement supérieur à la capacité du véhicule.')
-            overlaps=m.Mission.objects.filter(organization=org,status__in=['planned','active'],departure__lt=candidate.arrival,arrival__gt=candidate.departure).filter(m.Q(vehicle=candidate.vehicle)|m.Q(driver=candidate.driver))
-            if current:overlaps=overlaps.exclude(pk=current.pk)
-            if overlaps.exists():raise serializers.ValidationError('Chevauchement de planning pour ce véhicule ou ce chauffeur.')
         if model is m.Invoice:
             if candidate.kind=='quote':
                 from .applications import active_keys

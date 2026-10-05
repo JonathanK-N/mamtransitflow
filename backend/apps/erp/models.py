@@ -193,6 +193,7 @@ class Mission(TenantModel):
             models.UniqueConstraint(fields=['vehicle'], condition=Q(status='active'), name='erp_one_active_vehicle'),
             models.UniqueConstraint(fields=['driver'], condition=Q(status='active'), name='erp_one_active_driver'),
             models.CheckConstraint(condition=Q(arrival__gt=models.F('departure')), name='erp_mission_dates')]
+        indexes=[models.Index(fields=['organization','status','departure'],name='erp_ops_mission_departure'),models.Index(fields=['organization','driver','departure','arrival'],name='erp_ops_driver_schedule'),models.Index(fields=['organization','vehicle','departure','arrival'],name='erp_ops_vehicle_schedule')]
     def __str__(self): return self.reference
 
 

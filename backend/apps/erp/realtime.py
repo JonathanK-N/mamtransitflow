@@ -98,6 +98,12 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
         if member.role in ('owner','admin','operations'):return m.Mission.objects.filter(pk=mission,organization_id=self.organization).exists()
         return member.role=='driver' and m.Mission.objects.filter(pk=mission,organization_id=self.organization,driver__user_id=self.user_id).exists()
 
+    @database_sync_to_async
+    def operations_allowed(self):
+        from .applications import resource_enabled
+        member=m.Membership.objects.select_related('organization').get(pk=self.member_id,active=True)
+        return member.role in ('owner','admin','operations') and resource_enabled(member.organization,'missions')
+
     async def activity(self,event):
         if event.get('event')=='access_revoked':
             await self.send_json({'type':'access_revoked'});await self.close(code=4403);return
@@ -106,6 +112,7 @@ class ActivityConsumer(AsyncJsonWebsocketConsumer):
             if event.get('conversation'):return
             await self.close(code=4403);return
         if event.get('event') in ('tracking','tracking_lifecycle') and not await self.tracking_allowed(event.get('mission')):return
+        if event.get('event')=='operations' and not await self.operations_allowed():return
         await self.send_json({'mission':event.get('mission'),'type':event['event'],'conversation':event.get('conversation'),'member':event.get('member')})
 
     async def disconnect(self,code):

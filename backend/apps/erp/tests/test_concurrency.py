@@ -110,6 +110,25 @@ def test_simultaneous_planning_cannot_book_same_resources():
     assert m.Mission.objects.count()==1
 
 
+@pytest.mark.parametrize('same_order',[True,False])
+def test_operations_simultaneous_assignment(same_order):
+    if connection.vendor!='postgresql':pytest.skip('Verrouillage vérifié sur PostgreSQL uniquement')
+    from rest_framework.test import APIClient
+    org,user,customer=crm_environment()
+    vehicle=m.Vehicle.objects.create(organization=org,plate='OPERATIONS-RACE')
+    driver=m.Employee.objects.create(organization=org,name='Driver')
+    orders=[m.TransportOrder.objects.create(organization=org,customer=customer,reference=f'OPS-{n}',origin='A',destination='B',planned_date=timezone.localdate(),status='confirmed') for n in range(2)]
+    now=timezone.now()+timedelta(hours=1)
+    def assign(n):
+        order=orders[0] if same_order else orders[n]
+        client=APIClient();client.force_authenticate(user);client.credentials(HTTP_X_ORGANIZATION=str(org.pk))
+        response=client.post('/api/v2/operations/assign',dict(order=str(order.pk),expected_updated_at=order.updated_at.isoformat(),fields=dict(driver=str(driver.pk),vehicle=str(vehicle.pk),departure=now.isoformat(),arrival=(now+timedelta(hours=1)).isoformat())),format='json')
+        if response.status_code in (400,409):raise ValidationError('Conflit attendu')
+        assert response.status_code==201,response.data
+    assert sorted(concurrent(assign))==['accepted','rejected']
+    assert m.Mission.objects.filter(organization=org).count()==1
+
+
 def test_simultaneous_portal_invitations_create_one_pending(monkeypatch):
     if connection.vendor!='postgresql':pytest.skip('Verrouillage vérifié sur PostgreSQL uniquement')
     org,user,customer=crm_environment()

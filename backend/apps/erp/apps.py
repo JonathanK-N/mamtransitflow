@@ -8,4 +8,4 @@ class ErpConfig(AppConfig):
     verbose_name = 'ERP multi-entreprise'
 
     def ready(self):
-        from . import chat_signals
+        from . import chat_signals,operations_signals

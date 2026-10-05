@@ -38,6 +38,7 @@ def test_cross_tenant(pair,name):
 
 @pytest.mark.parametrize('name',['contact','remove'])
 def test_normal_member_denied(pair,employee,name):
+    pair['bm'].role='viewer';pair['bm'].save()
     assert action(pair,employee,name,client=pair['bc']).status_code==403
 
 def test_preserve_user_other_tenant_history(pair,employee):

@@ -9,7 +9,8 @@ from .personnel import remove_employee
 class EmployeeActionView(MessagingView):
     def post(self,request,pk,action):
         self.ensure('employees')
-        if self.member.role not in ('owner','admin'):raise PermissionDenied('Administration requise.')
+        roles=('owner','admin','operations') if action=='contact' else ('owner','admin')
+        if self.member.role not in roles:raise PermissionDenied('Votre rôle ne permet pas cette opération.')
         employee=get_object_or_404(m.Employee,organization=self.org,pk=pk)
         if action=='remove':
             remove_employee(self.org,self.member,employee)

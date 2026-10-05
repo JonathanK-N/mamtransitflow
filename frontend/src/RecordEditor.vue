@@ -1,19 +1,36 @@
 <!-- Auteur : Jonathan Kakesa (JonathanK-N). -->
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick,watch } from 'vue'
 import { X, Plus, Trash2, Save, LoaderCircle, Download, Printer } from 'lucide-vue-next'
 import { api,download,money } from './api'
 import MissionTracking from './MissionTracking.vue'
 import PersonnelActions from './PersonnelActions.vue'
-const props=defineProps<{schema:any,record:any,currency:string,admin?:boolean,prefill?:any}>()
+const props=defineProps<{schema:any,record:any,currency:string,admin?:boolean,prefill?:any,assignment?:{mission?:string,order?:string,expected_updated_at:string},scope?:string,availableResources?:boolean}>()
 const emit=defineEmits(['close','saved','contact','existing'])
 const data=ref<Record<string,any>>({}),options=ref<Record<string,any[]>>({}),error=ref(''),saving=ref(false)
 const initializing=ref(true),duplicates=ref<any[]>([]),duplicateConfirmed=ref(false)
-const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly&&!(props.schema.key==='employees'&&props.record&&f.name==='active')))
+const assignmentFields=['driver','vehicle','departure','arrival','origin','destination','loaded_quantity','notes']
+const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly&&!(props.schema.key==='employees'&&props.record&&f.name==='active')&&(!props.assignment||assignmentFields.includes(f.name))))
 const locked=computed(()=>!props.schema.writable||props.record&&['issued','paid','posted','approved','completed','active','cancelled','received','ordered','confirmed','boarded','paused','closed','reported','resolved','submitted','rejected','disbursed','settled','matched'].includes(props.record.status)||props.record&&['payments','supplier-payments','movements','bookings'].includes(props.schema.key))
 const lineType=computed(()=>props.schema.key==='journal'?'journal':props.schema.key==='purchases'?'purchase':'invoice')
 const lines=computed(()=>data.value.lines||[])
-async function loadOptions(resource:string,query='') {try{options.value[resource]=(await api(resource+'?page_size=100&q='+encodeURIComponent(query))).results}catch{options.value[resource]=[]}}
+const availabilityBusy=ref(false);let availabilityGeneration=0,alive=true
+const optionVersions:Record<string,number>={}
+const scopedApi=(path:string,method='GET',body?:any)=>api(path,method,body,true,props.scope)
+async function loadOptions(resource:string,query='') {
+ if((props.assignment||props.availableResources)&&['employees','vehicles'].includes(resource)){await availableOptions(resource,query);return}
+ try{options.value[resource]=(await scopedApi(resource+'?page_size=100&q='+encodeURIComponent(query))).results}catch{options.value[resource]=[]}
+}
+async function availableOptions(resource:string,query=''){
+ const generation=availabilityGeneration
+ const version=optionVersions[resource]=(optionVersions[resource]||0)+1
+ if(!data.value.departure||!data.value.arrival){options.value[resource]=[];return}
+ const params=new URLSearchParams({kind:resource==='employees'?'drivers':'vehicles',available:'1',page_size:'100',q:query,departure:new Date(data.value.departure).toISOString(),arrival:new Date(data.value.arrival).toISOString()})
+ if(props.assignment?.mission)params.set('mission',props.assignment.mission)
+ try{const result=await scopedApi('operations/resources?'+params);if(alive&&generation===availabilityGeneration&&version===optionVersions[resource]){options.value[resource]=result.results;const field=resource==='employees'?'driver':'vehicle';if(!query&&data.value[field]&&!result.results.some((row:any)=>row.id===data.value[field]))data.value[field]=''}}catch(e:any){if(alive&&generation===availabilityGeneration&&version===optionVersions[resource]){options.value[resource]=[];error.value=e.message}}
+}
+async function updateAvailability(){if(!(props.assignment||props.availableResources)||initializing.value)return;const generation=++availabilityGeneration;availabilityBusy.value=true;await Promise.all(['employees','vehicles'].map(resource=>availableOptions(resource)));if(generation===availabilityGeneration)availabilityBusy.value=false}
+watch(()=>[data.value.departure,data.value.arrival],updateAvailability)
 function addLine(){
  if(!data.value.lines)data.value.lines=[]
  data.value.lines.push(lineType.value==='journal'?{account:'',debit:0,credit:0}:lineType.value==='purchase'?{item:'',quantity:1,price:0}:{description:'',quantity:1,price:0,tax_rate:0})
@@ -33,7 +50,7 @@ onMounted(async()=>{
  await Promise.all([...resources].map(resource=>loadOptions(resource)))
  for(const f of fields.value){
   const value=data.value[f.name]
-  if(f.relation&&value&&!locked.value&&!options.value[f.relation]?.some((row:any)=>row.id===value)){
+  if(f.relation&&value&&!locked.value&&!props.assignment&&!props.availableResources&&!options.value[f.relation]?.some((row:any)=>row.id===value)){
    try{const row=await api(f.relation+'/'+value);options.value[f.relation]=[row,...(options.value[f.relation]||[])]}catch{error.value='Une référence préremplie n’est plus accessible. Sélectionnez une fiche valide.'}
   }
  }
@@ -42,7 +59,7 @@ onMounted(async()=>{
  document.addEventListener('keydown',keydown)
  document.querySelector<HTMLInputElement>('.editor input')?.focus()
 })
-onUnmounted(()=>document.removeEventListener('keydown',keydown))
+onUnmounted(()=>{alive=false;document.removeEventListener('keydown',keydown)})
 async function save(){
  saving.value=true;error.value=''
  try{
@@ -61,7 +78,8 @@ async function save(){
    const multipart=new FormData();for(const [key,value] of Object.entries(body)){if(value!==null&&value!==undefined)multipart.append(key,value instanceof File?value:typeof value==='object'?JSON.stringify(value):String(value))}
    body=multipart
   }
-  await api(props.schema.key+(props.record?'/'+props.record.id:''),props.record?'PATCH':'POST',body)
+  if(props.assignment)await scopedApi('operations/assign','POST',{...props.assignment,fields:body})
+  else await scopedApi(props.schema.key+(props.record?'/'+props.record.id:''),props.record?'PATCH':'POST',body)
   emit('saved')
  }catch(e:any){error.value=e.message}finally{saving.value=false}
 }
@@ -75,6 +93,7 @@ function print(){window.print()}
    <div v-if="error" class="error-box" role="alert">{{error}}</div>
    <div v-if="duplicates.length&&!duplicateConfirmed" class="info-box"><p>Un client similaire existe déjà.</p><p v-for="row in duplicates">{{row.name}} · {{row.email}} · {{row.phone}} <button type="button" class="secondary" @click="emit('existing',row)">Voir la fiche existante</button></p><button type="button" class="secondary" @click="duplicateConfirmed=true;save()">Créer quand même</button><button type="button" class="secondary" @click="emit('close')">Annuler</button></div>
    <div v-if="locked" class="info-box">Cet enregistrement est consultable. Son état ou vos permissions ne permettent pas de modifier ses valeurs.</div>
+   <div v-if="assignment" class="info-box"><p>Seuls les chauffeurs et véhicules disponibles sur toute la période sont proposés. La disponibilité sera vérifiée à l’enregistrement.</p><p v-if="record">Affectation actuelle : {{record.relations?.driver}} · {{record.relations?.vehicle}}. Sélectionnez les ressources souhaitées ci-dessous.</p><p v-if="availabilityBusy" role="status">Vérification des disponibilités…</p></div>
    <PersonnelActions v-if="record&&schema.key==='employees'&&record.active" :employee="record" :writable="schema.writable" :admin="!!admin" profile @contact="emit('contact',$event)"/>
    <div class="form-grid">
     <template v-for="f in fields" :key="f.name">
@@ -101,7 +120,7 @@ function print(){window.print()}
    </div>
    <div v-if="record&&['invoices','supplier-bills'].includes(schema.key)" class="invoice-summary"><p>Total HT <strong>{{money(record.subtotal,currency)}}</strong></p><p>Taxes <strong>{{money(record.tax,currency)}}</strong></p><p>Total TTC <strong>{{money(record.total,currency)}}</strong></p><p>Réglé <strong>{{money(record.paid,currency)}}</strong></p></div>
    <MissionTracking v-if="record&&schema.key==='missions'&&['active','completed','cancelled'].includes(record.status)" :mission="record" :can-track="schema.canTrack" :user-id="schema.userId"/>
-   <footer class="editor-footer"><button type="button" class="secondary" @click="$emit('close')">Fermer</button><button v-if="record" type="button" class="secondary" @click="print"><Printer :size="16"/>Imprimer</button><button v-if="!locked" class="primary" :disabled="saving"><LoaderCircle v-if="saving" class="spin" :size="16"/><Save v-else :size="16"/>Enregistrer</button></footer>
+   <footer class="editor-footer"><button type="button" class="secondary" @click="$emit('close')">Fermer</button><button v-if="record" type="button" class="secondary" @click="print"><Printer :size="16"/>Imprimer</button><button v-if="!locked" class="primary" :disabled="saving||availabilityBusy"><LoaderCircle v-if="saving" class="spin" :size="16"/><Save v-else :size="16"/>Enregistrer</button></footer>
   </form>
  </section></div>
 </template>

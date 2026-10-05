@@ -15,7 +15,13 @@ from .tracking import TrackingView, PositionsView
 from .crm import ClientView, CommercialActionView
 from .client_messaging import ClientMessagesView, StartClientConversationView, PortalMessagesView
 
+from .operations import OperationsCenterView,OperationsResourcesView,OperationsAssignmentView,OperationsMissionView
+
 urlpatterns=[
+    path('operations/center',OperationsCenterView.as_view()),
+    path('operations/resources',OperationsResourcesView.as_view()),
+    path('operations/assign',OperationsAssignmentView.as_view()),
+    path('operations/missions/<uuid:pk>',OperationsMissionView.as_view()),
     path('clients/<uuid:pk>/conversation',StartClientConversationView.as_view()),
     path('clients/<uuid:pk>/messages',ClientMessagesView.as_view()),
     path('portal/messages',PortalMessagesView.as_view()),
