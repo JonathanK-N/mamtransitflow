@@ -9,6 +9,9 @@ test('Centre : 100 marqueurs, carte conservée, tuiles indisponibles et aucun hi
  const response=await request.post('/api/v2/auth/register',{data:{name:'TEST Volume Exploitation',email,password,organization:{name:'TEST Exploitation Volume '+stamp,country:'GN',currency:'USD',timezone:'Africa/Conakry',activities:['freight']}}});expect(response.status()).toBe(201)
  const account=await response.json(),org=account.organizations[0].id,headers={Authorization:'Bearer '+account.access,'X-Organization':org}
  const live=await (await request.get('/api/v2/tracking',{headers})).json()
+ const snapshot=await (await request.get('/api/v2/operations/center',{headers})).json()
+ let serverDay=snapshot.today
+ await page.route('**/api/v2/operations/center?**',route=>{const selected=new URL(route.request().url()).searchParams.get('date')||serverDay;return route.fulfill({json:{...snapshot,date:selected,today:serverDay,current:selected===serverDay}})})
  let offset=0,calls=0,history=0
  await page.route('https://tile.openstreetmap.org/**',route=>route.abort())
  await page.route('**/api/v2/tracking',route=>{calls++;route.fulfill({json:{...live,server_time:new Date().toISOString(),missions:Array.from({length:100},(_,n)=>({id:'test-marker-'+n,organization:org,reference:'TEST-'+n,plate:'TEST-'+n,vehicle:'Camion TEST',driver:'Chauffeur TEST',origin:'A',destination:'B',started_at:new Date().toISOString(),state:'online',last:{timestamp:new Date().toISOString(),latitude:9.537+(n%10)*.002+offset,longitude:-13.678+Math.floor(n/10)*.002+offset,accuracy:5,speed:0}}))}})})
@@ -25,6 +28,8 @@ test('Centre : 100 marqueurs, carte conservée, tuiles indisponibles et aucun hi
  expect(await page.evaluate(()=>document.querySelector('.leaflet-container')===(window as any).__mapNode&&document.querySelector('.leaflet-interactive')===(window as any).__markerNode)).toBeTruthy()
  expect(await center.locator('.leaflet-map-pane').getAttribute('style')).toBe(transform);expect(history).toBe(0);expect(calls).toBeLessThanOrEqual(before+2)
  await page.getByRole('button',{name:'Fermer la carte',exact:true}).click();await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Missions',exact:true}).click();await expect(center.getByText('Aucune mission ou commande pour ce filtre.')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ const nextDay=new Date(snapshot.today+'T12:00:00Z');nextDay.setUTCDate(nextDay.getUTCDate()+1);serverDay=nextDay.toISOString().slice(0,10);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await expect(center.getByLabel('Journée',{exact:true})).toHaveValue(serverDay)
+ await center.getByLabel('Journée',{exact:true}).fill(snapshot.today);await expect(center.getByText(/Journée consultée/)).toBeVisible();nextDay.setUTCDate(nextDay.getUTCDate()+1);serverDay=nextDay.toISOString().slice(0,10);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await expect(center.getByLabel('Journée',{exact:true})).toHaveValue(snapshot.today)
  const pathProof=info.outputPath('operations-volume.json');mkdirSync(dirname(pathProof),{recursive:true});writeFileSync(pathProof,JSON.stringify({profile:info.project.name,markers:100,initial_ms:initialMs,refresh_ms:Date.now()-changed,tracking_calls:calls,history_calls:history,map_preserved:true,markers_preserved:true,pan_zoom_preserved:true,tiles_failure_tolerated:true},null,2))
 })
 

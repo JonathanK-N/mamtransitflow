@@ -6,7 +6,7 @@ import {trackingLabel} from './gps'
 import LiveTracking from './LiveTracking.vue'
 import RecordEditor from './RecordEditor.vue'
 const props=defineProps<{org:any,catalog:any[]}>(),emit=defineEmits(['context'])
-const data=ref<any>(),error=ref(''),busy=ref(false),date=ref(''),query=ref(''),filter=ref('all'),page=ref(1),alertPage=ref(1),tab=ref('overview'),selection=ref<any>(),resources=ref<any>(),resourcePage=ref(1),resourceQuery=ref(''),resourceAvailable=ref(false),map=ref<any>(),fullscreen=ref(false),editor=ref<any>(),record=ref<any>(),prefill=ref<any>(),assignment=ref<any>()
+const data=ref<any>(),error=ref(''),busy=ref(false),date=ref(''),followToday=ref(true),query=ref(''),filter=ref('all'),page=ref(1),alertPage=ref(1),tab=ref('overview'),selection=ref<any>(),resources=ref<any>(),resourcePage=ref(1),resourceQuery=ref(''),resourceAvailable=ref(false),map=ref<any>(),fullscreen=ref(false),editor=ref<any>(),record=ref<any>(),prefill=ref<any>(),assignment=ref<any>()
 const request=(path:string,method='GET',body?:any)=>api(path,method,body,true,props.org.id)
 let alive=true,unsubscribe:()=>void,timer:any,debounce:any,searchTimer:any,last=0,loading=false,again=false,generation=0,resourceGeneration=0,focus:HTMLElement|null=null
 const resourceTab=computed(()=>['vehicles','drivers'].includes(tab.value))
@@ -18,8 +18,8 @@ const kpis:any=[['total','Missions du jour','all'],['unassigned','À affecter','
 function stamp(value:string){return value?new Intl.DateTimeFormat('fr-FR',{dateStyle:'short',timeStyle:'short',timeZone:props.org.timezone||'UTC'}).format(new Date(value)):'Aucune position'}
 async function load(){
  if(loading){again=true;return}loading=true;busy.value=!data.value;const revision=generation;last=performance.now()
- const params=new URLSearchParams({filter:filter.value,page:String(page.value),alert_page:String(alertPage.value),q:query.value});if(date.value)params.set('date',date.value);if(selection.value?.resource==='missions')params.set('selected_mission',selection.value.id)
- try{const result=await request('operations/center?'+params);if(alive&&revision===generation){data.value=result;if(!date.value)date.value=result.date;error.value='';if(selection.value?.resource==='missions'){const row=result.missions.results.find((x:any)=>x.id===selection.value.id);if(result.selection)selection.value=result.selection;else if(row)selection.value=row}}}catch(e:any){if(alive&&revision===generation){error.value=e.message;if(e.status===403){data.value=null;selection.value=null;resources.value=null;editor.value=null}}}finally{loading=false;busy.value=false;if(again&&alive){again=false;schedule()}}
+ const params=new URLSearchParams({filter:filter.value,page:String(page.value),alert_page:String(alertPage.value),q:query.value});if(date.value&&!followToday.value)params.set('date',date.value);if(selection.value?.resource==='missions')params.set('selected_mission',selection.value.id)
+ try{const result=await request('operations/center?'+params);if(alive&&revision===generation){data.value=result;if(followToday.value||!date.value)date.value=result.date;error.value='';if(selection.value?.resource==='missions'){const row=result.missions.results.find((x:any)=>x.id===selection.value.id);if(result.selection)selection.value=result.selection;else if(row)selection.value=row}}}catch(e:any){if(alive&&revision===generation){error.value=e.message;if(e.status===403){data.value=null;selection.value=null;resources.value=null;editor.value=null}}}finally{loading=false;busy.value=false;if(again&&alive){again=false;schedule()}}
 }
 function schedule(delay=500){if(!debounce)debounce=setTimeout(()=>{debounce=null;load();if(resourceTab.value)loadResources()},Math.max(delay,1000-(performance.now()-last)))}
 function reload(){generation++;load()}
@@ -45,7 +45,7 @@ defineExpose({refresh:reload})
 </script>
 <template>
  <section class="operations-center" aria-label="Centre d’exploitation">
-  <header class="operations-toolbar"><div><strong>{{org.name}}</strong><p>{{connectionState}} · {{data?.timezone||org.timezone}} <span v-if="data">· Actualisé {{stamp(data.server_time)}}</span></p></div><label>Journée<input v-model="date" type="date" @change="page=1;alertPage=1;reload()"/></label><button class="secondary" @click="date='';page=1;reload()">Aujourd’hui</button><button class="secondary" :disabled="busy" @click="reload">Actualiser</button></header>
+  <header class="operations-toolbar"><div><strong>{{org.name}}</strong><p>{{connectionState}} · {{data?.timezone||org.timezone}} <span v-if="data">· Actualisé {{stamp(data.server_time)}}</span></p></div><label>Journée<input v-model="date" type="date" @change="followToday=false;page=1;alertPage=1;reload()"/></label><button class="secondary" @click="date='';page=1;reload()">Aujourd’hui</button><button class="secondary" :disabled="busy" @click="reload">Actualiser</button></header>
   <div v-if="error" class="error-box" role="alert">{{error}} <button class="secondary" @click="reload">Réessayer</button></div>
   <p v-if="busy" role="status">Chargement de l’exploitation…</p>
   <template v-if="data">
