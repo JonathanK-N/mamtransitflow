@@ -90,3 +90,26 @@ def test_direction_commercial_margin_and_receipts_use_actual_validated_costs(env
     assert current['approved_expenses']=='10.02'
     assert current['commercial_margin']=='84.96'
     assert current['completed_missions']==1
+
+
+def test_currency_change_does_not_relabel_existing_money(env):
+    response=env['client'].patch('/api/v2/organization',{'currency':'USD'},format='json')
+    assert response.status_code==200,response.data
+    env['org'].refresh_from_db()
+    invoice(env,'FAC-CURRENCY',kind='invoice',status='issued',subtotal=100,total=100)
+    response=env['client'].patch('/api/v2/organization',{'currency':'EUR'},format='json')
+    assert response.status_code==400
+    env['org'].refresh_from_db()
+    assert env['org'].currency=='USD'
+    assert env['client'].patch('/api/v2/organization',{'name':'Updated company','currency':'USD'},format='json').status_code==200
+
+
+def test_invoice_overdue_days_use_company_day(env,monkeypatch):
+    from django.utils import timezone
+    env['org'].timezone='America/Toronto';env['org'].save()
+    monkeypatch.setattr(timezone,'now',lambda:datetime(2026,10,6,1,30,tzinfo=dt_timezone.utc))
+    item=invoice(env,'FAC-TZ',kind='invoice',status='issued',subtotal=100,total=100)
+    item.due_date=date(2026,10,5);item.save()
+    response=env['client'].get('/api/v2/invoices/'+str(item.pk))
+    assert response.status_code==200,response.data
+    assert response.data['overdue_days']==0

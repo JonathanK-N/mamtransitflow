@@ -1,3 +1,4 @@
+from zoneinfo import ZoneInfo
 from datetime import timedelta
 from decimal import Decimal
 from django.db import transaction
@@ -59,7 +60,7 @@ def quote_action(org, actor, quote, action, data, request=None):
             raise ValidationError('Le départ et la destination sont requis.')
         try:
             from datetime import date
-            planned = date.fromisoformat(data.get('planned_date', str(timezone.localdate())))
+            planned = date.fromisoformat(data.get('planned_date', str(timezone.localdate(timezone=ZoneInfo(org.timezone)))))
         except (TypeError, ValueError):
             raise ValidationError('Date prévue invalide.')
         quantity=sum((services.decimal(x['quantity']) for x in quote.lines),Decimal(0))
@@ -87,7 +88,6 @@ def quote_action(org, actor, quote, action, data, request=None):
             raise ValidationError('L’envoi requiert une adresse de consultation.')
         return send_quote(request, org, actor, quote)
     elif action in ('accept', 'refuse', 'expire') and old == 'sent':
-        from zoneinfo import ZoneInfo
         expired = quote.due_date < timezone.localdate(timezone=ZoneInfo(org.timezone))
         if action == 'accept' and expired:
             raise ValidationError('Le devis a expiré.')
@@ -126,7 +126,7 @@ def invoice_from_mission(org, actor, mission):
         for line,base in zip(source.lines,allocate_bases(source.lines,order.amount,source.subtotal)):
             proposed.append(dict(description=line['description'],quantity=line['quantity'],price=str(base/services.decimal(line['quantity'])),tax_rate=line['tax_rate']))
     lines, subtotal, tax, total = services.invoice_totals(proposed)
-    today = timezone.localdate()
+    today = timezone.localdate(timezone=ZoneInfo(org.timezone))
     invoice = m.Invoice.objects.create(organization=org, customer=order.customer, order=order,
         mission=mission, date=today, due_date=today+timedelta(days=order.customer.payment_days),
         lines=lines, subtotal=subtotal, tax=tax, total=total,unit=order.unit,notes=source.notes if source else '')

@@ -1,3 +1,4 @@
+from zoneinfo import ZoneInfo
 """Transitions transactionnelles. Auteur : Jonathan Kakesa (JonathanK-N)."""
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import transaction
@@ -111,7 +112,7 @@ def transition(org,actor,model,pk,action,data=None):
             if vehicle.status!='available' or not driver.active or driver.job!='driver':
                 raise ValidationError('Le véhicule ou le chauffeur est indisponible.')
             management.ensure_driver_available(org,driver,obj.departure,obj.arrival)
-            if driver.license_expiry and driver.license_expiry < timezone.localdate():
+            if driver.license_expiry and driver.license_expiry < timezone.localdate(timezone=ZoneInfo(org.timezone)):
                 raise ValidationError('Le permis du chauffeur est expiré.')
             if m.Mission.objects.filter(organization=org,status='active').filter(m.Q(vehicle=vehicle)|m.Q(driver=driver)).exists():
                 raise ValidationError('Le véhicule ou le chauffeur effectue déjà une mission.')

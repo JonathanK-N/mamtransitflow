@@ -34,6 +34,14 @@ class OrganizationSerializer(serializers.ModelSerializer):
         model=m.Organization
         fields=['id','name','slug','country','currency','timezone','activities','address','phone','email','registration','tax_number']
         read_only_fields=['id','slug']
+    def validate_currency(self,value):
+        if self.instance and value!=self.instance.currency:
+            financial=(m.Invoice,m.TransportOrder,m.Payment,m.Expense,m.SupplierBill,m.SupplierPayment,
+                m.JournalEntry,m.EmployeeAdvance,m.TransportContract,m.PricingRule,m.Subcontract,
+                m.Purchase,m.StockItem,m.Route,m.Booking,m.Maintenance,m.BankStatementLine)
+            if any(model.objects.filter(organization=self.instance).exists() for model in financial):
+                raise serializers.ValidationError('La devise ne peut plus changer après la création de données monétaires. Les montants existants ne sont pas convertis.')
+        return value
     def validate_timezone(self,value):
         try:ZoneInfo(value)
         except (ZoneInfoNotFoundError,ValueError):raise serializers.ValidationError('Fuseau horaire inconnu.')
@@ -174,6 +182,6 @@ def serializer_for(model):
         attrs['overdue_days']=serializers.SerializerMethodField()
         def overdue(self,obj):
             from django.utils import timezone
-            return max(0,(timezone.localdate()-obj.due_date).days) if obj.kind=='invoice' and obj.status=='issued' and getattr(obj,'remaining',obj.total-obj.paid)>0 else 0
+            return max(0,(timezone.localdate(timezone=ZoneInfo(self.context['organization'].timezone))-obj.due_date).days) if obj.kind=='invoice' and obj.status=='issued' and getattr(obj,'remaining',obj.total-obj.paid)>0 else 0
         attrs['get_overdue_days']=overdue
     return type(f'{model.__name__}Serializer',(ScopedSerializer,),attrs)
