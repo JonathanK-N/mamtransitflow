@@ -16,8 +16,10 @@ from .crm import ClientView, CommercialActionView
 from .client_messaging import ClientMessagesView, StartClientConversationView, PortalMessagesView
 
 from .operations import OperationsCenterView,OperationsResourcesView,OperationsAssignmentView,OperationsMissionView
+from .quote_delivery import PublicQuoteView
 
 urlpatterns=[
+    path('public/quotes/<str:action>',PublicQuoteView.as_view(http_method_names=['post','options'])),
     path('operations/center',OperationsCenterView.as_view()),
     path('operations/resources',OperationsResourcesView.as_view()),
     path('operations/assign',OperationsAssignmentView.as_view()),

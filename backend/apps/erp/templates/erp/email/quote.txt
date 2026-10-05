@@ -1,0 +1,13 @@
+Bonjour {{ customer_name }},
+
+{{ company_name }} vous adresse le devis {{ number }} d’un montant de {{ amount }} {{ currency }}.
+Il est valable jusqu’au {{ due_date }} inclus.
+
+Consultez le détail et indiquez votre décision :
+{{ link }}
+
+Ce lien est personnel. Ne le transmettez pas à des tiers.
+
+Cordialement,
+L’équipe {{ company_name }}
+via TransitFlow

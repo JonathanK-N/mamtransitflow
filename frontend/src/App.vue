@@ -6,10 +6,11 @@ import PwaStatus from './PwaStatus.vue'
 import {disableDevicePush,setPushAccount,stopActivity} from './activity'
 import { ArrowRight, ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-vue-next'
 import PublicSite from './PublicSite.vue'
+import PublicQuote from './PublicQuote.vue'
 const Workspace=defineAsyncComponent(()=>import('./Workspace.vue'))
 import PasswordRecovery from './PasswordRecovery.vue'
 import {api,refresh,setOrganization,organization,clearSession} from './api'
-const screen=ref(location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':location.pathname.startsWith('/app')?'loading':'public')
+const screen=ref(location.pathname==='/devis'?'quote':location.pathname==='/commencer'?'register':location.pathname==='/connexion'?'login':location.pathname.startsWith('/app')?'loading':'public')
 if(new URLSearchParams(location.search).has('reset'))screen.value='recovery'
 const session=ref<any>(null),accessNotice=ref(''),error=ref(''),busy=ref(false)
 watch(()=>screen.value==='workspace'&&session.value?JSON.stringify([session.value.user.id,session.value.organizations.map((o:any)=>[o.id,o.role])]):'',key=>{if(key)startGps(session.value.user.id,session.value.organizations);else stopGps()})
@@ -61,8 +62,9 @@ onMounted(async()=>{
 })
 </script>
 <template>
- <PwaStatus/>
- <PublicSite v-if="screen==='public'" @login="go('login')" @register="go('register')"/>
+ <PwaStatus v-if="screen!=='quote'"/>
+ <PublicQuote v-if="screen==='quote'"/>
+ <PublicSite v-else-if="screen==='public'" @login="go('login')" @register="go('register')"/>
  <div v-else-if="screen==='removed'" class="loading-screen"><p role="alert">{{error}}</p><button class="secondary" @click="logout">Se déconnecter</button></div>
  <Workspace v-else-if="screen==='workspace'&&session" :key="organization" :session="session" :access-notice="accessNotice" @logout="logout"/>
  <PasswordRecovery v-else-if="screen==='recovery'" @login="go('login')"/>

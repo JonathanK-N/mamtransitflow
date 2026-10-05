@@ -45,7 +45,7 @@ def commercial_notification(org,obj,event,title,resource):
 
 
 @transaction.atomic
-def quote_action(org, actor, quote, action, data):
+def quote_action(org, actor, quote, action, data, request=None):
     m.Organization.objects.select_for_update().get(pk=org.pk)
     quote = get_object_or_404(m.Invoice.objects.select_for_update(), organization=org, pk=quote.pk, kind='quote')
     if action == 'convert':
@@ -76,12 +76,19 @@ def quote_action(org, actor, quote, action, data):
         commercial_notification(org,order,'created','Commande à confirmer et planifier','orders')
         return order
     old = quote.quote_status
-    if action == 'send' and old == 'draft' and quote.status == 'draft':
-        if quote.due_date < timezone.localdate():
-            raise ValidationError('La date de validité du devis est dépassée.')
-        return services.transition(org, actor, m.Invoice, quote.pk, 'issue')
+    if action == 'revoke-link':
+        m.QuoteLink.objects.filter(organization=org,quote=quote).update(expires_at=timezone.now())
+        services.audit(org,actor,'quote-revoke-link',quote)
+        return quote
+    if (action == 'send' and old == 'draft' and quote.status == 'draft') or (action == 'resend' and old == 'sent' and quote.status == 'issued'):
+        active_customer(quote.customer)
+        from .quote_delivery import send_quote
+        if request is None:
+            raise ValidationError('L’envoi requiert une adresse de consultation.')
+        return send_quote(request, org, actor, quote)
     elif action in ('accept', 'refuse', 'expire') and old == 'sent':
-        expired = quote.due_date < timezone.localdate()
+        from zoneinfo import ZoneInfo
+        expired = quote.due_date < timezone.localdate(timezone=ZoneInfo(org.timezone))
         if action == 'accept' and expired:
             raise ValidationError('Le devis a expiré.')
         if action == 'expire' and not expired:
@@ -91,7 +98,8 @@ def quote_action(org, actor, quote, action, data):
         raise ValidationError('Transition de devis impossible.')
     quote.save(update_fields=['quote_status','updated_at'])
     services.audit(org, actor, 'quote-'+action, quote, previous=old)
-    if action=='accept':commercial_notification(org,quote,'accepted','Devis accepté','invoices')
+    if action in ('accept','refuse'):
+        commercial_notification(org,quote,quote.quote_status,'Devis accepté' if action=='accept' else 'Devis refusé','invoices')
     return quote
 
 

@@ -139,5 +139,5 @@ class CommercialActionView(ScopedView):
             if 'commercial' not in self.active_applications:raise PermissionDenied('L’application commerciale est désactivée.')
             if section=='convert':self.ensure('orders',True)
             quote=get_object_or_404(self.queryset('invoices'),pk=pk,kind='quote')
-            obj=quote_action(self.org,request.user,quote,section,request.data)
+            obj=quote_action(self.org,request.user,quote,section,request.data,request=request)
         return Response(serializer_for(type(obj))(obj,context=self.context()).data)

@@ -257,6 +257,15 @@ class Invoice(TenantModel):
     def __str__(self): return self.number or 'Brouillon'
 
 
+class QuoteLink(TenantModel):
+    quote = models.OneToOneField(Invoice, on_delete=models.PROTECT, related_name='customer_link')
+    token_hash = models.CharField(max_length=64, unique=True)
+    recipient = models.EmailField()
+    expires_at = models.DateTimeField()
+    sent_at = models.DateTimeField(null=True)
+    responded_at = models.DateTimeField(null=True)
+
+
 class Payment(TenantModel):
     notes = models.TextField('Notes', blank=True)
     invoice = models.ForeignKey(Invoice, verbose_name='Facture', on_delete=models.PROTECT)

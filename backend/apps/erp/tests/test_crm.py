@@ -8,7 +8,14 @@ from .test_workflows import env, create, act, mission
 pytestmark=pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def commercial_mail(monkeypatch):
+    monkeypatch.setattr('apps.comptes.invitations.envoyer',lambda *args: True)
+
+
 def quote(env):
+    env['partner'].email='customer@example.test'
+    env['partner'].save(update_fields=['email'])
     today=timezone.localdate()
     return create(env,'invoices',dict(kind='quote',customer=str(env['partner'].pk),date=str(today),due_date=str(today+timedelta(days=30)),origin='Conakry',destination='Kindia',lines=[dict(description='Transport',quantity='2',price='100',tax_rate='0')]))
 

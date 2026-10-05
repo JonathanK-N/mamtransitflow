@@ -102,6 +102,6 @@ def portail(request):
 if not settings.TF_LEGACY_ENABLED:
     urlpatterns = [path('django-admin/', admin.site.urls), path('api/sante', sante),
         path('api/v2/', include('apps.erp.urls')), path('', portail),
-        re_path(r'^app(?:/.*)?$', portail), path('connexion', portail), path('commencer', portail)]
+        re_path(r'^app(?:/.*)?$', portail), path('connexion', portail), path('commencer', portail), path('devis', portail)]
 else:
     urlpatterns.insert(0, path('api/v2/', include('apps.erp.urls')))

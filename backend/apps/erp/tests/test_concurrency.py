@@ -82,6 +82,24 @@ def test_simultaneous_quote_conversions_create_one_order():
     assert m.TransportOrder.objects.filter(source_quote=quote).count()==1
 
 
+def test_opposed_public_quote_responses_record_one_decision():
+    if connection.vendor!='postgresql':pytest.skip('Verrouillage vérifié sur PostgreSQL uniquement')
+    from rest_framework.test import APIClient
+    from apps.erp.quote_delivery import digest
+    org,user,customer=crm_environment()
+    quote=m.Invoice.objects.create(organization=org,customer=customer,kind='quote',status='issued',quote_status='sent',date=timezone.localdate(),due_date=timezone.localdate()+timedelta(days=1),number='DEV-RACE',total=100)
+    token='public-quote-race-token-with-sufficient-entropy-for-test'
+    m.QuoteLink.objects.create(organization=org,quote=quote,token_hash=digest(token),recipient='customer@example.test',expires_at=timezone.now()+timedelta(days=1),sent_at=timezone.now())
+    statuses=[]
+    def respond(n):
+        response=APIClient().post('/api/v2/public/quotes/respond',{'token':token,'decision':'accept' if n==0 else 'refuse'},format='json')
+        statuses.append(response.status_code)
+    concurrent(respond)
+    assert sorted(statuses)==[200,409]
+    assert m.AuditEvent.objects.filter(action='quote-customer-response').count()==1
+    assert not m.TransportOrder.objects.exists()
+
+
 def test_simultaneous_server_references_are_unique():
     if connection.vendor!='postgresql':pytest.skip('Verrouillage vérifié sur PostgreSQL uniquement')
     org,user,customer=crm_environment()

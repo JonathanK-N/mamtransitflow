@@ -228,6 +228,8 @@ class ActionView(ScopedView):
         if not (resource=='missions' and self.member.role=='driver' and action in ('start','complete')):
             self.ensure(resource,True)
         obj=get_object_or_404(self.queryset(resource),pk=pk)
+        if resource=='invoices' and obj.kind=='quote' and action=='issue':
+            raise ValidationError('Utilisez Envoyer le devis dans le dossier client pour le transmettre par courriel.')
         obj=services.transition(self.org,request.user,type(obj),obj.pk,action,request.data)
         return Response(serializer_for(type(obj))(obj,context=self.context()).data)
 
