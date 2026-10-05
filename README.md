@@ -54,6 +54,7 @@ Railway déploie actuellement la branche `transitflow-tests` du dépôt `Jonatha
 - [Centre d’exploitation](docs/Centre-exploitation.md)
 - [CRM et flux commercial](docs/CRM-commercial.md)
 - [Transmission et réponse aux devis](docs/Devis-client.md)
+- [Pilotage Direction](docs/Direction.md)
 - [GPS et limites mobiles](docs/GPS.md)
 - [Portail et livraison](docs/PORTAIL_ET_LIVRAISON.md)
 - [Audit de production et vérifications restantes](docs/Audit-production.md)

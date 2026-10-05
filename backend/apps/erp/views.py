@@ -247,13 +247,15 @@ class OrganizationView(ScopedView):
 
 class DashboardView(ScopedView):
     def get(self,request):
-        today=timezone.localdate();org=self.org
+        from zoneinfo import ZoneInfo
+        from .direction import summary
+        org=self.org;today=timezone.localdate(timezone=ZoneInfo(org.timezone))
         missions=self.queryset('missions') if self.enabled('missions') and security.allowed(self.member.role,'missions') else m.Mission.objects.none()
         vehicles=m.Vehicle.objects.filter(organization=org) if self.enabled('vehicles') else m.Vehicle.objects.none()
         if self.member.role=='driver':vehicles=vehicles.filter(mission__driver__user=request.user).distinct()
         financial=self.enabled('invoices') and security.allowed(self.member.role,'invoices')
         inv=m.Invoice.objects.filter(organization=org,kind='invoice').exclude(status__in=['draft','cancelled'])
-        balance=sum((x.total-x.paid for x in inv),Decimal(0)) if financial else None
+        balance=inv.aggregate(value=Sum(models.F('total')-models.F('paid')))['value'] or Decimal(0) if financial else None
         credits=m.Invoice.objects.filter(organization=org,kind='credit',status='issued').aggregate(s=Sum('total'))['s'] or 0
         if balance is not None:balance-=credits
         alerts=[]
@@ -268,7 +270,7 @@ class DashboardView(ScopedView):
             'planned':missions.filter(status='planned').count(),'receivable':balance,'currency':org.currency,
             'missions':serializer_for(m.Mission)(missions.order_by('departure')[:8],many=True,context=self.context()).data,
             'alerts':alerts[:20],'activity':list(missions.values('status').annotate(count=Count('id'))),
-            'organization':OrganizationSerializer(org).data})
+            'organization':OrganizationSerializer(org).data,'direction':summary(self,request)})
 
 
 class ReportsView(ScopedView):

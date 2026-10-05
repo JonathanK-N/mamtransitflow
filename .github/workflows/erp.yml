@@ -77,6 +77,12 @@ jobs:
           for project in chromium android iphone ipad small; do
             PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-quote-$project pnpm --dir frontend exec playwright test quote.spec.ts --project=$project --output=test-results-quote-$project || exit 1
           done
+      - name: Pilotage Direction sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-direction-$project pnpm --dir frontend exec playwright test direction.spec.ts --project=$project --output=test-results-direction-$project || exit 1
+          done
       - name: Portail client création et invitation sur cinq appareils
         run: |
           for project in chromium android iphone ipad small; do
@@ -161,6 +167,10 @@ jobs:
             frontend/test-results-crm-*
             frontend/playwright-report-operations-*
             frontend/test-results-operations-*
+            frontend/playwright-report-quote-*
+            frontend/test-results-quote-*
+            frontend/playwright-report-direction-*
+            frontend/test-results-direction-*
             frontend/playwright-report
             frontend/test-results
             frontend/playwright-report-invitation
