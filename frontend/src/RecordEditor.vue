@@ -51,7 +51,7 @@ onMounted(async()=>{
  for(const f of fields.value){
   const value=data.value[f.name]
   if(f.relation&&value&&!locked.value&&!props.assignment&&!props.availableResources&&!options.value[f.relation]?.some((row:any)=>row.id===value)){
-   try{const row=await api(f.relation+'/'+value);options.value[f.relation]=[row,...(options.value[f.relation]||[])]}catch{error.value='Une référence préremplie n’est plus accessible. Sélectionnez une fiche valide.'}
+   try{const row=await scopedApi(f.relation+'/'+value);options.value[f.relation]=[row,...(options.value[f.relation]||[])]}catch{error.value='Une référence préremplie n’est plus accessible. Sélectionnez une fiche valide.'}
   }
  }
  initializing.value=false
@@ -71,7 +71,7 @@ async function save(){
    body[f.name]=f.type==='datetime-local'&&value?new Date(value).toISOString():value
   }
   if(props.schema.key==='partners'&&!props.record&&!duplicateConfirmed.value){
-   duplicates.value=await api('clients/duplicates','POST',body)
+   duplicates.value=await scopedApi('clients/duplicates','POST',body)
    if(duplicates.value.length)return
   }
   if(props.schema.key==='documents'){
