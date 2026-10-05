@@ -60,3 +60,5 @@ Railway déploie actuellement la branche `transitflow-tests` du dépôt `Jonatha
 - [Audit de production et vérifications restantes](docs/Audit-production.md)
 
 Les documents historiques de paie et les anciens portails ne décrivent pas les fonctionnalités garanties du SaaS actuel. La paie réglementaire, les déclarations fiscales et les intégrations financières externes nécessitent un périmètre et une validation spécifiques.
+
+- [Rapports et devise](docs/Rapports.md) : permissions, pagination, periodes et conservation des montants historiques.

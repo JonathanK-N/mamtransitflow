@@ -275,29 +275,8 @@ class DashboardView(ScopedView):
 
 class ReportsView(ScopedView):
     def get(self,request):
-        self.ensure('journal')
-        start=request.query_params.get('start');end=request.query_params.get('end')
-        entries=m.JournalEntry.objects.filter(organization=self.org,status='posted')
-        if start:entries=entries.filter(date__gte=start)
-        if end:entries=entries.filter(date__lte=end)
-        balances={a.code:{'code':a.code,'name':a.name,'debit':Decimal(0),'credit':Decimal(0)} for a in m.Account.objects.filter(organization=self.org)}
-        for entry in entries:
-            for line in entry.lines:
-                row=balances[line['account']];row['debit']+=Decimal(line['debit']);row['credit']+=Decimal(line['credit'])
-        for row in balances.values():row['balance']=row['debit']-row['credit']
-        missions=[]
-        orders=m.TransportOrder.objects.filter(organization=self.org).select_related('customer')
-        if start:orders=orders.filter(planned_date__gte=start)
-        if end:orders=orders.filter(planned_date__lte=end)
-        costs=dict(m.Expense.objects.filter(organization=self.org,status='approved',mission__order__isnull=False)
-            .values('mission__order').annotate(total=Sum('amount')).values_list('mission__order','total'))
-        subcontract_costs=dict(m.Subcontract.objects.filter(organization=self.org,status='completed',mission__order__isnull=False)
-            .values('mission__order').annotate(total=Sum('agreed_amount')).values_list('mission__order','total'))
-        for order in orders.iterator():
-            cost=costs.get(order.pk,0)+subcontract_costs.get(order.pk,0)
-            missions.append({'reference':order.reference,'customer':order.customer.name,'revenue':order.amount,'cost':cost,'margin':order.amount-cost})
-        return Response({'trial_balance':list(balances.values()),'profitability':missions,'currency':self.org.currency,
-            'note':'Rentabilité commerciale : prix convenu moins dépenses de mission validées et sous-traitances réalisées, hors charges indirectes.'})
+        from .reporting import summary
+        return Response(summary(self,request))
 
 
 class ExportView(ScopedView):
@@ -311,7 +290,8 @@ class ExportView(ScopedView):
         for obj in qs.iterator(chunk_size=500):
             values=[]
             for field in fields:
-                val=str(getattr(obj,field) or '')
+                value=getattr(obj,field)
+                val='' if value is None else str(value)
                 if val.lstrip()[:1] in ('=','+','-','@'):val="'"+val
                 values.append(val)
             writer.writerow(values)
