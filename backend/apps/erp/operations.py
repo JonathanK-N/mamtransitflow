@@ -186,13 +186,13 @@ class OperationsAssignmentView(ScopedView):
         if ('mission' in data)==('order' in data):raise ValidationError('Choisissez une mission ou une commande à affecter.')
         current=None
         if 'mission' in data:
-            current=get_object_or_404(self.queryset('missions').select_for_update(),pk=data['mission'])
+            current=get_object_or_404(self.queryset('missions').select_for_update(of=('self',)),pk=data['mission'])
             if current.updated_at!=data['expected_updated_at']:raise Conflict()
             if current.status!='planned':raise ValidationError('Seule une mission planifiée peut être réaffectée. Le GPS actif et les livraisons restent verrouillés.')
             fields=data['fields']
         else:
             self.ensure('orders',True)
-            order=get_object_or_404(self.queryset('orders').select_for_update(),pk=data['order'])
+            order=get_object_or_404(self.queryset('orders').select_for_update(of=('self',)),pk=data['order'])
             if order.updated_at!=data['expected_updated_at'] or order.status!='confirmed' or m.Mission.objects.filter(organization=self.org,order=order).exclude(status='cancelled').exists():raise Conflict()
             fields=dict(data['fields'],order=str(order.pk))
             fields.setdefault('origin',order.origin);fields.setdefault('destination',order.destination)

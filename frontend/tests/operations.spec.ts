@@ -36,7 +36,7 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
  expect(registration.status()).toBe(201)
  const owner=await registration.json(),org=owner.organizations[0].id,headers={Authorization:'Bearer '+owner.access,'X-Organization':org}
  const proof:any={profile:info.project.name,organization:org,owner_email:email,status:'running'},proofPath=info.outputPath('operations-proof.json');mkdirSync(dirname(proofPath),{recursive:true});const save=(stage:string)=>{proof.stage=stage;writeFileSync(proofPath,JSON.stringify(proof,null,2))};save('registered')
- const post=async(path:string,data:any={},h=headers)=>{const r=await request.post('/api/v2/'+path,{headers:h,data});expect(r.status(),(await r.text()).slice(0,600)).toBeGreaterThanOrEqual(200);expect(r.status()).toBeLessThan(300);return r.json()}
+ const post=async(path:string,data:any={},h=headers)=>{const r=await request.post('/api/v2/'+path,{headers:h,data});const detail=path+' '+(await r.text()).slice(0,600);expect(r.status(),detail).toBeGreaterThanOrEqual(200);expect(r.status(),detail).toBeLessThan(300);return r.json()}
  const get=async(path:string)=>{const r=await request.get('/api/v2/'+path,{headers});expect(r.status()).toBe(200);return r.json()}
  const vehicle=await post('vehicles',{plate:'OPS-'+stamp,name:'Camion TEST Exploitation',capacity:1000,capacity_unit:'kg'}),customer=await post('partners',{name:'Client TEST Exploitation '+stamp})
  const invite=await post('team',{email:driverEmail,role:'driver'})
@@ -81,7 +81,7 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
   await page.goto('/app#operations');await expect(center).toBeVisible();await center.locator('[data-operation="'+trip.id+'"]') .getByRole('button',{name:'Contacter chauffeur',exact:true}).click();expect((await get('messaging/conversations')).results.filter((x:any)=>x.kind==='direct')).toHaveLength(1);proof.conversation=first.id
   await page.goto('/app#operations');await expect(center).toBeVisible();await post('missions/'+trip.id+'/tracking',{state:'unavailable'},driverHeaders)
   await expect(center.locator('.operations-alerts')).toContainText('Signal GPS interrompu')
-  const incident=await post('incidents',{vehicle:vehicle.id,mission:trip.id,title:'Incident TEST Exploitation',occurred_at:new Date().toISOString(),severity:'minor'});await post('incidents/'+incident.id+'/actions/report');proof.incident=incident.id
+  const incident=await post('incidents',{reference:'INC-TEST-'+stamp,vehicle:vehicle.id,mission:trip.id,title:'Incident TEST Exploitation',occurred_at:new Date().toISOString(),severity:'minor'});await post('incidents/'+incident.id+'/actions/report');proof.incident=incident.id
   await expect(center.locator('.operations-alerts')).toContainText(incident.title)
   await post('missions/'+trip.id+'/actions/complete',{loaded_quantity:'0',delivered_quantity:'0'},driverHeaders)
   await expect(center.locator('[data-operation="'+trip.id+'"]')).toContainText('Terminée');await expect(center.locator('.leaflet-interactive')).toHaveCount(0);await post('incidents/'+incident.id+'/actions/resolve',{resolution:'Recette TEST terminée'});proof.real_time_completion=true;save('completed')
