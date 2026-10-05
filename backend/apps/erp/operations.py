@@ -119,7 +119,13 @@ class OperationsCenterView(ScopedView):
         allowed=[name for name,key in resources.items() if self.enabled(key)]
         activity=m.AuditEvent.objects.filter(organization=self.org,resource__in=allowed).order_by('-created_at')[:15]
         action_labels={'create':'Création','update':'Modification','start':'Démarrage','complete':'Fin','confirm':'Confirmation','cancel':'Annulation','report':'Signalement','resolve':'Résolution','operations-assign':'Affectation','operations-reassign':'Réaffectation','receipt-sign':'Signature livraison'}
+        selection=None
+        if request.query_params.get('selected_mission'):
+            selected_id=serializers.UUIDField().run_validation(request.query_params['selected_mission'])
+            selected_row=get_object_or_404(missions.select_related('order__customer','driver','vehicle'),pk=selected_id)
+            selection=serialize_mission(selected_row,now)
         return Response(dict(date=selected,today=today,timezone=self.org.timezone,server_time=now,current=current,kpi=summary,
+            selection=selection,
             missions=dict(results=output,count=pager.page.paginator.count,page=pager.page.number,pages=pager.page.paginator.num_pages),
             alerts=dict(results=alert_output,count=alert_page.page.paginator.count,page=alert_page.page.number,pages=alert_page.page.paginator.num_pages),
             modules={key:self.enabled(key) for key in ('missions','orders','vehicles','employees','maintenance','incidents','partners')},

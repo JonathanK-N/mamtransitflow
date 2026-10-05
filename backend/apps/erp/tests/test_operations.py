@@ -55,6 +55,7 @@ def test_foreign_resources_and_mission_denied(env):
     foreign=m.Vehicle.objects.create(organization=env['other'],plate='SECRET')
     assert env['client'].get('/api/v2/operations/resources',{'q':'SECRET'}).data['count']==0
     assert env['client'].get('/api/v2/operations/missions/'+str(foreign.pk)).status_code==404
+    assert env['client'].get('/api/v2/operations/center',{'selected_mission':str(foreign.pk)}).status_code==404
 
 
 def test_availability_respects_overlap_leave_license_maintenance_and_tenant(env):
