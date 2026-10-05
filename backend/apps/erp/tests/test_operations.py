@@ -108,23 +108,34 @@ def test_org_date_and_historical_view(env):
     assert env['client'].get('/api/v2/operations/center',{'date':'invalid'}).status_code==400
 
 
-def test_volume_query_count_and_pagination(env,django_assert_max_num_queries):
+def test_volume_query_count_and_pagination(env,record_property):
     import time
+    from datetime import datetime,time as clock
+    from zoneinfo import ZoneInfo
+    from unittest.mock import patch
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
     vehicles=m.Vehicle.objects.bulk_create([m.Vehicle(organization=env['org'],plate=f'VOLUME-{n:03}') for n in range(100)])
     drivers=m.Employee.objects.bulk_create([m.Employee(organization=env['org'],name=f'Driver {n:03}') for n in range(100)])
-    now=timezone.now()
+    zone=ZoneInfo(env['org'].timezone)
+    now=datetime.combine(timezone.localtime(timezone.now(),zone).date(),clock(12),zone)
     trips=m.Mission.objects.bulk_create([m.Mission(organization=env['org'],reference=f'VOLUME-{n:03}-{j}',driver=drivers[n],vehicle=vehicles[n],origin='A',destination='B',status='active' if j==0 else 'planned',started_at=now-timedelta(minutes=10) if j==0 else None,departure=now+timedelta(hours=j*3),arrival=now+timedelta(hours=j*3+1)) for n in range(100) for j in range(2)])
     m.Position.objects.bulk_create([m.Position(organization=env['org'],mission=row,timestamp=now,latitude='9.537',longitude='-13.678') for row in trips if row.status=='active' and int(row.reference.split('-')[1])<50])
     started=time.perf_counter()
-    with django_assert_max_num_queries(20):
+    with patch('apps.erp.operations.timezone.now',return_value=now),CaptureQueriesContext(connection) as queries:
         response=env['client'].get('/api/v2/operations/center',{'page_size':25})
+    elapsed=(time.perf_counter()-started)*1000
+    assert len(queries)<=20
+    record_property('volume','100 vehicles / 100 drivers / 200 missions / 50 positions')
+    record_property('center_sql_queries',len(queries));record_property('center_ms',round(elapsed,1))
     assert response.status_code==200,response.data
     assert response.data['missions']['count']==200
     assert len(response.data['missions']['results'])==25
     assert response.data['alerts']['count']==50
-    print(f'Operations 100 vehicles / 100 drivers / 200 missions: {(time.perf_counter()-started)*1000:.1f} ms')
-    with django_assert_max_num_queries(10):
+    with patch('apps.erp.operations.timezone.now',return_value=now),CaptureQueriesContext(connection) as queries:
         response=env['client'].get('/api/v2/operations/resources',{'kind':'drivers','page_size':25})
+    assert len(queries)<=10
+    record_property('drivers_sql_queries',len(queries))
     assert response.data['count']==101
 
 
@@ -139,3 +150,56 @@ def test_operations_contact_reuses_direct_and_cannot_remove(env):
     assert first.status_code==201,first.data
     assert second.status_code==200 and second.data['id']==first.data['id']
     assert env['client'].post(url+'/remove',{},format='json').status_code==403
+
+
+@pytest.mark.parametrize('role',['owner','admin','operations'])
+def test_operational_roles_can_read_center(env,role):
+    env['member'].role=role;env['member'].save()
+    assert env['client'].get('/api/v2/operations/center').status_code==200
+
+
+def test_assignment_foreign_order_and_driver_refused(env):
+    foreign_customer=m.Partner.objects.create(organization=env['other'],name='SECRET')
+    foreign_order=m.TransportOrder.objects.create(organization=env['other'],customer=foreign_customer,reference='SECRET',origin='A',destination='B',planned_date=timezone.localdate(),status='confirmed')
+    foreign_driver=m.Employee.objects.create(organization=env['other'],name='SECRET')
+    now=timezone.now()+timedelta(hours=1)
+    fields=dict(driver=str(env['driver'].pk),vehicle=str(env['vehicle'].pk),departure=now.isoformat(),arrival=(now+timedelta(hours=1)).isoformat())
+    response=env['client'].post('/api/v2/operations/assign',dict(order=str(foreign_order.pk),expected_updated_at=foreign_order.updated_at.isoformat(),fields=fields),format='json')
+    assert response.status_code==404
+    order=m.TransportOrder.objects.create(organization=env['org'],customer=env['partner'],reference='LOCAL',origin='A',destination='B',planned_date=timezone.localdate(),status='confirmed')
+    fields['driver']=str(foreign_driver.pk)
+    assert env['client'].post('/api/v2/operations/assign',dict(order=str(order.pk),expected_updated_at=order.updated_at.isoformat(),fields=fields),format='json').status_code==400
+    assert not m.Mission.objects.exists()
+
+
+def test_late_risk_and_alert_reads_do_not_notify_again(env):
+    from unittest.mock import patch
+    from uuid import UUID
+    now=timezone.now()
+    trip=mission(env)
+    m.Mission.objects.filter(pk=trip['id']).update(departure=now-timedelta(minutes=5),arrival=now+timedelta(hours=1))
+    env['driver'].license_expiry=now.date()-timedelta(days=1);env['driver'].save()
+    count=m.GlobalNotification.objects.count()
+    with patch('apps.erp.operations.timezone.now',return_value=now):
+        first=env['client'].get('/api/v2/operations/center',{'filter':'problems'}).data
+        second=env['client'].get('/api/v2/operations/center').data
+    assert first['kpi']['late']==1
+    assert first['missions']['count']==1
+    assert first['missions']['results'][0]['resource_problem'] is True
+    assert len(first['alerts']['results'])==1
+    assert first['alerts']['results'][0]['kind']=='resource'
+    assert first['alerts']['results'][0]['key']==second['alerts']['results'][0]['key']
+    assert str(UUID(first['alerts']['results'][0]['object_id']))==trip['id']
+    assert m.GlobalNotification.objects.count()==count
+
+
+def test_gps_boundary_matches_tracking_state(env):
+    from unittest.mock import patch
+    now=timezone.now();trip=mission(env)
+    m.Mission.objects.filter(pk=trip['id']).update(status='active',started_at=now-timedelta(minutes=10))
+    m.Position.objects.create(organization=env['org'],mission_id=trip['id'],timestamp=now-timedelta(seconds=180),latitude=9,longitude=1)
+    with patch('apps.erp.operations.timezone.now',return_value=now):
+        data=env['client'].get('/api/v2/operations/center').data
+    assert data['kpi']['gps_lost']==1
+    assert data['missions']['results'][0]['gps']=='lost'
+    assert data['alerts']['results'][0]['severity']=='critical'

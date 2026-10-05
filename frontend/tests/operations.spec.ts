@@ -50,7 +50,7 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
  const order=await post('orders',{customer:customer.id,origin:'Conakry',destination:'Kindia',planned_date:(await get('operations/center')).today});await post('orders/'+order.id+'/actions/confirm')
  Object.assign(proof,{vehicle:vehicle.id,driver:driver.id,customer:customer.id,order:order.id});save('setup')
  const login=async(p:any,account:string)=>{await p.goto('/connexion');await p.getByLabel('Adresse courriel').fill(account);await p.getByLabel('Mot de passe',{exact:true}).fill(password);await p.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(p.locator('.workspace')).toBeVisible()}
- let driverContext:any,trip:any
+ let driverContext:any,assignmentContext:any,trip:any
  try{
   await login(page,email);const center=page.locator('.operations-center');await expect(center).toBeVisible()
   await expect(center.locator('[data-operation="'+late.id+'"]')).toContainText('Horaire dépassé')
@@ -59,7 +59,12 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
   await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Flotte',exact:true}).click();await expect(center.locator('.operations-resources')).toContainText('En maintenance');await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Missions',exact:true}).click()
   await center.getByRole('navigation',{name:'Filtres missions'}).getByRole('button',{name:'À affecter',exact:true}).click()
   let card=center.locator('[data-operation="'+order.id+'"]');await expect(card).toBeVisible();await card.getByRole('button',{name:'Affecter',exact:true}).click()
-  const dialog=page.getByRole('dialog');await expect(dialog.getByLabel('Chauffeur',{exact:true})).toContainText(driver.name);await dialog.getByLabel('Chauffeur',{exact:true}).selectOption(driver.id);await dialog.getByLabel('Véhicule',{exact:true}).selectOption(vehicle.id);await dialog.getByRole('button',{name:/Enregistrer/}).click();await expect(dialog).toHaveCount(0);await expect(center.locator('[data-operation="'+order.id+'"]')).toHaveCount(0)
+  const dialog=page.getByRole('dialog');await expect(dialog.getByLabel('Chauffeur',{exact:true})).toContainText(driver.name);await dialog.getByLabel('Chauffeur',{exact:true}).selectOption(driver.id);await dialog.getByLabel('Véhicule',{exact:true}).selectOption(vehicle.id)
+  assignmentContext=await browser.newContext({...info.project.use,baseURL:process.env.TF_TEST_URL||'http://127.0.0.1:8000'} as any);const otherPage=await assignmentContext.newPage();await login(otherPage,email);const otherCenter=otherPage.locator('.operations-center');await otherCenter.getByRole('navigation',{name:'Filtres missions'}).getByRole('button',{name:'À affecter',exact:true}).click();await otherCenter.locator('[data-operation="'+order.id+'"]') .getByRole('button',{name:'Affecter',exact:true}).click();const otherDialog=otherPage.getByRole('dialog');await otherDialog.getByLabel('Chauffeur',{exact:true}).selectOption(driver.id);await otherDialog.getByLabel('Véhicule',{exact:true}).selectOption(vehicle.id)
+  if(process.env.TF_TEST_SERIAL_ASSIGNMENT==='1'){await dialog.getByRole('button',{name:/Enregistrer/}).click();await expect(dialog).toHaveCount(0);await otherDialog.getByRole('button',{name:/Enregistrer/}).click()}
+  else await Promise.all([dialog.getByRole('button',{name:/Enregistrer/}).click(),otherDialog.getByRole('button',{name:/Enregistrer/}).click()]);await expect.poll(async()=> (await get('missions')).results.filter((x:any)=>x.order===order.id).length).toBe(1)
+  await expect.poll(async()=> (await dialog.count())+(await otherDialog.count())).toBe(1);const conflict=await dialog.count()?dialog:otherDialog;await expect(conflict.getByRole('alert')).toContainText('affectation a changé');if(await dialog.count())await dialog.getByRole('button',{name:'Fermer',exact:true}).click();await assignmentContext.close();assignmentContext=null;proof.concurrent_assignment_rejected=process.env.TF_TEST_SERIAL_ASSIGNMENT!=='1';proof.stale_assignment_rejected=true
+  await expect(center.locator('[data-operation="'+order.id+'"]')).toHaveCount(0)
   trip=(await get('missions')).results.find((x:any)=>x.order===order.id);proof.mission=trip.id;save('assigned')
   await center.getByRole('navigation',{name:'Filtres missions'}).getByRole('button',{name:'Toutes',exact:true}).click();card=center.locator('[data-operation="'+trip.id+'"]');await expect(card).toBeVisible()
   await card.getByRole('button',{name:'Voir client',exact:true}).click();await expect(page.getByRole('heading',{name:customer.name,exact:true})).toBeVisible();await page.goto('/app#operations');await expect(center).toBeVisible()
@@ -81,7 +86,7 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
   await page.goto('/app#operations');await expect(center).toBeVisible();await center.locator('[data-operation="'+trip.id+'"]') .getByRole('button',{name:'Contacter chauffeur',exact:true}).click();expect((await get('messaging/conversations')).results.filter((x:any)=>x.kind==='direct')).toHaveLength(1);proof.conversation=first.id
   await page.goto('/app#operations');await expect(center).toBeVisible();await post('missions/'+trip.id+'/tracking',{state:'unavailable'},driverHeaders)
   await expect(center.locator('.operations-alerts')).toContainText('Signal GPS interrompu')
-  const incident=await post('incidents',{reference:'INC-TEST-'+stamp,vehicle:vehicle.id,mission:trip.id,title:'Incident TEST Exploitation',occurred_at:new Date().toISOString(),severity:'minor'});await post('incidents/'+incident.id+'/actions/report');proof.incident=incident.id
+  const incident=await post('incidents',{reference:'INC-TEST-'+stamp,vehicle:vehicle.id,mission:trip.id,title:'Incident TEST Exploitation',description:'Incident contrôlé pour la recette, sans événement réel.',occurred_at:new Date().toISOString(),severity:'minor'});await post('incidents/'+incident.id+'/actions/report');proof.incident=incident.id
   await expect(center.locator('.operations-alerts')).toContainText(incident.title)
   await post('missions/'+trip.id+'/actions/complete',{loaded_quantity:'0',delivered_quantity:'0'},driverHeaders)
   await expect(center.locator('[data-operation="'+trip.id+'"]')).toContainText('Terminée');await expect(center.locator('.leaflet-interactive')).toHaveCount(0);await post('incidents/'+incident.id+'/actions/resolve',{resolution:'Recette TEST terminée'});proof.real_time_completion=true;save('completed')
@@ -90,6 +95,7 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
   proof.status='passed';save('verified')
  }finally{
   await driverContext?.close()
+  await assignmentContext?.close()
   const missions=await get('missions');for(const item of missions.results)if(['planned','active'].includes(item.status))await post('missions/'+item.id+'/actions/cancel')
   const incidents=await get('incidents');for(const item of incidents.results)if(item.status==='reported')await post('incidents/'+item.id+'/actions/resolve',{resolution:'Nettoyage recette TEST'})
   const orders=await get('orders');for(const item of orders.results)if(['draft','confirmed'].includes(item.status))await post('orders/'+item.id+'/actions/cancel')

@@ -46,7 +46,7 @@ jobs:
         working-directory: frontend
       - run: python backend/manage.py check && python backend/manage.py makemigrations --check --dry-run
       - run: python backend/manage.py collectstatic --noinput
-      - run: python -m pytest apps/erp/tests -q
+      - run: python -m pytest apps/erp/tests -q --junitxml=erp-tests.xml -o junit_family=legacy
         working-directory: backend
       - run: python backend/manage.py migrate --noinput
       - run: pnpm exec playwright install --with-deps chromium webkit
@@ -151,6 +151,7 @@ jobs:
         with:
           name: recette-navigateur
           path: |
+            backend/erp-tests.xml
             frontend/playwright-report-crm-*
             frontend/test-results-crm-*
             frontend/playwright-report-operations-*

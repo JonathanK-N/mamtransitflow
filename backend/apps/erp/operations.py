@@ -158,7 +158,9 @@ class OperationsResourcesView(ScopedView):
             if kind=='vehicles':
                 output[-1].update(gps=gps_status(SimpleNamespace(status='active',tracking_status=x.current_tracking_status,started_at=x.current_started_at),x.last_position_at,now) if x.current_mission else 'ended',last_position_at=x.last_position_at)
         summary=rows.aggregate(total=Count('id'),in_mission=Count('id',filter=Q(current_mission__isnull=False)),available=Count('id',filter=Q(id__in=(free_vehicles if kind=='vehicles' else free_drivers).values('id'))))
-        if kind=='vehicles':summary.update(rows.aggregate(maintenance=Count('id',filter=Q(in_workshop=True)|Q(status='maintenance')),unavailable=Count('id',filter=Q(status='retired'))))
+        if kind=='vehicles':
+            lost=Q(current_mission__isnull=False)&~Q(current_tracking_status__in=['permission_required','unavailable'])&(Q(last_position_at__lte=now-timedelta(seconds=CONFIG['lost_seconds']))|Q(last_position_at__isnull=True,current_started_at__lte=now-timedelta(seconds=CONFIG['lost_seconds'])))
+            summary.update(rows.aggregate(maintenance=Count('id',filter=Q(in_workshop=True)|Q(status='maintenance')),unavailable=Count('id',filter=Q(status='retired')),gps_lost=Count('id',filter=lost)))
         else:summary.update(rows.aggregate(leave=Count('id',filter=Q(on_leave=True)),license=Count('id',filter=Q(license_expiry__lt=first)),unavailable=Count('id',filter=Q(active=False))))
         response=pager.get_paginated_response(output);response.data['summary']=summary
         return response
