@@ -2,7 +2,9 @@ import {test,expect} from '@playwright/test'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {dirname} from 'node:path'
 
-test('Centre : 100 marqueurs, carte conservée, tuiles indisponibles et aucun historique automatique',async({page,request},info)=>{
+test.describe('Charge cartographique',()=>{
+ test.use({serviceWorkers:'block'})
+ test('Centre : 100 marqueurs, carte conservée, tuiles indisponibles et aucun historique automatique',async({page,request},info)=>{
  test.setTimeout(120000)
  if(info.project.name==='small')await page.setViewportSize({width:360,height:740})
  const stamp=Date.now()+'-'+info.project.name,email='operations-volume-'+stamp+'@example.test',password='Operations-Test-938!'
@@ -28,9 +30,13 @@ test('Centre : 100 marqueurs, carte conservée, tuiles indisponibles et aucun hi
  expect(await page.evaluate(()=>document.querySelector('.leaflet-container')===(window as any).__mapNode&&document.querySelector('.leaflet-interactive')===(window as any).__markerNode)).toBeTruthy()
  expect(await center.locator('.leaflet-map-pane').getAttribute('style')).toBe(transform);expect(history).toBe(0);expect(calls).toBeLessThanOrEqual(before+2)
  await page.getByRole('button',{name:'Fermer la carte',exact:true}).click();await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Missions',exact:true}).click();await expect(center.getByText('Aucune mission ou commande pour ce filtre.')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ const refreshMs=Date.now()-changed
  const nextDay=new Date(snapshot.today+'T12:00:00Z');nextDay.setUTCDate(nextDay.getUTCDate()+1);serverDay=nextDay.toISOString().slice(0,10);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await expect(center.getByLabel('Journée',{exact:true})).toHaveValue(serverDay)
- await center.getByLabel('Journée',{exact:true}).fill(snapshot.today);await expect(center.getByText(/Journée consultée/)).toBeVisible();nextDay.setUTCDate(nextDay.getUTCDate()+1);serverDay=nextDay.toISOString().slice(0,10);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await expect(center.getByLabel('Journée',{exact:true})).toHaveValue(snapshot.today)
- const pathProof=info.outputPath('operations-volume.json');mkdirSync(dirname(pathProof),{recursive:true});writeFileSync(pathProof,JSON.stringify({profile:info.project.name,markers:100,initial_ms:initialMs,refresh_ms:Date.now()-changed,tracking_calls:calls,history_calls:history,map_preserved:true,markers_preserved:true,pan_zoom_preserved:true,tiles_failure_tolerated:true},null,2))
+ await center.getByLabel('Journée',{exact:true}).fill(snapshot.today);await center.getByLabel('Journée',{exact:true}).dispatchEvent('change');await expect(center.getByText(/Journée consultée/)).toBeVisible();nextDay.setUTCDate(nextDay.getUTCDate()+1);serverDay=nextDay.toISOString().slice(0,10);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await expect(center.getByLabel('Journée',{exact:true})).toHaveValue(snapshot.today)
+ await center.getByRole('button',{name:'Aujourd’hui',exact:true}).click();await expect(center.getByLabel('Journée',{exact:true})).toHaveValue(serverDay)
+ const pathProof=info.outputPath('operations-volume.json');mkdirSync(dirname(pathProof),{recursive:true});writeFileSync(pathProof,JSON.stringify({profile:info.project.name,markers:100,initial_ms:initialMs,refresh_ms:refreshMs,tracking_calls:calls,history_calls:history,map_preserved:true,markers_preserved:true,pan_zoom_preserved:true,tiles_failure_tolerated:true},null,2))
+})
+
 })
 
 test('Centre : affectation, deux sessions GPS, conversation réutilisée, alertes et fin de mission',async({page,browser,request},info)=>{

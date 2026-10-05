@@ -45,7 +45,7 @@ defineExpose({refresh:reload})
 </script>
 <template>
  <section class="operations-center" aria-label="Centre d’exploitation">
-  <header class="operations-toolbar"><div><strong>{{org.name}}</strong><p>{{connectionState}} · {{data?.timezone||org.timezone}} <span v-if="data">· Actualisé {{stamp(data.server_time)}}</span></p></div><label>Journée<input v-model="date" type="date" @change="followToday=false;page=1;alertPage=1;reload()"/></label><button class="secondary" @click="date='';page=1;reload()">Aujourd’hui</button><button class="secondary" :disabled="busy" @click="reload">Actualiser</button></header>
+  <header class="operations-toolbar"><div><strong>{{org.name}}</strong><p>{{connectionState}} · {{data?.timezone||org.timezone}} <span v-if="data">· Actualisé {{stamp(data.server_time)}}</span></p></div><label>Journée<input v-model="date" type="date" @change="followToday=false;page=1;alertPage=1;reload()"/></label><button class="secondary" @click="followToday=true;date='';page=1;alertPage=1;reload()">Aujourd’hui</button><button class="secondary" :disabled="busy" @click="reload">Actualiser</button></header>
   <div v-if="error" class="error-box" role="alert">{{error}} <button class="secondary" @click="reload">Réessayer</button></div>
   <p v-if="busy" role="status">Chargement de l’exploitation…</p>
   <template v-if="data">
