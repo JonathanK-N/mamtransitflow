@@ -32,6 +32,7 @@ jobs:
       TF_DEBUG: '1'
       TF_LEGACY_ENABLED: '0'
       TF_REDIS_URL: redis://127.0.0.1:6379
+      TF_TEST_MAIL_FILE: /tmp/transitflow-test-mail.jsonl
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,7 +54,8 @@ jobs:
         working-directory: frontend
       - name: Serveur de recette
         run: |
-          python -m uvicorn transitflow.asgi:application --app-dir backend --host 127.0.0.1 --port 8000 --workers 2 > /tmp/transitflow-server.log 2>&1 &
+          python scripts/test_smtp.py > /tmp/transitflow-smtp.log 2>&1 &
+          TF_EMAIL_HOST=127.0.0.1 TF_EMAIL_PORT=8025 TF_EMAIL_TLS=0 python -m uvicorn transitflow.asgi:application --app-dir backend --host 127.0.0.1 --port 8000 --workers 2 > /tmp/transitflow-server.log 2>&1 &
           for attempt in $(seq 1 30); do
             curl --fail http://127.0.0.1:8000/api/sante && exit 0
             sleep 1

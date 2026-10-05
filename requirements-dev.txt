@@ -2,3 +2,4 @@
 pytest==9.0.2
 pytest-django==4.14.0
 daphne==4.2.3
+aiosmtpd==1.4.6

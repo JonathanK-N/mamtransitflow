@@ -1,10 +1,12 @@
 import {test,expect} from '@playwright/test'
-import {mkdirSync,writeFileSync} from 'node:fs'
+import {mkdirSync,writeFileSync,readFileSync,existsSync} from 'node:fs'
 import {dirname} from 'node:path'
 test.use({actionTimeout:30000})
 
 test('CRM : client, devis, commande, mission, livraison, facture, paiements et portail isolé',async({page,browser,request},info)=>{
  test.setTimeout(360000)
+ const mailbox=process.env.TF_TEST_MAIL_FILE
+ if(!mailbox||!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(process.env.TF_TEST_URL||'http://127.0.0.1:8000'))throw new Error('Cette recette exige un serveur local et une boîte SMTP de test ; aucun email réel ne doit être envoyé.')
  const stamp=Date.now()+'-'+info.project.name,password='Commercial-Test-938!',ownerEmail='crm-owner-'+stamp+'@example.test',driverEmail='crm-driver-'+stamp+'@example.test',clientEmail='crm-client-'+stamp+'@example.test'
  const registered=await request.post('/api/v2/auth/register',{data:{name:'Direction TEST CRM',email:ownerEmail,password,organization:{name:'TEST CRM '+stamp,country:'GN',currency:'USD',timezone:'Africa/Conakry',activities:['freight']}}})
  expect(registered.status()).toBe(201)
@@ -34,7 +36,12 @@ test('CRM : client, devis, commande, mission, livraison, facture, paiements et p
  await dialog.getByLabel('Départ',{exact:true}).fill('Conakry');await dialog.getByLabel('Destination',{exact:true}).fill('Kindia')
  await dialog.getByLabel('Description',{exact:true}).fill('Transport TEST CRM');await dialog.getByLabel('Quantité',{exact:true}).fill('2');await dialog.getByLabel('Prix unitaire',{exact:true}).fill('100')
  await dialog.getByRole('button',{name:/Enregistrer/}).click();await expect(dialog).toHaveCount(0)
- await page.getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Marquer comme envoyé',exact:true}).click();await page.getByRole('button',{name:'Accepter',exact:true}).click();await page.getByRole('button',{name:'Créer la commande',exact:true}).click()
+ await page.getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Envoyer le devis',exact:true}).click()
+ let quoteLink=''
+ await expect.poll(()=>{const messages=existsSync(mailbox)?readFileSync(mailbox,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)):[];const mail=messages.find((mail:any)=>mail.recipients.includes(clientEmail)&&mail.text.includes('/devis#'));quoteLink=mail?.text.match(/https?:\/\/[^\s]+\/devis#[\w-]+/)?.[0]||'';return !!quoteLink}).toBe(true)
+ const quoteContext=await browser.newContext({...info.project.use,baseURL:process.env.TF_TEST_URL||'http://127.0.0.1:8000'} as any)
+ try{const customerPage=await quoteContext.newPage();await customerPage.goto(quoteLink);await expect(customerPage.getByRole('heading',{name:'TEST CRM '+stamp,exact:true})).toBeVisible();await customerPage.getByRole('button',{name:'Accepter le devis',exact:true}).click();await customerPage.getByRole('button',{name:'Confirmer l’acceptation',exact:true}).click();await expect(customerPage.getByRole('status')).toContainText('Ce devis a été accepté.');proof.quote_email_received_locally=true;proof.quote_accepted_without_account=true}finally{await quoteContext.close()}
+ await page.getByRole('button',{name:'Aperçu',exact:true}).click();await page.getByRole('button',{name:'Devis',exact:true}).click();await expect(page.getByRole('button',{name:'Créer la commande',exact:true})).toBeVisible();await page.getByRole('button',{name:'Créer la commande',exact:true}).click()
  await expect.poll(async()=> (await get('orders')).count).toBe(1)
  const quote=(await get('invoices?kind=quote')).results[0],order=(await get('orders')).results[0];expect(order.source_quote).toBe(quote.id);proof.quote=quote.id;proof.order=order.id;saveProof('order-created')
  await page.getByRole('navigation',{name:'Dossier client'}).getByRole('button',{name:'Commandes',exact:true}).click();await page.getByRole('button',{name:'Confirmer la commande',exact:true}).click();await page.getByRole('button',{name:'Planifier la mission',exact:true}).click();dialog=page.getByRole('dialog')
