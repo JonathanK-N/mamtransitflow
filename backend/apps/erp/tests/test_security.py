@@ -11,6 +11,14 @@ from .test_workflows import env
 pytestmark=pytest.mark.django_db
 
 
+@pytest.mark.parametrize('path',['auth/register','auth/login','auth/password/request','auth/password/reset'])
+@pytest.mark.parametrize('body',[[],['unexpected'],'unexpected'])
+def test_public_auth_rejects_non_object_json_without_server_error(path,body):
+    result=APIClient().post('/api/v2/'+path,body,format='json')
+    assert result.status_code==400,result.data
+    assert 'objet JSON' in str(result.data)
+
+
 def test_refresh_requires_csrf_rotates_and_logout_revokes(env):
     client=APIClient(enforce_csrf_checks=True)
     result=client.post('/api/v2/auth/login',{'email':'direction@example.test','password':'Long-password-938!'},format='json')

@@ -2,6 +2,8 @@ import {test,expect} from '@playwright/test'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {dirname} from 'node:path'
 
+test.use({serviceWorkers:'block'})
+
 test.describe('Charge cartographique',()=>{
  test.use({serviceWorkers:'block'})
  test('Centre : 100 marqueurs, carte conservée, tuiles indisponibles et aucun historique automatique',async({page,request},info)=>{
@@ -96,7 +98,14 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
   await expect.poll(()=>marker.getAttribute('d'),{timeout:60000}).not.toBe(firstPath)
   expect(await marker.evaluate(el=>el===(window as any).__operationsMarker)).toBeTruthy();proof.marker_updated_in_place=true;save('gps')
   await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Missions',exact:true}).click();card=center.locator('[data-operation="'+trip.id+'"]');await expect(card).toContainText('En cours')
-  await card.getByRole('button',{name:'Contacter chauffeur',exact:true}).click();await expect(page.locator('.messaging')).toBeVisible();const first=(await get('messaging/conversations')).results.find((x:any)=>x.kind==='direct');expect(first).toBeTruthy()
+  let releaseConversation!:()=>void,conversationStarted=false
+  const conversationGate=new Promise<void>(resolve=>{releaseConversation=resolve})
+  const delayedConversation=/\/api\/v2\/messaging\/conversations\/[^/?]+$/
+  await page.route(delayedConversation,async route=>{const response=await route.fetch();conversationStarted=true;await conversationGate;await route.fulfill({response})},{times:1})
+  await card.getByRole('button',{name:'Contacter chauffeur',exact:true}).click();await expect(page.locator('.messaging')).toBeVisible();await expect.poll(()=>conversationStarted).toBe(true)
+  const first=(await get('messaging/conversations')).results.find((x:any)=>x.kind==='direct');expect(first).toBeTruthy()
+  await page.evaluate(()=>{location.hash='operations'});releaseConversation();await expect(center).toBeVisible();await expect(page).toHaveURL(/#operations$/)
+  await page.unroute(delayedConversation)
   await page.goto('/app#operations');await expect(center).toBeVisible();await center.locator('[data-operation="'+trip.id+'"]') .getByRole('button',{name:'Contacter chauffeur',exact:true}).click();await expect(page.locator('.messaging')).toBeVisible();expect((await get('messaging/conversations')).results.filter((x:any)=>x.kind==='direct')).toHaveLength(1);proof.conversation=first.id
   await page.goto('/app#operations');await expect(center).toBeVisible();await post('missions/'+trip.id+'/tracking',{state:'unavailable'},driverHeaders)
   await expect(center.locator('.operations-alerts')).toContainText('Signal GPS interrompu')

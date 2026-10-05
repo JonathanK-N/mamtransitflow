@@ -10,8 +10,8 @@ async function collaborators(){try{const result=await api('messaging/collaborato
 function findPeople(){clearTimeout(peopleTimer);peopleTimer=setTimeout(collaborators,300)}
 async function downloadFile(id:string,name:string){try{await download("messaging/attachments/"+id,name)}catch(e:any){error.value=e.message}}
 function find(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{listPage.value=1;list()},300)}
-async function select(identity:string){const version=++generation;error.value='';messages.value=[];cursor.value=null
- try{const row=await api('messaging/conversations/'+identity);if(!alive||version!==generation)return;selected.value=row;history.replaceState({},'','/app#messages?conversation='+identity);await sync(true)}catch(e:any){error.value=e.message}}
+async function select(identity:string){if(!alive||!location.hash.startsWith('#messages'))return;const route=location.hash,version=++generation;error.value='';messages.value=[];cursor.value=null
+ try{const row=await api('messaging/conversations/'+identity);if(!alive||version!==generation||location.hash!==route)return;selected.value=row;history.replaceState({},'','/app#messages?conversation='+identity);await sync(true)}catch(e:any){error.value=e.message}}
 async function sync(scroll=false){if(!selected.value)return;const nearBottom=stream.value?stream.value.scrollHeight-stream.value.scrollTop-stream.value.clientHeight<100:false;if(pending){queued=true;return}pending=true;const identity=selected.value.id,version=generation
  try{const [row,result]=await Promise.all([api('messaging/conversations/'+identity),api(`messaging/conversations/${identity}/messages`)]);if(!alive||version!==generation)return;selected.value=row
   const all=new Map(messages.value.map(m=>[m.id,m]));result.results.forEach((m:any)=>all.set(m.id,m));messages.value=Array.from(all.values()).sort((a,b)=>a.sequence-b.sequence);if(cursor.value===null)cursor.value=result.before
@@ -33,7 +33,7 @@ let previousFocus:HTMLElement|null=null
 watch(creating,async open=>{if(open){previousFocus=document.activeElement as HTMLElement;await nextTick();dialog.value?.querySelector<HTMLElement>('button,input,select')?.focus()}else previousFocus?.focus()})
 function dialogKeys(event:KeyboardEvent){if(event.key==='Escape'){creating.value=false;return}if(event.key!=='Tab')return;const elements=Array.from(dialog.value?.querySelectorAll<HTMLElement>('button:not(:disabled),input,select')||[]);const first=elements[0],last=elements[elements.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
 watch(()=>props.conversation,id=>{if(id)select(id)})
-onMounted(async()=>{viewport();window.visualViewport?.addEventListener('resize',viewport);unsubscribe=subscribeActivity(receive);await list();if(props.conversation)await select(props.conversation)})
+onMounted(async()=>{viewport();window.visualViewport?.addEventListener('resize',viewport);unsubscribe=subscribeActivity(receive);await list();if(alive&&props.conversation)await select(props.conversation)})
 onUnmounted(()=>{window.visualViewport?.removeEventListener('resize',viewport);alive=false;generation++;unsubscribe();clearTimeout(searchTimer);clearTimeout(peopleTimer);clearTimeout(typingTimer)})
 </script>
 <template>

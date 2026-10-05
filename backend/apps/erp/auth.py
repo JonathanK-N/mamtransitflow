@@ -1,6 +1,7 @@
 """Authentification SaaS. Auteur : Jonathan Kakesa (JonathanK-N)."""
 import hashlib
 import secrets
+from collections.abc import Mapping
 from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -65,7 +66,14 @@ class CsrfView(APIView):
     def get(self,request):return Response({'csrf':get_token(request)})
 
 
-class RegisterView(APIView):
+class BodyView(APIView):
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.method in ('POST','PATCH','DELETE') and not isinstance(request.data,Mapping):
+            raise ValidationError('Le corps de la requête doit être un objet JSON.')
+
+
+class RegisterView(BodyView):
     permission_classes=[AllowAny]
     authentication_classes=[]
     def post(self,request):
@@ -107,7 +115,7 @@ class RegisterView(APIView):
         return token_response(request,user,201)
 
 
-class LoginView(APIView):
+class LoginView(BodyView):
     permission_classes=[AllowAny]
     authentication_classes=[]
     def post(self,request):
@@ -118,7 +126,7 @@ class LoginView(APIView):
 
 
 @method_decorator(csrf_protect,name='dispatch')
-class RefreshView(APIView):
+class RefreshView(BodyView):
     permission_classes=[AllowAny]
     authentication_classes=[]
     def post(self,request):
@@ -133,7 +141,7 @@ class RefreshView(APIView):
 
 
 @method_decorator(csrf_protect,name='dispatch')
-class LogoutView(APIView):
+class LogoutView(BodyView):
     permission_classes=[AllowAny]
     authentication_classes=[]
     def post(self,request):
@@ -147,7 +155,7 @@ class MeView(APIView):
     def get(self,request):return Response(session_data(request.user))
 
 
-class PasswordRequestView(APIView):
+class PasswordRequestView(BodyView):
     permission_classes=[AllowAny]
     authentication_classes=[]
     def post(self,request):
@@ -165,7 +173,7 @@ class PasswordRequestView(APIView):
         return Response({'detail':'Si un compte correspond à ce courriel, un lien de réinitialisation lui sera envoyé.'})
 
 
-class PasswordResetView(APIView):
+class PasswordResetView(BodyView):
     permission_classes=[AllowAny]
     authentication_classes=[]
     def post(self,request):

@@ -41,12 +41,15 @@ def test_send_delivers_minimal_public_quote_and_only_stores_hash(env,monkeypatch
     transport.assert_called_once()
     recipient,subject,text,html=transport.call_args.args
     assert recipient=='customer@example.test' and env['org'].name in subject
+    assert 'Logo TransitFlow' in html and '/erp/email/transitflow-logo.png' in html
     token=re.search(r'/devis#([\w-]+)',text).group(1)
     link=m.QuoteLink.objects.get(quote_id=quote['id'])
     assert link.token_hash==digest(token) and token not in str(link.__dict__)
+    m.Invoice.objects.filter(pk=quote['id']).update(lines=[dict(description='Transport TEST',quantity='1',price='100',tax_rate='18',internal_cost='PRIVATE')])
     result=public(token)
     assert result.status_code==200 and result.data['total']=='118.00'
     assert set(result.data)=={'company','customer','number','date','valid_until','origin','destination','lines','subtotal','tax','total','currency','state'}
+    assert set(result.data['lines'][0])=={'description','quantity','price','tax_rate'}
     assert result['Cache-Control']=='no-store'
     assert public('x'*43).status_code==404
     assert public(token+'x').status_code==404

@@ -37,6 +37,7 @@ test('CRM : client, devis, commande, mission, livraison, facture, paiements et p
  await dialog.getByLabel('Description',{exact:true}).fill('Transport TEST CRM');await dialog.getByLabel('Quantité',{exact:true}).fill('2');await dialog.getByLabel('Prix unitaire',{exact:true}).fill('100')
  await dialog.getByRole('button',{name:/Enregistrer/}).click();await expect(dialog).toHaveCount(0)
  await page.getByRole('button',{name:'Devis',exact:true}).click();await page.getByRole('button',{name:'Envoyer le devis',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Renvoyer le devis',exact:true})).toBeVisible()
  let quoteLink=''
  await expect.poll(()=>{const messages=existsSync(mailbox)?readFileSync(mailbox,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)):[];const mail=messages.find((mail:any)=>mail.recipients.includes(clientEmail)&&mail.text.includes('/devis#'));quoteLink=mail?.text.match(/https?:\/\/[^\s]+\/devis#[\w-]+/)?.[0]||'';return !!quoteLink}).toBe(true)
  const quoteContext=await browser.newContext({...info.project.use,baseURL:process.env.TF_TEST_URL||'http://127.0.0.1:8000'} as any)

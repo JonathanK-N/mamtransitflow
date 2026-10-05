@@ -8,6 +8,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidation
 from django.db import transaction
 from django.template.loader import render_to_string
+from django.templatetags.static import static
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import AllowAny
@@ -46,7 +47,8 @@ def send_quote(request, org, actor, quote):
     url = request.build_absolute_uri('/devis') + '#' + token
     context = {'company_name': org.name, 'customer_name': quote.customer.contact_name or quote.customer.name,
         'number': quote.number, 'amount': str(quote.total), 'currency': org.currency,
-        'due_date': quote.due_date.strftime('%d/%m/%Y'), 'link': url}
+        'due_date': quote.due_date.strftime('%d/%m/%Y'), 'link': url,
+        'logo_url':request.build_absolute_uri('/'+static('erp/email/transitflow-logo.png').lstrip('/'))}
     sent = envoyer(recipient, f'{org.name} : votre devis {quote.number}',
         render_to_string('erp/email/quote.txt', context), render_to_string('erp/email/quote.html', context))
     if not sent:
@@ -84,7 +86,8 @@ class PublicQuoteView(APIView):
             elif action == 'preview':
                 response = Response({'company': quote.organization.name, 'customer': quote.customer.name,
                     'number': quote.number, 'date': str(quote.date), 'valid_until': str(quote.due_date),
-                    'origin': quote.origin, 'destination': quote.destination, 'lines': quote.lines,
+                    'origin': quote.origin, 'destination': quote.destination,
+                    'lines': [{key:line.get(key,'') for key in ('description','quantity','price','tax_rate')} for line in quote.lines],
                     'subtotal': str(quote.subtotal), 'tax': str(quote.tax), 'total': str(quote.total),
                     'currency': quote.organization.currency, 'state': quote.quote_status})
             else:
