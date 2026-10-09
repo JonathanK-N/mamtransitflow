@@ -70,7 +70,7 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
  try{
   await login(page,email);const center=page.locator('.operations-center');await expect(center).toBeVisible()
   await expect(center.locator('[data-operation="'+late.id+'"]')).toContainText('Horaire dépassé')
-  const plannedDay=planned.departure.slice(0,10),selectedDay=await center.getByLabel('Journée',{exact:true}).inputValue()
+  const plannedDay=new Date(planned.departure).toISOString().slice(0,10),selectedDay=await center.getByLabel('Journée',{exact:true}).inputValue()
   if(plannedDay!==selectedDay){await center.getByLabel('Journée',{exact:true}).fill(plannedDay);await center.getByLabel('Journée',{exact:true}).dispatchEvent('change')}
   await expect(center.locator('[data-operation="'+planned.id+'"]')).toContainText('Planifiée')
   if(plannedDay!==selectedDay)await center.getByRole('button',{name:'Aujourd’hui',exact:true}).click()
@@ -85,6 +85,8 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
   await expect.poll(async()=> (await dialog.count())+(await otherDialog.count())).toBe(1);const conflict=await dialog.count()?dialog:otherDialog;await expect(conflict.getByRole('alert')).toContainText('affectation a changé');if(await dialog.count())await dialog.locator('button.icon-btn[aria-label="Fermer"]').click();await assignmentContext.close();assignmentContext=null;proof.concurrent_assignment_rejected=process.env.TF_TEST_SERIAL_ASSIGNMENT!=='1';proof.stale_assignment_rejected=true
   await expect(center.locator('[data-operation="'+order.id+'"]')).toHaveCount(0)
   trip=(await get('missions')).results.find((x:any)=>x.order===order.id);proof.mission=trip.id;save('assigned')
+  const assignedDay=new Date(trip.departure).toISOString().slice(0,10)
+  if(assignedDay!==await center.getByLabel('Journée',{exact:true}).inputValue()){await center.getByLabel('Journée',{exact:true}).fill(assignedDay);await center.getByLabel('Journée',{exact:true}).dispatchEvent('change')}
   await center.getByRole('navigation',{name:'Filtres missions'}).getByRole('button',{name:'Toutes',exact:true}).click();card=center.locator('[data-operation="'+trip.id+'"]');await expect(card).toBeVisible()
   await card.getByRole('button',{name:'Voir client',exact:true}).click();await expect(page.getByRole('heading',{name:customer.name,exact:true})).toBeVisible();await page.goto('/app#operations');await expect(center).toBeVisible()
   driverContext=await browser.newContext({...info.project.use,baseURL:process.env.TF_TEST_URL||'http://127.0.0.1:8000',permissions:['geolocation'],geolocation:{latitude:9.537,longitude:-13.678,accuracy:5}} as any)
