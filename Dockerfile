@@ -12,7 +12,7 @@ FROM ${BASE_IMAGE_REGISTRY}/python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TF_DEBUG=0
 WORKDIR /app
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.1 && python -m pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY --from=frontend /build/dist ./frontend/dist/
 RUN python backend/manage.py collectstatic --noinput && useradd --create-home --uid 10001 transitflow && mkdir -p /data/privatefiles && chown -R transitflow:transitflow /app /data

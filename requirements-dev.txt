@@ -1,5 +1,5 @@
 -r requirements.txt
-pytest==9.0.2
+pytest==9.0.3
 pytest-django==4.14.0
 daphne==4.2.3
 aiosmtpd==1.4.6
