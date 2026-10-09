@@ -60,6 +60,6 @@ def test_received_purchase_is_not_expensed_twice(env):
     bill=create(env,'supplier-bills',dict(reference='FOU-FILTRE',supplier=str(env['partner'].pk),purchase=purchase['id'],date='2026-09-26',due_date='2026-10-26',lines=[{'description':'Filtres','quantity':2,'price':50,'tax_rate':0}]))
     act(env,'supplier-bills',bill['id'],'post')
     balance=env['client'].get('/api/v2/reports').data['trial_balance']
-    assert next(x for x in balance if x['code']=='601')['debit']==100
+    assert next(x for x in balance if x['code']=='601')['debit']=='100.00'
     duplicate=env['client'].post('/api/v2/supplier-bills',dict(reference='FOU-FILTRE-2',supplier=str(env['partner'].pk),purchase=purchase['id'],date='2026-09-26',due_date='2026-10-26',lines=[{'description':'Filtres','quantity':2,'price':50,'tax_rate':0}]),format='json')
     assert duplicate.status_code==400

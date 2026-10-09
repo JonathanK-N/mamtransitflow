@@ -11,6 +11,18 @@ from .test_workflows import env
 pytestmark=pytest.mark.django_db
 
 
+def test_trial_balance_json_preserves_large_decimal_cents(env):
+    account=m.Account.objects.filter(organization=env['org']).first()
+    assert account is not None
+    m.JournalEntry.objects.create(organization=env['org'],reference='TEST-EXACT-CENTS',date=date(2026,10,5),description='Montants exacts',status='posted',lines=[{'account':account.code,'debit':'99999999999999.99','credit':'0.01'}])
+    response=env['client'].get('/api/v2/reports')
+    assert response.status_code==200
+    row=next(row for row in response.json()['trial_balance'] if row['code']==account.code)
+    assert row['debit']=='99999999999999.99'
+    assert row['credit']=='0.01'
+    assert row['balance']=='99999999999999.98'
+
+
 def invoice(env, number, **fields):
     return m.Invoice.objects.create(organization=env['org'],customer=env['partner'],number=number,
         date=fields.pop('date',date(2026,10,5)),due_date=date(2026,10,6),**fields)
@@ -131,3 +143,83 @@ def test_document_number_year_uses_company_timezone(env,monkeypatch):
     env['org'].timezone='Asia/Tokyo';env['org'].save()
     with transaction.atomic():
         assert sequence(env['org'],'FAC')=='FAC-2027-00001'
+
+
+def test_direction_commercial_operational_cohorts_and_top_clients(env,monkeypatch):
+    from django.utils import timezone
+    env['org'].timezone='America/Toronto';env['org'].save()
+    now=datetime(2026,11,3,12,tzinfo=dt_timezone.utc)
+    monkeypatch.setattr(timezone,'now',lambda:now)
+    for n,(sent,decision) in enumerate([(datetime(2026,11,1,4,30,tzinfo=dt_timezone.utc),'accepted'),(datetime(2026,11,2,4,30,tzinfo=dt_timezone.utc),'sent'),(datetime(2026,11,2,5,30,tzinfo=dt_timezone.utc),'accepted')]):
+        quote=invoice(env,f'DEV-KPI-{n}',kind='quote',status='issued',quote_status=decision)
+        m.QuoteLink.objects.create(organization=env['org'],quote=quote,token_hash=str(n)*64,recipient='client@example.test',sent_at=sent,expires_at=now+timedelta(days=1))
+    start=datetime(2026,11,1,6,tzinfo=dt_timezone.utc)
+    for n,status in enumerate(['completed','planned','cancelled']):
+        m.Mission.objects.create(organization=env['org'],reference=f'MIS-KPI-{n}',vehicle=env['vehicle'],driver=env['driver'],origin='A',destination='B',departure=start,arrival=start+timedelta(hours=1),status=status,completed_at=start+timedelta(hours=2) if status=='completed' else None)
+    m.TransportOrder.objects.create(organization=env['org'],reference='CMD-KPI',customer=env['partner'],origin='A',destination='B',planned_date=date(2026,11,1))
+    m.Incident.objects.create(organization=env['org'],reference='INC-KPI',title='Incident TEST',vehicle=env['vehicle'],occurred_at=start,status='reported')
+    m.Maintenance.objects.create(organization=env['org'],vehicle=env['vehicle'],title='Entretien TEST',due_date=date(2026,11,1))
+    invoice(env,'FAC-KPI',date=date(2026,11,1),status='issued',subtotal=Decimal('100.10'))
+    invoice(env,'AVO-KPI',date=date(2026,11,1),kind='credit',status='issued',subtotal=Decimal('10.05'))
+    result=env['client'].get('/api/v2/dashboard?start=2026-11-01&end=2026-11-01')
+    assert result.status_code==200,result.data
+    data=result.data['direction'];current=data['current']
+    assert current['quotes_sent']==2 and current['quotes_accepted']==1
+    assert current['quote_acceptance_rate']=='50.00'
+    assert current['missions']==2 and current['completion_rate']=='50.00'
+    assert current['late_missions']==2 and current['vehicles_used']==1
+    assert current['orders']==1 and current['incidents']==1 and current['maintenance']==1
+    assert data['changes']['quote_acceptance_rate'] is None
+    assert data['top_clients']==[{'name':env['partner'].name,'revenue_ht':'90.05'}]
+    assert data['fleet_now']['available']==1
+    assert data['units']['quotes_sent']=='count' and data['units']['quote_acceptance_rate']=='percent'
+
+
+def test_direction_no_denominator_is_unavailable_and_finance_has_no_operations(env):
+    env['member'].role='finance';env['member'].save()
+    result=env['client'].get('/api/v2/dashboard?start=2026-10-05&end=2026-10-05')
+    assert result.status_code==200,result.data
+    data=result.data['direction'];current=data['current']
+    assert current['quotes_sent']==0 and current['quote_acceptance_rate'] is None
+    for key in ['orders','missions','completion_rate','late_missions','vehicles_used','incidents','maintenance']:
+        assert current[key] is None
+    assert data['fleet_now'] is None
+
+
+def test_direction_disabled_incidents_are_unavailable(env):
+    result=env['client'].post('/api/v2/applications',{'key':'incidents','enabled':False},format='json')
+    assert result.status_code==200,result.data
+    result=env['client'].get('/api/v2/dashboard')
+    assert result.status_code==200,result.data
+    assert result.data['direction']['current']['incidents'] is None
+
+
+def test_direction_disabled_commercial_is_unavailable(env):
+    response=env['client'].post('/api/v2/applications',{'key':'commercial','enabled':False},format='json')
+    assert response.status_code==200,response.data
+    response=env['client'].get('/api/v2/dashboard')
+    assert response.status_code==200,response.data
+    for key in ('quotes_sent','quotes_accepted','quote_acceptance_rate'):
+        assert response.data['direction']['current'][key] is None
+
+
+def test_dashboard_finance_never_receives_vehicle_ids_or_plate_alerts(env):
+    env['member'].role='finance';env['member'].save()
+    env['vehicle'].insurance_expiry=date(2026,1,1);env['vehicle'].save()
+    result=env['client'].get('/api/v2/dashboard')
+    assert result.status_code==200,result.data
+    assert result.data['fleet'] is None
+    assert result.data['active'] is None and result.data['planned'] is None
+    assert result.data['missions']==[] and result.data['alerts']==[]
+    assert env['vehicle'].plate not in str(result.data)
+
+
+def test_dashboard_receivables_do_not_offset_unrelated_paid_invoice_credits(env):
+    open_bill=invoice(env,'FAC-OPEN',status='issued',subtotal=100,total=100,paid=20)
+    paid_bill=invoice(env,'FAC-PAID',status='paid',subtotal=100,total=100,paid=100)
+    invoice(env,'AVO-OPEN',kind='credit',status='issued',original=open_bill,subtotal=20,total=20)
+    invoice(env,'AVO-PAID',kind='credit',status='issued',original=paid_bill,subtotal=100,total=100)
+    result=env['client'].get('/api/v2/dashboard')
+    assert result.status_code==200,result.data
+    assert result.data['receivable']=='60.00'
+    assert result.data['direction']['receivable_now']=='60.00'

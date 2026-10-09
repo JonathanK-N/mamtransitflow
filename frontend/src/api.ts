@@ -61,4 +61,4 @@ export async function download(path:string,name:string) {
   if(!response.ok)throw new Error('Téléchargement impossible. Vérifiez vos droits et votre session.')
   const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)
 }
-export function money(value:any,currency='GNF') { return new Intl.NumberFormat('fr-FR',{style:'currency',currency,maximumFractionDigits:['GNF','XAF','XOF'].includes(currency)?0:2}).format(Number(value||0)) }
+export function money(value:any,currency='GNF') { return new Intl.NumberFormat('fr-FR',{style:'currency',currency,maximumFractionDigits:['GNF','XAF','XOF'].includes(currency)?0:2}).format(value||0) }

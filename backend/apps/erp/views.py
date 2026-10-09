@@ -250,14 +250,15 @@ class DashboardView(ScopedView):
         from zoneinfo import ZoneInfo
         from .direction import summary
         org=self.org;today=timezone.localdate(timezone=ZoneInfo(org.timezone))
-        missions=self.queryset('missions') if self.enabled('missions') and security.allowed(self.member.role,'missions') else m.Mission.objects.none()
-        vehicles=m.Vehicle.objects.filter(organization=org) if self.enabled('vehicles') else m.Vehicle.objects.none()
+        mission_access=self.enabled('missions') and security.allowed(self.member.role,'missions')
+        fleet_access=self.enabled('vehicles') and (security.allowed(self.member.role,'vehicles') or self.member.role=='driver')
+        missions=self.queryset('missions') if mission_access else m.Mission.objects.none()
+        vehicles=m.Vehicle.objects.filter(organization=org) if fleet_access else m.Vehicle.objects.none()
         if self.member.role=='driver':vehicles=vehicles.filter(mission__driver__user=request.user).distinct()
         financial=self.enabled('invoices') and security.allowed(self.member.role,'invoices')
-        inv=m.Invoice.objects.filter(organization=org,kind='invoice').exclude(status__in=['draft','cancelled'])
-        balance=inv.aggregate(value=Sum(models.F('total')-models.F('paid')))['value'] or Decimal(0) if financial else None
-        credits=m.Invoice.objects.filter(organization=org,kind='credit',status='issued').aggregate(s=Sum('total'))['s'] or 0
-        if balance is not None:balance-=credits
+        from .crm_services import invoice_balances
+        inv=invoice_balances(m.Invoice.objects.filter(organization=org,kind='invoice',status='issued')).filter(remaining__gt=0)
+        balance=(inv.aggregate(value=Sum('remaining'))['value'] or Decimal(0)) if financial else None
         alerts=[]
         for v in vehicles:
             for field,label in [('insurance_expiry','Assurance'),('inspection_expiry','Visite technique')]:
@@ -266,8 +267,8 @@ class DashboardView(ScopedView):
         if self.enabled('stock') and security.allowed(self.member.role,'stock'):
             for item in m.StockItem.objects.filter(organization=org,quantity__lte=models.F('minimum'))[:10]:
                 alerts.append({'label':f'Stock bas · {item.name}','resource':'stock','id':str(item.pk)})
-        return Response({'fleet':vehicles.count(),'active':missions.filter(status='active').count(),
-            'planned':missions.filter(status='planned').count(),'receivable':balance,'currency':org.currency,
+        return Response({'fleet':vehicles.count() if fleet_access else None,'active':missions.filter(status='active').count() if mission_access else None,
+            'planned':missions.filter(status='planned').count() if mission_access else None,'receivable':format(balance,'.2f') if balance is not None else None,'currency':org.currency,
             'missions':serializer_for(m.Mission)(missions.order_by('departure')[:8],many=True,context=self.context()).data,
             'alerts':alerts[:20],'activity':list(missions.values('status').annotate(count=Count('id'))),
             'organization':OrganizationSerializer(org).data,'direction':summary(self,request)})

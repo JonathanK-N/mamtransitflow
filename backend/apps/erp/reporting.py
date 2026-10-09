@@ -24,7 +24,9 @@ def summary(view, request):
     for entry in entries.only('lines').iterator(chunk_size=500):
         for line in entry.lines:
             row=balances[line['account']];row['debit']+=Decimal(line['debit']);row['credit']+=Decimal(line['credit'])
-    for row in balances.values():row['balance']=row['debit']-row['credit']
+    for row in balances.values():
+        row['balance']=row['debit']-row['credit']
+        for field in ('debit','credit','balance'):row[field]=format(row[field],'.2f')
     permitted=all(view.enabled(resource) and security.allowed(view.member.role,resource) for resource in ('orders','expenses','subcontracts'))
     result={'trial_balance':list(balances.values()),'profitability':[], 'profitability_available':permitted,'currency':view.org.currency,
         'start':str(dates['start']) if 'start' in dates else None,'end':str(dates['end']) if 'end' in dates else None,
