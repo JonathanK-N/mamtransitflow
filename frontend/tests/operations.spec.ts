@@ -70,7 +70,10 @@ test('Centre : affectation, deux sessions GPS, conversation réutilisée, alerte
  try{
   await login(page,email);const center=page.locator('.operations-center');await expect(center).toBeVisible()
   await expect(center.locator('[data-operation="'+late.id+'"]')).toContainText('Horaire dépassé')
+  const plannedDay=planned.departure.slice(0,10),selectedDay=await center.getByLabel('Journée',{exact:true}).inputValue()
+  if(plannedDay!==selectedDay){await center.getByLabel('Journée',{exact:true}).fill(plannedDay);await center.getByLabel('Journée',{exact:true}).dispatchEvent('change')}
   await expect(center.locator('[data-operation="'+planned.id+'"]')).toContainText('Planifiée')
+  if(plannedDay!==selectedDay)await center.getByRole('button',{name:'Aujourd’hui',exact:true}).click()
   await expect(center.locator('[data-operation="'+done.id+'"]')).toContainText('Terminée')
   await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Flotte',exact:true}).click();await expect(center.locator('.operations-resources')).toContainText('En maintenance');await center.getByRole('navigation',{name:'Vues de l’exploitation'}).getByRole('button',{name:'Missions',exact:true}).click()
   await center.getByRole('navigation',{name:'Filtres missions'}).getByRole('button',{name:'À affecter',exact:true}).click()

@@ -13,11 +13,6 @@ test('Documents : aperçu professionnel, 200 lignes, impression, clavier et port
  const issued=await post('invoices/'+invoice.id+'/actions/issue',{})
  const quote=await post('invoices',{customer:customer.id,kind:'quote',date:'2026-10-05',due_date:'2026-10-06',lines:[{description:'Devis TEST',quantity:'1',price:'5.01',tax_rate:'18'}]})
  const credit=await post('invoices',{customer:customer.id,kind:'credit',original:invoice.id,date:'2026-10-05',due_date:'2026-10-06',lines:[{description:'Avoir TEST',quantity:'1',price:'5.01',tax_rate:'18'}]})
- const large=await post('invoices',{customer:customer.id,kind:'invoice',date:'2026-10-05',due_date:'2026-10-06',lines:[{description:'Montant exact TEST',quantity:'1',price:'99999999999999.99',tax_rate:'0'}]});await post('invoices/'+large.id+'/actions/issue',{})
- if(process.env.TF_TEST_SQLITE_PRECISION==='1'){
-  expect(process.env.TF_TEST_URL||'http://127.0.0.1:8000').toMatch(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/)
-  await page.route('**/api/v2/invoices/'+large.id,async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({response,json:{...data,subtotal:'99999999999999.99',total:'99999999999999.99',balance:'99999999999999.99'}})})
- }
  const login=async(p:any,email:string)=>{await p.goto('/connexion');await p.getByLabel('Adresse courriel').fill(email);await p.getByLabel('Mot de passe',{exact:true}).fill(password);await p.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(p.locator('.workspace,.client-portal')).toBeVisible()}
  let releaseCatalog!:()=>void,catalogRequested=false;const catalogGate=new Promise<void>(resolve=>{releaseCatalog=resolve})
  await page.route('**/api/v2/catalog',async route=>{const response=await route.fetch();catalogRequested=true;await catalogGate;await route.fulfill({response})},{times:1})
@@ -29,6 +24,16 @@ test('Documents : aperçu professionnel, 200 lignes, impression, clavier et port
  await page.emulateMedia({media:'print'});await expect(paper).toBeVisible();await expect(preview.locator('.financial-controls')).toBeHidden();expect(await paper.locator('thead').evaluate(el=>getComputedStyle(el).display)).toBe('table-header-group')
  await paper.screenshot({path:info.outputPath('financial-print.png')});if(process.env.TF_TEST_PRINT_PDF==='1')await page.pdf({path:info.outputPath('financial-200-lines.pdf'),preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'})
  await page.keyboard.press('Escape');await expect(preview).toHaveCount(0);await expect(page.getByRole('button',{name:'Aperçu du document',exact:true})).toBeFocused();await page.getByRole('dialog').getByLabel('Fermer',{exact:true}).click()
+ await page.getByRole('button',{name:'Nouveau',exact:true}).click()
+ const editor=page.getByRole('dialog');await editor.getByRole('combobox',{name:/Client/}).selectOption(customer.id);await editor.getByLabel(/^Date/).fill('2026-10-05');await editor.getByLabel(/^Échéance/).fill('2026-10-06');await editor.getByLabel('Description',{exact:true}).fill('Montant exact TEST');await editor.getByLabel('Prix unitaire',{exact:true}).fill('99999999999999.99');await editor.getByLabel('Taxe (%)',{exact:true}).fill('0')
+ const submitted=page.waitForRequest(request=>request.url().endsWith('/api/v2/invoices')&&request.method()==='POST'),created=page.waitForResponse(response=>response.url().endsWith('/api/v2/invoices')&&response.request().method()==='POST')
+ await editor.getByRole('button',{name:'Enregistrer',exact:true}).click()
+ expect((await submitted).postDataJSON().lines[0].price).toBe('99999999999999.99')
+ const createdResponse=await created;expect(createdResponse.status()).toBe(201);const large=await createdResponse.json();await expect(editor).toHaveCount(0);await post('invoices/'+large.id+'/actions/issue',{})
+ if(process.env.TF_TEST_SQLITE_PRECISION==='1'){
+  expect(process.env.TF_TEST_URL||'http://127.0.0.1:8000').toMatch(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/)
+  await page.route('**/api/v2/invoices/'+large.id,async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({response,json:{...data,subtotal:'99999999999999.99',total:'99999999999999.99',balance:'99999999999999.99'}})})
+ }
  await page.goto('/app#invoices?record='+quote.id);await page.getByRole('button',{name:'Aperçu du document',exact:true}).click();await expect(page.locator('.financial-document')).toContainText('BROUILLON');await expect(page.locator('.financial-document')).toContainText('Devis TEST');await page.keyboard.press('Escape');await page.getByRole('dialog').getByLabel('Fermer',{exact:true}).click()
  await page.goto('/app#invoices?record='+credit.id);await page.getByRole('button',{name:'Aperçu du document',exact:true}).click();await expect(page.locator('.financial-document')).toContainText('Avoir TEST');await expect(page.locator('.financial-document')).toContainText(issued.number);await page.keyboard.press('Escape');await page.getByRole('dialog').getByLabel('Fermer',{exact:true}).click()
  await page.goto('/app#invoices?record='+large.id);await page.getByRole('button',{name:'Aperçu du document',exact:true}).click();expect(await page.locator('.financial-totals').evaluate(node=>node.textContent?.replace(/\s/g,''))).toContain('99999999999999,99$US');await page.keyboard.press('Escape');await page.getByRole('dialog').getByLabel('Fermer',{exact:true}).click()
