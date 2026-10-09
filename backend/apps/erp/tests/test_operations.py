@@ -1,4 +1,6 @@
-from datetime import timedelta
+from datetime import datetime,timedelta
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 import pytest
 from django.utils import timezone
 from apps.erp import models as m
@@ -7,9 +9,13 @@ from .test_workflows import env,mission,create,act
 pytestmark=pytest.mark.django_db
 
 
-def test_center_and_resources_smoke(env):
-    trip=mission(env)
-    response=env['client'].get('/api/v2/operations/center')
+@pytest.mark.parametrize('instant',['2026-10-09T12:00:00+00:00','2026-10-09T23:30:00+00:00'])
+def test_center_and_resources_smoke(env,instant):
+    with patch('apps.erp.operations.timezone.now',return_value=datetime.fromisoformat(instant)):
+        trip=mission(env)
+        departure=datetime.fromisoformat(trip['departure'])
+        day=timezone.localtime(departure,ZoneInfo(env['org'].timezone)).date()
+        response=env['client'].get('/api/v2/operations/center',{'date':day.isoformat()})
     assert response.status_code==200,response.data
     assert response.data['kpi']['planned']==1
     assert response.data['missions']['results'][0]['id']==trip['id']
