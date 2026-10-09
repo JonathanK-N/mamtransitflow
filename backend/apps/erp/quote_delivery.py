@@ -32,7 +32,10 @@ def send_quote(request, org, actor, quote):
     except DjangoValidation:
         raise ValidationError('Renseignez une adresse courriel valide pour ce client.')
     zone = ZoneInfo(org.timezone)
-    expires = datetime.combine(quote.due_date + timedelta(days=1), time.min, zone)
+    try:
+        expires = datetime.combine(quote.due_date + timedelta(days=1), time.min, zone)
+    except OverflowError:
+        raise ValidationError('La date de validité du devis dépasse les dates prises en charge.')
     if expires <= timezone.now():
         raise ValidationError('La date de validité du devis est dépassée.')
     if quote.quote_status == 'draft' and quote.status == 'draft':

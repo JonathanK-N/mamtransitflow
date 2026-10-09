@@ -137,3 +137,15 @@ def test_quote_link_database_rejects_cross_tenant_relation(env,monkeypatch):
     quote,_=prepare(env,monkeypatch)
     with pytest.raises(IntegrityError),transaction.atomic():
         m.QuoteLink.objects.create(organization=env['other'],quote_id=quote['id'],token_hash='a'*64,recipient='customer@example.test',expires_at=timezone.now()+timedelta(days=1))
+
+
+def test_quote_expiration_boundary_does_not_send_or_issue(env,monkeypatch):
+    from datetime import date
+    quote,transport=prepare(env,monkeypatch)
+    m.Invoice.objects.filter(pk=quote['id']).update(due_date=date.max)
+    response=send(env,quote)
+    assert response.status_code==400
+    transport.assert_not_called()
+    item=m.Invoice.objects.get(pk=quote['id'])
+    assert item.status=='draft' and item.quote_status=='draft'
+    assert not m.QuoteLink.objects.filter(quote=item).exists()

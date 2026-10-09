@@ -113,3 +113,21 @@ def test_invoice_overdue_days_use_company_day(env,monkeypatch):
     response=env['client'].get('/api/v2/invoices/'+str(item.pk))
     assert response.status_code==200,response.data
     assert response.data['overdue_days']==0
+
+
+@pytest.mark.parametrize('parameters',['start=0001-01-01&end=0001-01-01','start=9999-12-31&end=9999-12-31'])
+def test_direction_date_boundaries_return_validation_error(env,parameters):
+    assert env['client'].get('/api/v2/dashboard?'+parameters).status_code==400
+
+
+def test_document_number_year_uses_company_timezone(env,monkeypatch):
+    from django.utils import timezone
+    from django.db import transaction
+    from apps.erp.services import sequence
+    env['org'].timezone='America/Toronto';env['org'].save()
+    monkeypatch.setattr(timezone,'now',lambda:datetime(2027,1,1,1,30,tzinfo=dt_timezone.utc))
+    with transaction.atomic():
+        assert sequence(env['org'],'FAC')=='FAC-2026-00001'
+    env['org'].timezone='Asia/Tokyo';env['org'].save()
+    with transaction.atomic():
+        assert sequence(env['org'],'FAC')=='FAC-2027-00001'

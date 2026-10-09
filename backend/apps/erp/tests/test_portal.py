@@ -89,3 +89,17 @@ def test_portal_invitation_rejects_foreign_partner_and_internal_account(env,monk
     assert env['client'].post('/api/v2/portal-access',{'email':'client@example.test','partner':str(foreign.pk)},format='json').status_code==404
     assert env['client'].post('/api/v2/portal-access',{'email':env['user'].courriel,'partner':str(env['partner'].pk)},format='json').status_code==400
     assert env['client'].post('/api/v2/portal-access',{'email':'client@example.test','partner':[]},format='json').status_code==400
+
+
+def test_portal_invoice_print_data_contains_only_customer_facing_fields(env,monkeypatch):
+    customer=access(env,monkeypatch)
+    env['partner'].address='Adresse client';env['partner'].tax_number='TAX-TEST';env['partner'].notes='PRIVATE-CUSTOMER-NOTES';env['partner'].save()
+    draft=invoice(env);act(env,'invoices',draft['id'],'issue')
+    item=m.Invoice.objects.get(pk=draft['id'])
+    item.lines[0]['internal_cost']='PRIVATE-COST';item.save(update_fields=['lines'])
+    response=customer.get('/api/v2/portal/invoices')
+    assert response.status_code==200,response.data
+    row=response.data['results'][0]
+    assert row['customer_details']=={'name':env['partner'].name,'address':'Adresse client','email':env['partner'].email,'tax_number':'TAX-TEST'}
+    assert set(row['lines'][0])=={'description','quantity','price','tax_rate','total'}
+    assert 'PRIVATE' not in str(response.data)

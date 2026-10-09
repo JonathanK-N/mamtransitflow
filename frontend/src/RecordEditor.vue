@@ -5,9 +5,11 @@ import { X, Plus, Trash2, Save, LoaderCircle, Download, Printer } from 'lucide-v
 import { api,download,money } from './api'
 import MissionTracking from './MissionTracking.vue'
 import PersonnelActions from './PersonnelActions.vue'
+import FinancialPreview from './FinancialPreview.vue'
 const props=defineProps<{schema:any,record:any,currency:string,admin?:boolean,prefill?:any,assignment?:{mission?:string,order?:string,expected_updated_at:string},scope?:string,availableResources?:boolean}>()
 const emit=defineEmits(['close','saved','contact','existing'])
 const data=ref<Record<string,any>>({}),options=ref<Record<string,any[]>>({}),error=ref(''),saving=ref(false)
+const financialPreview=ref<any>(null),previewBusy=ref(false)
 const initializing=ref(true),duplicates=ref<any[]>([]),duplicateConfirmed=ref(false)
 const assignmentFields=['driver','vehicle','departure','arrival','origin','destination','loaded_quantity','notes']
 const fields=computed(()=>props.schema.fields.filter((f:any)=>!f.readonly&&!(props.schema.key==='employees'&&props.record&&f.name==='active')&&(!props.assignment||assignmentFields.includes(f.name))))
@@ -35,7 +37,7 @@ function addLine(){
  if(!data.value.lines)data.value.lines=[]
  data.value.lines.push(lineType.value==='journal'?{account:'',debit:0,credit:0}:lineType.value==='purchase'?{item:'',quantity:1,price:0}:{description:'',quantity:1,price:0,tax_rate:0})
 }
-function keydown(e:KeyboardEvent){if(e.key==='Escape')emit('close')}
+function keydown(e:KeyboardEvent){if(e.key==='Escape'&&!financialPreview.value&&!e.defaultPrevented)emit('close')}
 onMounted(async()=>{
  const resources=new Set<string>()
  for(const f of fields.value){
@@ -80,10 +82,10 @@ async function save(){
   }
   if(props.assignment)await scopedApi('operations/assign','POST',{...props.assignment,fields:body})
   else await scopedApi(props.schema.key+(props.record?'/'+props.record.id:''),props.record?'PATCH':'POST',body)
-  emit('saved')
+  if(alive)emit('saved')
  }catch(e:any){error.value=e.message}finally{saving.value=false}
 }
-function print(){window.print()}
+async function print(event?:Event){const returnFocus=event?.currentTarget as HTMLElement;if(props.schema.key!=='invoices'){window.print();return}previewBusy.value=true;error.value='';try{const [organization,customer]=await Promise.all([scopedApi('organization'),scopedApi('partners/'+props.record.customer)]);if(alive)financialPreview.value={organization,customer,returnFocus}}catch(e:any){if(alive)error.value=e.message}finally{previewBusy.value=false}}
 </script>
 <template>
  <div class="modal-backdrop" @click.self="$emit('close')"><section class="editor" role="dialog" aria-modal="true" :aria-label="schema.label">
@@ -120,7 +122,8 @@ function print(){window.print()}
    </div>
    <div v-if="record&&['invoices','supplier-bills'].includes(schema.key)" class="invoice-summary"><p>Total HT <strong>{{money(record.subtotal,currency)}}</strong></p><p>Taxes <strong>{{money(record.tax,currency)}}</strong></p><p>Total TTC <strong>{{money(record.total,currency)}}</strong></p><p>Réglé <strong>{{money(record.paid,currency)}}</strong></p></div>
    <MissionTracking v-if="record&&schema.key==='missions'&&['active','completed','cancelled'].includes(record.status)" :mission="record" :can-track="schema.canTrack" :user-id="schema.userId"/>
-   <footer class="editor-footer"><button type="button" class="secondary" @click="$emit('close')">Fermer</button><button v-if="record" type="button" class="secondary" @click="print"><Printer :size="16"/>Imprimer</button><button v-if="!locked" class="primary" :disabled="saving||availabilityBusy"><LoaderCircle v-if="saving" class="spin" :size="16"/><Save v-else :size="16"/>Enregistrer</button></footer>
+   <footer class="editor-footer"><button type="button" class="secondary" @click="$emit('close')">Fermer</button><button v-if="record" type="button" class="secondary" :disabled="previewBusy" @click="print"><Printer :size="16"/>{{schema.key==='invoices'?'Aperçu du document':'Imprimer'}}</button><button v-if="!locked" class="primary" :disabled="saving||availabilityBusy"><LoaderCircle v-if="saving" class="spin" :size="16"/><Save v-else :size="16"/>Enregistrer</button></footer>
   </form>
  </section></div>
+ <FinancialPreview v-if="financialPreview" :invoice="record" v-bind="financialPreview" @close="financialPreview=null"/>
 </template>

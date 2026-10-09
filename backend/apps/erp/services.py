@@ -32,7 +32,7 @@ def audit(org, actor, action, obj, **detail):
 def sequence(org, prefix):
     # Parent lock also serializes the first creation of a counter.
     m.Organization.objects.select_for_update().get(pk=org.pk)
-    key = f'{prefix}-{timezone.now().year}'
+    key = f'{prefix}-{timezone.localdate(timezone=ZoneInfo(org.timezone)).year}'
     seq, _ = m.Sequence.objects.get_or_create(organization=org, key=key)
     seq.value += 1
     seq.save(update_fields=['value'])

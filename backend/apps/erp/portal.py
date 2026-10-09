@@ -170,7 +170,7 @@ class PortalView(ScopedView):
         elif resource=='invoices':
             from .crm_services import invoice_balances,payment_state
             qs=invoice_balances(m.Invoice.objects.filter(organization=self.org,customer=partner,kind__in=['invoice','credit'],status__in=['issued','paid']))
-            def output(x):return dict(id=str(x.pk),number=x.number,kind=x.kind,date=x.date,due_date=x.due_date,subtotal=x.subtotal,tax=x.tax,total=x.total,paid=x.paid,balance=str(max(0,x.remaining)),status=x.status,payment_state=payment_state(x),lines=x.lines,notes=x.notes)
+            def output(x):return dict(id=str(x.pk),number=x.number,kind=x.kind,date=x.date,due_date=x.due_date,subtotal=x.subtotal,tax=x.tax,total=x.total,paid=x.paid,balance=str(max(0,x.remaining)),status=x.status,payment_state=payment_state(x),lines=[{key:line.get(key,'') for key in ('description','quantity','price','tax_rate','total')} for line in x.lines],notes=x.notes,customer_details={'name':partner.name,'address':partner.address,'email':partner.email,'tax_number':partner.tax_number})
         elif resource=='documents':
             qs=self.documents()
             def output(x):return dict(id=str(x.pk),title=x.title,created_at=x.created_at)

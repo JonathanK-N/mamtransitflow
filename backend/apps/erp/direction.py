@@ -29,6 +29,13 @@ def summary(view, request):
     if not 1<=length<=366:
         raise ValidationError('Choisissez une période de 1 à 366 jours.')
 
+    try:
+        previous_start=start-timedelta(days=length)
+        previous_end=start-timedelta(days=1)
+        end+timedelta(days=1)
+    except OverflowError:
+        raise ValidationError('Cette période dépasse les dates prises en charge.')
+
     def enabled(resource):
         return view.enabled(resource) and security.allowed(view.member.role,resource)
 
@@ -57,9 +64,9 @@ def summary(view, request):
     from .crm_services import invoice_balances
     unpaid=invoice_balances(m.Invoice.objects.filter(organization=org,kind='invoice',status='issued')).filter(remaining__gt=0)
     current=period(start,end)
-    previous=period(start-timedelta(days=length),start-timedelta(days=1))
-    return {'start':str(start),'end':str(end),'previous_start':str(start-timedelta(days=length)),
-        'previous_end':str(start-timedelta(days=1)),'timezone':org.timezone,'today':str(today),
+    previous=period(previous_start,previous_end)
+    return {'start':str(start),'end':str(end),'previous_start':str(previous_start),
+        'previous_end':str(previous_end),'timezone':org.timezone,'today':str(today),
         'current':current,'previous':previous,
         'changes':{key:format(Decimal(value)-Decimal(previous[key]),'.2f') if value is not None else None for key,value in current.items()},
         'receivable_now':format(total(unpaid,'remaining'),'.2f'),

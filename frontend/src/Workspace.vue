@@ -65,28 +65,43 @@ function display(row:any,field:string){
  if(['departure','arrival','created_at'].includes(field))return new Intl.DateTimeFormat('fr-FR',{dateStyle:'short',timeStyle:'short',timeZone:org.value.timezone}).format(new Date(value))
  return value
 }
+let alive=true,loadVersion=0,scopeVersion=0
 function navigate(key:string){conversationId.value='';current.value=key;page.value=1;query.value='';status.value='';mobile.value=false;editor.value=false;error.value='';history.replaceState({},'','/app#'+key);load()}
 async function bootstrap(){
  if(org.value.role==='client'){loading.value=false;return}
- loading.value=true;error.value=''
- try{const [catalogue,applications]=await Promise.all([api('catalog'),api('applications')]);catalog.value=catalogue.resources;portalAdmin.value=catalogue.customer_portal;customApps.value=applications.custom.filter((a:any)=>a.enabled);const customRoute=location.hash.startsWith('#custom-')?location.hash.slice(8):'';if(customRoute){const found=customApps.value.find((a:any)=>a.id===customRoute);if(found){activeCustom.value=found;current.value='custom'}}if(current.value==='custom'&&activeCustom.value&&!customApps.value.some((a:any)=>a.id===activeCustom.value.id)){current.value='applications';activeCustom.value=null}if(!permitted(current.value))current.value=org.value.role==='driver'&&permitted('missions')?'missions':'dashboard';await load()}catch(e:any){error.value=e.message}finally{loading.value=false}
+ const scope=org.value.id,version=scopeVersion;loading.value=true;error.value=''
+ try{const [catalogue,applications]=await Promise.all([api('catalog','GET',undefined,true,scope),api('applications','GET',undefined,true,scope)]);if(!alive||version!==scopeVersion||scope!==org.value.id)return;catalog.value=catalogue.resources;portalAdmin.value=catalogue.customer_portal;customApps.value=applications.custom.filter((a:any)=>a.enabled);const [latestRoute,latestParameters]=location.hash.slice(1).split('?');if(latestRoute&&permitted(latestRoute)){current.value=latestRoute;conversationId.value=new URLSearchParams(latestParameters).get('conversation')||''}const customRoute=location.hash.startsWith('#custom-')?location.hash.slice(8):'';if(customRoute){const found=customApps.value.find((a:any)=>a.id===customRoute);if(found){activeCustom.value=found;current.value='custom'}}if(current.value==='custom'&&activeCustom.value&&!customApps.value.some((a:any)=>a.id===activeCustom.value.id)){current.value='applications';activeCustom.value=null}if(!permitted(current.value))current.value=org.value.role==='driver'&&permitted('missions')?'missions':'dashboard';await load()}catch(e:any){if(alive&&version===scopeVersion)error.value=e.message}finally{if(alive&&version===scopeVersion)loading.value=false}
 }
 async function load(){
- if(current.value==='operations'&&operationsRef.value){operationsRef.value.refresh();return}
- if(current.value==='clients'&&clientsRef.value){try{await clientsRef.value.refresh()}catch(e:any){error.value=e.message}return}
+ const scope=org.value.id,key=current.value,version=++loadVersion
+ const valid=()=>alive&&version===loadVersion&&scope===org.value.id&&key===current.value
+ if(key==='operations'&&operationsRef.value){operationsRef.value.refresh();return}
+ if(key==='clients'&&clientsRef.value){try{await clientsRef.value.refresh()}catch(e:any){if(valid())error.value=e.message}return}
  loading.value=true;error.value=''
  try{
-  if(['operations','clients','tracking','applications','custom','portal-admin','field','messages','notifications'].includes(current.value))return
-  if(current.value==='dashboard')dashboard.value=await api('dashboard')
-  else if(current.value==='team')team.value=await api('team')
-  else if(current.value==='reports')reports.value=await api('reports')
-  else if(current.value==='settings')settingsForm.value=await api('organization')
-  else{const r=await api(current.value+'?page='+page.value+'&q='+encodeURIComponent(query.value)+'&status='+status.value);rows.value=r.results;count.value=r.count}
- }catch(e:any){error.value=e.message}finally{loading.value=false}
+  if(['operations','clients','tracking','applications','custom','portal-admin','field','messages','notifications'].includes(key))return
+  const path=key==='settings'?'organization':['dashboard','team','reports'].includes(key)?key:key+'?page='+page.value+'&q='+encodeURIComponent(query.value)+'&status='+status.value
+  const result=await api(path,'GET',undefined,true,scope)
+  if(!valid())return
+  if(key==='dashboard')dashboard.value=result
+  else if(key==='team')team.value=result
+  else if(key==='reports')reports.value=result
+  else if(key==='settings')settingsForm.value=result
+  else{rows.value=result.results;count.value=result.count}
+ }catch(e:any){if(valid())error.value=e.message}finally{if(valid())loading.value=false}
 }
+
 function openCustom(app:any){activeCustom.value=app;current.value='custom';mobile.value=false;editor.value=false;history.replaceState({},'','/app#custom-'+app.id)}
-async function applicationsChanged(){const [c,a]=await Promise.all([api('catalog'),api('applications')]);catalog.value=c.resources;portalAdmin.value=c.customer_portal;customApps.value=a.custom.filter((x:any)=>x.enabled);dashboard.value=null}
-async function switchOrg(){await disableDevicePush();stopActivity();conversationId.value='';activeCustom.value=null;setOrganization(orgId.value);org.value=props.session.organizations.find((x:any)=>x.id===orgId.value);current.value=home(org.value.role);rows.value=[];dashboard.value=null;editor.value=false;await bootstrap();if(org.value.role!=='client'){startActivity();setPushAccount(props.session.user.id,orgId.value)}}
+async function applicationsChanged(){const scope=org.value.id,version=scopeVersion;const [c,a]=await Promise.all([api('catalog','GET',undefined,true,scope),api('applications','GET',undefined,true,scope)]);if(!alive||version!==scopeVersion||scope!==org.value.id)return;catalog.value=c.resources;portalAdmin.value=c.customer_portal;customApps.value=a.custom.filter((x:any)=>x.enabled);dashboard.value=null}
+async function switchOrg(){
+ const target=orgId.value,version=++scopeVersion;loadVersion++;loading.value=true;stopActivity()
+ clearTimeout(searchTimer.value);conversationId.value='';activeCustom.value=null;rows.value=[];count.value=0;dashboard.value=null;reports.value=null;team.value={members:[],invitations:[]};settingsForm.value={};catalog.value=[];customApps.value=[];portalAdmin.value=false;editor.value=false;selected.value=null;completing.value=null;receiptMission.value=null;businessAction.value=null;inviteLink.value='';busy.value=false;error.value='';notice.value='';query.value='';status.value='';page.value=1;mobile.value=false
+ try{await disableDevicePush()}catch{/* Le changement d’entreprise reste disponible sans push. */}
+ if(!alive||version!==scopeVersion)return
+ setOrganization(target);org.value=props.session.organizations.find((x:any)=>x.id===target);current.value=home(org.value.role);history.replaceState({},'','/app#'+current.value)
+ await bootstrap();if(alive&&version===scopeVersion&&org.value.role!=='client'){startActivity();setPushAccount(props.session.user.id,target)}
+}
+
 function open(record:any=null){selected.value=record;editor.value=true}
 async function saved(){editor.value=false;notify('Enregistrement sauvegardé.');await load()}
 function notify(text:string){notice.value=text;setTimeout(()=>notice.value='',5000)}
@@ -98,27 +113,28 @@ async function action(row:any,key:string){
  try{await api(`${current.value}/${row.id}/actions/${key}`,'POST');notify('Opération effectuée.');await load()}catch(e:any){error.value=e.message}finally{busy.value=false}
 }
 async function exportCsv(){try{await download(current.value+'/export',`transitflow-${current.value}.csv`)}catch(e:any){error.value=e.message}}
-async function invite(){busy.value=true;error.value='';try{const r=await api('team','POST',invitation.value);inviteLink.value=r.link;notify(r.sent?'Invitation envoyée.':'Invitation créée. Copiez le lien pour la transmettre.');await load()}catch(e:any){error.value=e.message}finally{busy.value=false}}
+async function invite(){const scope=org.value.id,version=scopeVersion;const valid=()=>alive&&scope===org.value.id&&version===scopeVersion;busy.value=true;error.value='';try{const r=await api('team','POST',invitation.value,true,scope);if(!valid())return;inviteLink.value=r.link;notify(r.sent?'Invitation envoyée.':'Invitation créée. Copiez le lien pour la transmettre.');await load()}catch(e:any){if(valid())error.value=e.message}finally{if(valid())busy.value=false}}
 async function memberChange(member:any){error.value='';try{await api('team','PATCH',{id:member.id,role:member.role,active:member.active});notify('Accès mis à jour.')}catch(e:any){error.value=e.message;await load()}}
-async function saveSettings(){busy.value=true;error.value='';try{const r=await api('organization','PATCH',settingsForm.value);Object.assign(org.value,r);notify('Paramètres enregistrés.')}catch(e:any){error.value=e.message}finally{busy.value=false}}
+async function saveSettings(){const scope=org.value.id,version=scopeVersion;const valid=()=>alive&&scope===org.value.id&&version===scopeVersion;busy.value=true;error.value='';try{const r=await api('organization','PATCH',settingsForm.value,true,scope);if(!valid())return;Object.assign(org.value,r);notify('Paramètres enregistrés.')}catch(e:any){if(valid())error.value=e.message}finally{if(valid())busy.value=false}}
 function search(){clearTimeout(searchTimer.value);searchTimer.value=setTimeout(()=>{page.value=1;load()},300)}
 async function openContext(context:any){
- if(context.organization&&context.organization!==orgId.value){if(!props.session.organizations.some((o:any)=>o.id===context.organization))return;orgId.value=context.organization;await switchOrg()}
+ if(context.organization&&context.organization!==orgId.value){if(!props.session.organizations.some((o:any)=>o.id===context.organization))return;orgId.value=context.organization;await switchOrg();if(context.organization!==orgId.value)return}
  if(context.conversation){navigate('messages');conversationId.value=context.conversation;history.replaceState({},'','/app#messages?conversation='+encodeURIComponent(context.conversation));return}
  const key=context.module||'notifications';if(!permitted(key))return;navigate(key)
  if(context.id&&key==='clients'){await nextTick();await clientsRef.value?.show(context.id);return}
- if(context.id){try{const record=await api(key+'/'+context.id);open(record)}catch(e:any){error.value=e.message}}
+ if(context.id){try{const scope=org.value.id,record=await api(key+'/'+context.id,'GET',undefined,true,scope);if(alive&&scope===org.value.id&&current.value===key)open(record)}catch(e:any){error.value=e.message}}
 }
-async function missionChat(row:any){try{const conversation=await api('messaging/conversations','POST',{kind:'mission',mission:row.id});await openContext({conversation:conversation.id})}catch(e:any){error.value=e.message}}
-onMounted(async()=>{if(props.accessNotice)notify(props.accessNotice);const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);const tenant=params.get('organization');if(tenant&&props.session.organizations.some((o:any)=>o.id===tenant)){orgId.value=tenant;setOrganization(tenant);org.value=props.session.organizations.find((o:any)=>o.id===tenant)}if(route&&[...Object.keys(columns),'reports','team','settings','applications','portal-admin','field','messages','notifications','tracking','operations','clients'].includes(route))current.value=route;conversationId.value=params.get('conversation')||'';await bootstrap();if(org.value.role!=='client'){startActivity();setPushAccount(props.session.user.id,orgId.value);if(params.get('record'))await openContext({module:route,id:params.get('record')})}})
-async function hashChanged(){const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);if(params.get('organization')&&params.get('organization')!==orgId.value){const target=params.get('organization')!;if(!props.session.organizations.some((o:any)=>o.id===target))return;orgId.value=target;await switchOrg()}if(!permitted(route))return;current.value=route;conversationId.value=params.get('conversation')||'';await load();if(params.get('record'))await openContext({module:route,id:params.get('record')})}
+async function missionChat(row:any){const scope=org.value.id,version=scopeVersion;try{const conversation=await api('messaging/conversations','POST',{kind:'mission',mission:row.id},true,scope);if(!alive||scope!==org.value.id||version!==scopeVersion)return;await openContext({conversation:conversation.id})}catch(e:any){error.value=e.message}}
+onMounted(async()=>{const version=scopeVersion;if(props.accessNotice)notify(props.accessNotice);const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);const tenant=params.get('organization');if(tenant&&props.session.organizations.some((o:any)=>o.id===tenant)){orgId.value=tenant;setOrganization(tenant);org.value=props.session.organizations.find((o:any)=>o.id===tenant)}if(route&&[...Object.keys(columns),'reports','team','settings','applications','portal-admin','field','messages','notifications','tracking','operations','clients'].includes(route))current.value=route;conversationId.value=params.get('conversation')||'';await bootstrap();if(alive&&version===scopeVersion&&org.value.role!=='client'){startActivity();setPushAccount(props.session.user.id,orgId.value);const [latestRoute,latestParameters]=location.hash.slice(1).split('?');const latest=new URLSearchParams(latestParameters);if(latest.get('record'))await openContext({module:latestRoute,id:latest.get('record')})}})
+async function hashChanged(){const [route,parameters]=location.hash.slice(1).split('?');const params=new URLSearchParams(parameters);if(params.get('organization')&&params.get('organization')!==orgId.value){const target=params.get('organization')!;if(!props.session.organizations.some((o:any)=>o.id===target))return;orgId.value=target;await switchOrg()}if(!permitted(route))return;current.value=route;conversationId.value=params.get('conversation')||'';await load();if(alive&&current.value===route&&params.get('record'))await openContext({module:route,id:params.get('record')})}
 window.addEventListener('hashchange',hashChanged)
-onUnmounted(()=>{stopActivity();window.removeEventListener('hashchange',hashChanged)})
+onUnmounted(()=>{alive=false;loadVersion++;scopeVersion++;stopActivity();window.removeEventListener('hashchange',hashChanged)})
 
 </script>
 <template>
  <DriverTracking v-if="org.role==='client'"/>
- <ClientPortal v-if="org.role==='client'" :key="org.id" :session="session" :organization="org" @logout="$emit('logout')" @organization="orgId=$event;switchOrg()"/>
+ <div v-if="org.role==='client'&&loading" class="loading-panel" role="status">Chargement de votre espace...</div>
+ <ClientPortal v-else-if="org.role==='client'" :key="org.id" :session="session" :organization="org" @logout="$emit('logout')" @organization="orgId=$event;switchOrg()"/>
  <div v-else class="workspace" @keydown.esc="mobile=false">
   <div v-if="mobile" class="sidebar-overlay" @click="mobile=false"></div>
   <aside class="sidebar" :class="{shown:mobile}" aria-label="Modules de l’entreprise" :inert="drawerScreen&&!mobile" :aria-hidden="drawerScreen&&!mobile" @keydown="menuKeys"><button v-if="mobile" class="icon-btn drawer-close" aria-label="Fermer le menu" @click="mobile=false"><X/></button><a class="brand" href="/app" @click.prevent="navigate('dashboard')"><img class="brand-mark" src="/icons/icon-192.png" width="36" height="36" alt=""/>Transit<span>Flow</span><small>ERP</small></a>

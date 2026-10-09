@@ -85,6 +85,18 @@ jobs:
             python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
             PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-direction-$project pnpm --dir frontend exec playwright test direction.spec.ts --project=$project --output=test-results-direction-$project || exit 1
           done
+      - name: Isolation entreprise et navigation sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-scope-$project pnpm --dir frontend exec playwright test scope.spec.ts --project=$project --output=test-results-scope-$project || exit 1
+          done
+      - name: Documents professionnels sur cinq appareils
+        run: |
+          for project in chromium android iphone ipad small; do
+            python backend/manage.py shell -c "from apps.erp.models import AuthLimit; AuthLimit.objects.all().delete()"
+            PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-documents-$project pnpm --dir frontend exec playwright test documents.spec.ts --project=$project --output=test-results-documents-$project || exit 1
+          done
       - name: Portail client création et invitation sur cinq appareils
         run: |
           for project in chromium android iphone ipad small; do
@@ -165,6 +177,10 @@ jobs:
           name: recette-navigateur
           path: |
             backend/erp-tests.xml
+            frontend/playwright-report-scope-*
+            frontend/test-results-scope-*
+            frontend/playwright-report-documents-*
+            frontend/test-results-documents-*
             frontend/playwright-report-crm-*
             frontend/test-results-crm-*
             frontend/playwright-report-operations-*
