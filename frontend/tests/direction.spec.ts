@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test'
 
 test('Direction : période, comparaison, créances et accès mobile au pilotage',async({page,request},info)=>{
  const stamp=Date.now()+'-'+info.project.name,email='direction-'+stamp+'@example.test',password='Direction-Test-938!'
- const registered=await request.post('/api/v2/auth/register',{data:{name:'Direction TEST',email,password,organization:{name:'TEST Direction '+stamp,country:'GN',currency:'USD',timezone:'Africa/Conakry',activities:['freight']}}});expect(registered.status()).toBe(201)
+ const registered=await request.post('/api/v2/auth/register',{data:{name:'Direction TEST',email,password,organization:{name:'TEST Direction '+stamp,country:'GN',currency:'USD',timezone:'America/Toronto',activities:['freight']}}});expect(registered.status()).toBe(201)
  const owner=await registered.json(),headers={Authorization:'Bearer '+owner.access,'X-Organization':owner.organizations[0].id}
  const post=async(path:string,data:any)=>{const r=await request.post('/api/v2/'+path,{headers,data});expect(r.ok(),await r.text()).toBeTruthy();return r.json()}
  const customer=await post('partners',{name:'TEST Client Direction'})
@@ -31,4 +31,12 @@ test('Direction : période, comparaison, créances et accès mobile au pilotage'
  await expect(reports).toContainText('TEST-REPORT-'+stamp);await expect(reports).toContainText('100,01');await expect(reports).toContainText('1 commande(s)')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  await page.screenshot({path:info.outputPath('reports-complete.png'),fullPage:true})
+ await page.clock.setFixedTime(new Date('2026-10-06T01:30:00Z'))
+ await page.goto('/app#clients');await page.getByRole('button',{name:'TEST Client Direction',exact:true}).click()
+ await page.getByRole('button',{name:'Créer un devis',exact:true}).click()
+ let editor=page.getByRole('dialog');await expect(editor.getByLabel(/^Date/)).toHaveValue('2026-10-05');await expect(editor.getByLabel(/^Échéance/)).toHaveValue('2026-10-05');await editor.getByLabel('Fermer',{exact:true}).click()
+ await page.getByRole('button',{name:'Créer une commande',exact:true}).click()
+ editor=page.getByRole('dialog');await expect(editor.getByLabel(/^Date prévue/)).toHaveValue('2026-10-05');await editor.getByLabel('Fermer',{exact:true}).click()
+ await page.getByRole('button',{name:'Factures',exact:true}).click();await page.getByRole('button',{name:'Enregistrer un paiement',exact:true}).click()
+ editor=page.getByRole('dialog');await expect(editor.getByLabel(/^Date/)).toHaveValue('2026-10-05');await editor.getByLabel('Fermer',{exact:true}).click()
 })

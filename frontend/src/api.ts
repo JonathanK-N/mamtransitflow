@@ -62,3 +62,9 @@ export async function download(path:string,name:string) {
   const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)
 }
 export function money(value:any,currency='GNF') { return new Intl.NumberFormat('fr-FR',{style:'currency',currency,maximumFractionDigits:['GNF','XAF','XOF'].includes(currency)?0:2}).format(value||0) }
+
+export function companyDate(timezone='UTC') {
+  const parts=new Intl.DateTimeFormat('en',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date())
+  const part=(type:string)=>parts.find(p=>p.type===type)!.value
+  return `${part('year')}-${part('month')}-${part('day')}`
+}

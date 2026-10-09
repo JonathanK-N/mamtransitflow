@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {ref,onMounted,onUnmounted,computed} from 'vue'
-import {api as requestApi,money} from './api'
+import {api as requestApi,money,companyDate} from './api'
 import RecordEditor from './RecordEditor.vue'
 import MissionCompletion from './MissionCompletion.vue'
 import DeliveryReceipt from './DeliveryReceipt.vue'
@@ -22,13 +22,13 @@ async function show(id:string){await run(async()=>{detail.value=await api('clien
 async function loadHistory(){if(!detail.value||tab.value==='overview')return;const version=++historyVersion;await run(async()=>{const id=detail.value.customer.id,key=tab.value;let path=key==='activity'?`clients/${id}/activity?page=${historyPage.value}`:`${key==='quotes'?'invoices':key}?customer=${id}&page=${historyPage.value}${['quotes','invoices'].includes(key)?'&kind='+(key==='quotes'?'quote':'invoice'):''}`;const r=await api(path);if(version!==historyVersion||tab.value!==key||detail.value?.customer.id!==id)return;history.value=r.results;historyCount.value=r.count})}
 function selectTab(key:string){tab.value=key;history.value=[];historyCount.value=0;historyPage.value=1;loadHistory()}
 function edit(resource:string,row:any=null,defaults:any=null){editor.value=props.catalog.find(x=>x.key===resource);record.value=row;prefill.value=defaults}
-function create(resource:string,kind?:string){const today=new Date().toISOString().slice(0,10);edit(resource,null,{customer:detail.value.customer.id,...(resource==='invoices'?{kind:kind||'invoice',date:today,due_date:today,lines:[{description:'Transport',quantity:'1',price:'0',tax_rate:'0'}]}:resource==='orders'?{planned_date:today}:{} )})}
+function create(resource:string,kind?:string){const today=companyDate(props.org.timezone);edit(resource,null,{customer:detail.value.customer.id,...(resource==='invoices'?{kind:kind||'invoice',date:today,due_date:today,lines:[{description:'Transport',quantity:'1',price:'0',tax_rate:'0'}]}:resource==='orders'?{planned_date:today}:{} )})}
 async function saved(){editor.value=null;if(detail.value){const id=detail.value.customer.id;detail.value=await api('clients/'+id);await loadHistory()}await load()}
 async function archive(){await run(async()=>{await api(`clients/${detail.value.customer.id}/${detail.value.customer.archived_at?'restore':'archive'}`,'POST',{});await show(detail.value.customer.id);await load()})}
 async function commercial(row:any,action:string){await run(async()=>{await api(`commercial/${row.id}/${action}`,'POST',{});await saved()})}
 async function act(resource:string,row:any,action:string){await run(async()=>{await api(`${resource}/${row.id}/actions/${action}`,'POST',{});await saved()})}
 function plan(row:any){const departure=row.window_start||row.planned_date+'T08:00:00';edit('missions',null,{order:row.id,origin:row.origin,destination:row.destination,departure,arrival:row.window_end||row.planned_date+'T12:00:00',loaded_quantity:row.quantity,notes:row.notes})}
-function payment(row:any){edit('payments',null,{invoice:row.id,date:new Date().toISOString().slice(0,10),amount:row.balance||'',reference:''})}
+function payment(row:any){edit('payments',null,{invoice:row.id,date:companyDate(props.org.timezone),amount:row.balance||'',reference:''})}
 async function invite(){await run(async()=>{await api('portal-access','POST',{mode:'existing',partner:detail.value.customer.id,email:detail.value.customer.email});await show(detail.value.customer.id)})}
 async function portalAction(action:string){await run(async()=>{await api(`portal-access/invitations/${detail.value.portal.invitation.id}/${action}`,'POST',{});await show(detail.value.customer.id)})}
 async function access(){await run(async()=>{await api('portal-access','PATCH',{id:detail.value.portal.access.id,active:!detail.value.portal.access.active});await show(detail.value.customer.id)})}
