@@ -11,13 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: redis:8.2-alpine
+        image: public.ecr.aws/docker/library/redis:8.2-alpine
         ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 10
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_DB: transitflow
           POSTGRES_USER: transitflow
@@ -160,7 +160,7 @@ jobs:
           export CHROME_PATH=$(node -e "process.stdout.write(require('@playwright/test').chromium.executablePath())")
           pnpm --config.enable-global-virtual-store=false dlx lighthouse@13.5.0 http://127.0.0.1:8000/connexion --chrome-flags="--headless --no-sandbox" --only-categories=performance,accessibility,best-practices --output=json --output=html --output-path=lighthouse-mobile --quiet
       - name: Construction de l’image de production
-        run: docker build --tag transitflow-recette .
+        run: docker build --build-arg BASE_IMAGE_REGISTRY=public.ecr.aws/docker/library --tag transitflow-recette .
       - name: Stockage persistant et abandon des privileges
         run: |
           docker volume create transitflow-private-recette

@@ -1,5 +1,6 @@
 # Auteur : Jonathan Kakesa (JonathanK-N).
-FROM node:22-bookworm-slim AS frontend
+ARG BASE_IMAGE_REGISTRY=docker.io/library
+FROM ${BASE_IMAGE_REGISTRY}/node:22-bookworm-slim AS frontend
 WORKDIR /build
 RUN npm install --global pnpm@11.25.0
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
@@ -7,7 +8,7 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm run build
 
-FROM python:3.12-slim-bookworm
+FROM ${BASE_IMAGE_REGISTRY}/python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TF_DEBUG=0
 WORKDIR /app
 COPY requirements.txt ./
